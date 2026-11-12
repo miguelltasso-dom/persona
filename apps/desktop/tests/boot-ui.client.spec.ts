@@ -21,11 +21,11 @@ it('keeps recovery visible over the upstream loader until Persona has painted', 
   } })
   Object.defineProperty(document, 'currentScript', { configurable: true, value: { src: 'https://persona.local/boot.js?lang=pt-BR&first=1' } })
   window.eval(readFileSync(resolve('apps/desktop/renderer/persona-boot/boot.js'), 'utf8'))
-  await vi.advanceTimersByTimeAsync(100)
+  await vi.advanceTimersByTimeAsync(500)
   expect(overlay.classList.contains('leaving')).toBe(false)
   expect(document.getElementById('root')!.hidden).toBe(true)
   expect(document.getElementById('root')!.getAttribute('aria-hidden')).toBe('true')
-  expect(shadow.getElementById('boot-status')!.textContent).toBe('Abrindo a Persona…')
+  expect(shadow.getElementById('boot-status')!.textContent).toBe('Acordando o time…')
   publish!({ code: 'boot_failed', message: 'Forced startup failure' })
   expect(shadow.querySelector<HTMLElement>('.error')!.hidden).toBe(false)
   const button = shadow.getElementById('boot-retry') as HTMLButtonElement
@@ -33,7 +33,7 @@ it('keeps recovery visible over the upstream loader until Persona has painted', 
   button.click()
   expect(retry).toHaveBeenCalledOnce()
   document.getElementById('root')!.innerHTML = '<main data-persona-root="">Sua equipe</main>'
-  await vi.advanceTimersByTimeAsync(100)
+  await vi.advanceTimersByTimeAsync(1000) // the scene (started at 400 ms) stays until its last face has arrived
   expect(overlay.classList.contains('leaving')).toBe(true)
   expect(document.getElementById('root')!.hidden).toBe(false)
   expect(document.getElementById('root')!.hasAttribute('aria-hidden')).toBe(false)

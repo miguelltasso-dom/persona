@@ -16,3 +16,9 @@
   right: 0;
   box-sizing: border-box;
 }
+
+/* A raiz rola e recebe foco pelo teclado (tabIndex 0): o anel do DS mostra onde o foco está. */
+.root:focus-visible {
+  outline: 2px solid var(--persona-focus-ring);
+  outline-offset: 2px;
+}

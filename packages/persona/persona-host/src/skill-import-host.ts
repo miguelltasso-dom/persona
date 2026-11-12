@@ -29,6 +29,22 @@ export interface SkillImportHostDeps {
   readonly screens: SkillImportScreens
   /** The network (a test replaces it). */
   readonly fetch?: typeof fetch
+  /** Carbon P0-03: how long the WHOLE download may take (default 15 s). A server that never answers must end with a sentence, not hold the host. */
+  readonly timeoutMs?: number
+}
+
+/** Default deadline of one download. */
+export const SKILL_DOWNLOAD_TIMEOUT_MS = 15_000
+
+/** Ends `work` with `onTimeout()` when the signal fires, even if the thing behind it ignores the signal (an injected fetch, a stalled stream). */
+function within<T>(work: Promise<T>, signal: AbortSignal, onTimeout: () => Error): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<never>((_resolve, reject) => {
+      if (signal.aborted) { reject(onTimeout()); return }
+      signal.addEventListener('abort', () => { reject(onTimeout()) }, { once: true })
+    }),
+  ])
 }
 
 /** The result of asking the source for a new version. */
@@ -120,13 +136,15 @@ export class SkillImportHost {
   private async download(link: ReturnType<typeof parseSkillLink>): Promise<Uint8Array> {
     if (link === undefined) throw new SkillImportError('Cole um link do GitHub (github.com/dono/repositorio).')
     const fetchImpl = this.deps.fetch ?? fetch
+    const signal = AbortSignal.timeout(this.deps.timeoutMs ?? SKILL_DOWNLOAD_TIMEOUT_MS)
+    const tooSlow = (): Error => new SkillImportError('O GitHub demorou demais para responder. Tente de novo daqui a pouco.')
     let response: Response
     try {
-      // No redirects: the only host we talk to is codeload.github.com, and a hop could take the download anywhere.
-      response = await fetchImpl(archiveUrl(link), { redirect: 'error', headers: { accept: 'application/gzip' } })
+      // No redirects: the only host we talk to is codeload.github.com, and a hop could take the download anywhere. The signal cuts the real network at the deadline.
+      response = await within(fetchImpl(archiveUrl(link), { redirect: 'error', headers: { accept: 'application/gzip' }, signal }), signal, tooSlow)
     } catch (error) {
-      void error
-      throw new SkillImportError('Não consegui baixar esse repositório. Confira o link e a internet.')
+      if (error instanceof SkillImportError) throw error
+      throw signal.aborted ? tooSlow() : new SkillImportError('Não consegui baixar esse repositório. Confira o link e a internet.')
     }
     if (!response.ok) throw new SkillImportError('Não consegui baixar esse repositório. Confira o link.')
     const chunks: Uint8Array[] = []
@@ -134,7 +152,14 @@ export class SkillImportHost {
     const reader = response.body?.getReader()
     if (reader === undefined) throw new SkillImportError('O repositório veio vazio.')
     for (;;) {
-      const { done, value } = await reader.read()
+      let step: ReadableStreamReadResult<Uint8Array>
+      try {
+        step = await within(reader.read(), signal, tooSlow)
+      } catch (error) {
+        void reader.cancel().catch((cancelError: unknown) => { void cancelError }) // a stalled stream cannot be awaited: let it go
+        throw error instanceof SkillImportError ? error : new SkillImportError('Não consegui baixar esse repositório. Confira o link e a internet.')
+      }
+      const { done, value } = step
       if (done) break
       total += value.byteLength
       if (total > SKILL_ARCHIVE_MAX_BYTES) {

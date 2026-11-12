@@ -557,6 +557,11 @@ import ill_categoria_redes_sociais from './illustrations/categoria-redes-sociais
 import ill_categoria_redes_sociais_96 from './illustrations/categoria-redes-sociais-96.webp'
 import ill_categoria_gestao from './illustrations/categoria-gestao.webp'
 import ill_categoria_gestao_96 from './illustrations/categoria-gestao-96.webp'
+import ill_acordando_luminaria from './illustrations/acordando-luminaria.webp'
+import ill_quem_aqui_vazio from './illustrations/quem-aqui-vazio.webp'
+import ill_acordando_primeira_vez from './illustrations/acordando-primeira-vez.webp'
+import ill_categoria_criacao from './illustrations/categoria-criacao.webp'
+import ill_categoria_criacao_96 from './illustrations/categoria-criacao-96.webp'
 import ill_stamp_primeira_entrega from './illustrations/stamp-primeira-entrega.webp'
 import ill_channel_marketing from './illustrations/channel-marketing.webp'
 import ill_channel_atendimento from './illustrations/channel-atendimento.webp'
@@ -1511,6 +1516,11 @@ export const ILLUSTRATIONS: Readonly<Record<string, string>> = {
   'categoria-redes-sociais-96': ill_categoria_redes_sociais_96,
   'categoria-gestao': ill_categoria_gestao,
   'categoria-gestao-96': ill_categoria_gestao_96,
+  'acordando-luminaria': ill_acordando_luminaria,
+  'quem-aqui-vazio': ill_quem_aqui_vazio,
+  'acordando-primeira-vez': ill_acordando_primeira_vez,
+  'categoria-criacao': ill_categoria_criacao,
+  'categoria-criacao-96': ill_categoria_criacao_96,
   'stamp-primeira-entrega': ill_stamp_primeira_entrega,
   'channel-marketing': ill_channel_marketing,
   'channel-atendimento': ill_channel_atendimento,

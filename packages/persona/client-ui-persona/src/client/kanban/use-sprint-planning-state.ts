@@ -1,5 +1,6 @@
 /** Client draft for sprint planning from a loaded project board. */
 
+import { randomUuid } from '../remote/random-id.ts'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { ProjectBoardView } from '@deepseek-ai/dsh-persona-host/types'
 import type { FlowCardModel } from './flow-types.ts'
@@ -58,7 +59,7 @@ function planningSeed(board: ProjectBoardView): {
   }
 
   return {
-    sprintId: `sp-${crypto.randomUUID()}`,
+    sprintId: `sp-${randomUuid()}`,
     persisted: false,
     draft: { name: '', objective: '', startsAt: '', endsAt: '' },
     ticketIds: [],

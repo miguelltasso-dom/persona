@@ -47,3 +47,38 @@ export async function sendVoiceMessage(
   else await target.postDmMessage(body, [uploaded.id])
   return uploaded
 }
+
+/** Transcreve a gravação; `undefined` quando a transcrição não está disponível (nunca uma string vazia por falta de transcritor). */
+/** Avisos do transcritor para a tela (ex.: o 1º uso baixa o modelo: "baixando o ouvido da Persona"). */
+export interface VoiceTranscribeHooks {
+  readonly onDownloading?: (() => void) | undefined
+}
+
+export type VoiceTranscribe = (recording: VoiceRecording, hooks?: VoiceTranscribeHooks) => Promise<string | undefined>
+
+/** Sem transcritor ligado (a CSP e o modelo são da Cobalt/Miguel): não há texto, então o envio fica bloqueado com aviso. */
+export const unavailableTranscriber: VoiceTranscribe = async () => undefined
+
+export type VoiceSendOutcome = { readonly status: 'sent' } | { readonly status: 'unavailable' }
+
+/**
+ * COLHEITA-S1 P1-03 (Carbon): transcreve ANTES de enviar. Sem transcrição, nada é postado: antes, a mensagem subia com corpo vazio e a
+ * persona respondia um turno inteiro sem ouvir nada. Com transcrição, o texto vai no corpo, junto com o áudio.
+ * @param target - Loja do canal ou da DM.
+ * @param recording - A gravação.
+ * @param scope - Canal (#geral) ou DM.
+ * @param transcribe - O transcritor (injetável; o padrão não tem texto).
+ * @returns `sent` quando a mensagem foi postada; `unavailable` quando não havia transcrição.
+ */
+export async function sendVoiceAfterTranscription(
+  target: VoiceSendTarget,
+  recording: VoiceRecording,
+  scope: 'channel' | 'dm',
+  transcribe: VoiceTranscribe,
+  hooks?: VoiceTranscribeHooks,
+): Promise<VoiceSendOutcome> {
+  const transcript = await transcribe(recording, hooks)
+  if (transcript === undefined) return { status: 'unavailable' }
+  await sendVoiceMessage(target, recording, scope, { transcript })
+  return { status: 'sent' }
+}

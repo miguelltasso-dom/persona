@@ -588,6 +588,7 @@ export {
 export { headOfCommand, isSecretPath, judgeCommand, type CommandContext, type CommandJudgment } from './authority/command-policy.ts'
 export { CLI_GATES, cliAuthorityReport, gateOf, hasBrowserGate, hasCommandGate, hasDraftWriteGate, type CliAuthorityReport, type CliGate, type GateKind } from './authority/cli-gates.ts'
 export { nativeGateFor, needsNativeGate, withNativeGate, type NativeGate } from './authority/native-gate.ts'
+export { registerRefusalSource, takeRunnerRefusals, type RefusalSource } from './resolve/runner-refusals.ts'
 export { BROWSER_SERVER, browserToolOf, judgeBrowserTool, type BrowserJudgment } from './authority/browser-policy.ts'
-export { redactToolOutput, registerSecretWindow, secretWindowOpen } from './authority/secret-window.ts'
+export { redactText, redactToolOutput, registerSecretWindow, secretWindowOpen } from './authority/secret-window.ts'
 export { OPENCODE_CONFIG_ENV, opencodeConfigContent, opencodePermission, type OpenCodeGrants } from './authority/opencode-config.ts'

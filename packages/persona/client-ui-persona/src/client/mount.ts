@@ -168,7 +168,9 @@ function registerUi(ctx: Context, shellHandle: ShellStoreHandle): void {
         void live.openPersonaDm(target.personaId)
         return
       }
-      // Hoje só existe o #geral; os canais por equipe (CV-6) entram aqui quando o host os trouxer.
+      // Item 22 (atrás de `persona.flag.channelSections`): o canal escolhido na barra é lido e escrito de agora em diante (`selectChannel` não faz nada com a flag desligada);
+      // o #geral do projeto volta como `null` (o canal do tenant, como sempre).
+      void live.selectChannel?.(target.id === live.observable.getSnapshot().tenant?.channelId ? null : target.id)
       actions.selectPanel('channels')
     },
     openPersonaDm: (personaId: string) => {

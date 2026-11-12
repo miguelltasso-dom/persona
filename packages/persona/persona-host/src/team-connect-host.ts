@@ -84,6 +84,9 @@ export function teamConnectPorts(deps: TeamConnectHostDeps): TeamConnectPorts {
       const persona = deps.product.getPersona(personaId)
       if (persona === undefined) throw new Error('persona-not-found')
       deps.product.updatePersona({ ...persona, runner: { kind: 'cli', cli, model: ENGINE_DEFAULT_MODEL }, updatedAt: deps.orchestration.now() }, projectId)
+      // Carbon P1-08: a seat of the engine she LEFT is not her active account on the new one (it would be read for a persona that no longer runs on it).
+      const kept = deps.screens.get<{ accountId: string }>(projectId, ACTIVE, personaId)?.accountId
+      if (kept !== undefined && deps.accounts.get(kept)?.provider !== cli) deps.screens.delete(projectId, ACTIVE, personaId)
       deps.orchestration.evictWarmRunners(projectId, personaId)
       deps.audit?.(projectId, personaId, 'engine')
     },
@@ -92,7 +95,9 @@ export function teamConnectPorts(deps: TeamConnectHostDeps): TeamConnectPorts {
       const persona = deps.product.getPersona(personaId)
       const seat = workspaceId === undefined ? undefined : deps.accounts.list(workspaceId).find(row => row.id === accountId)
       if (seat === undefined || persona === undefined || persona.runner.kind !== 'cli' || persona.runner.cli !== seat.provider) return
+      if (deps.screens.get<{ accountId: string }>(projectId, ACTIVE, personaId)?.accountId === seat.id) return // the same seat again: nothing changed, her session stays
       deps.screens.put(projectId, ACTIVE, personaId, { accountId: seat.id })
+      deps.orchestration.evictWarmRunners(projectId, personaId) // Carbon P1-08: her warm session still holds the account she had (the engine did not change, so applyEngine did not drop it)
     },
     wake: async (projectId, _personaId, cli, accountId) => {
       const workspaceId = deps.product.getProject(projectId)?.workspaceId

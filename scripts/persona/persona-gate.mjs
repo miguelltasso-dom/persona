@@ -123,6 +123,20 @@ if (closure.status !== 0) {
   failing.add('head-closure')
 } else log((closure.stdout + closure.stderr).trim())
 
+// Content gates (Gauge, Carbon P2-01): clean-room (strict names) and lint run on EVERY publish. The delta is what this commit adds over what is already published (origin/persona-dev, else HEAD~1);
+// in the clean-worktree gate (gate-on-head) that is exactly the commit, in a working tree it also sees everybody's WIP. Lint debt of today lives in lint-baseline.json and can only go down:
+// a NEW error fails (PERSONA_LINT_GATE=warn only logs). A missing clone fails closed unless the clone check is switched off on purpose (check-cleanroom --allow-missing-clone / --no-clone).
+const gateBase = process.env.PERSONA_GATE_BASE ?? (run('git', ['rev-parse', '--verify', '-q', 'origin/persona-dev']).status === 0 ? 'origin/persona-dev' : 'HEAD~1')
+const contentGate = (name, script, extra, blocking) => {
+  const result = run('node', [script, '--base', gateBase, ...extra])
+  const text = `${result.stdout}${result.stderr}`.trim()
+  if (result.status === 0) { log(text.split(NL).slice(-1)[0]); return }
+  log(`${name} FAILED (delta vs ${gateBase}):${NL}${text.split(NL).slice(0, 14).join(NL)}`)
+  if (blocking) failing.add(name)
+}
+contentGate('cleanroom', 'scripts/persona/check-cleanroom.mjs', ['--strict-names'], true)
+contentGate('lint', 'scripts/persona/check-lint-staged.mjs', ['--baseline', 'scripts/persona/lint-baseline.json'], process.env.PERSONA_LINT_GATE !== 'warn')
+
 if (!skipSmoke && failing.size === 0) {
   const smoke = run(process.execPath, ['--import', 'tsx/esm', 'scripts/persona/persona-boot-smoke.mjs', '--root', root])
   log(`boot smoke: ${`${smoke.stdout}${smoke.stderr}`.trim().split(NL).slice(-3).join(' | ')}`)
@@ -145,7 +159,7 @@ if (!skipSmoke && failing.size === 0) {
 if (failing.size === 0 && !smokeFailed) {
   const tree = run('git', ['rev-parse', 'HEAD^{tree}']).stdout.trim()
   mkdirSync(join(root, '.maestri', 'tmp'), { recursive: true })
-  writeFileSync(join(root, '.maestri', 'tmp', 'persona-gate-ok.json'), JSON.stringify({ tree, at: new Date().toISOString(), skippedSmoke: skipSmoke }))
+  writeFileSync(join(root, '.maestri', 'tmp', 'persona-gate-ok.json'), JSON.stringify({ tree, at: new Date().toISOString(), skippedSmoke: skipSmoke, content: true })) // content: the head-closure, clean-room and lint steps ran (pre-push refuses an older stamp)
   console.log('PERSONA_GATE ok')
   process.exit(0)
 }

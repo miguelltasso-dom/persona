@@ -53,6 +53,8 @@ export interface SecondBrainShellProps {
   readonly selectMainPanel?: ((panel: MainPanelId) => void) | undefined
   /** The first real lines of the company profile (the Cofre `brief`); empty = nobody described the company yet. */
   readonly companyLines?: readonly string[] | undefined
+  /** The whole description the team reads now: what "Editar" opens the dialog with (the lines above are only its first ones). */
+  readonly companyText?: string | undefined
   /** Saves what the person wrote about the company. Absent = the host cannot store it, so the invitation is not drawn. */
   readonly onSaveCompanyBrief?: ((text: string) => Promise<void>) | undefined
   /** Which tab of the Memória this is: the Resumo (default) or Páginas (the list of every page, with the documents in `footer`). */
@@ -77,6 +79,7 @@ export function SecondBrainShell({
   onReload,
   selectMainPanel,
   companyLines,
+  companyText,
   onSaveCompanyBrief,
   view = 'summary',
   footer,
@@ -293,6 +296,7 @@ export function SecondBrainShell({
       {briefOpen && onSaveCompanyBrief !== undefined && (
         <CompanyBriefDialog
           dict={brainDict}
+          initialText={companyText}
           onClose={() => { setBriefOpen(false) }}
           onSave={async (text) => {
             await onSaveCompanyBrief(text)

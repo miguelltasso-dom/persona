@@ -25,7 +25,8 @@ describe('Eval Padaria Lua — cenários RED fim a fim (0 IA)', () => {
     // the page of the run is on disk (`summary.md` in `outcome.outDir`, with the tree fingerprint it ran on); the harness keeps the console quiet
     for (const run of outcome.runs) {
       expect(run.invalid, `${run.scenario.id}: the round is not a valid observation (see ${outcome.outDir})`).toBeUndefined()
-      expect(run.verdict.missed, `${run.scenario.id}: the reader did NOT flag the defect (blind)`).toEqual([])
+      // "pego" (the reader flagged it) and "barrado" (the product stopped it before the person read it: `missed` is non-empty BY DESIGN there) are right; only "cego" is a blind reader (Carbon P2-02).
+      expect(run.verdict.outcome, `${run.scenario.id}: the defect reached the person and the reader did NOT flag it (blind); missed: ${run.verdict.missed.join(', ')}`).not.toBe('cego')
       expect(run.verdict.extra, `${run.scenario.id}: the reader flagged more than the defect explains (cries wolf)`).toEqual([])
     }
     expect(outcome.ok).toBe(true)

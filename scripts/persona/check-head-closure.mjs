@@ -156,11 +156,22 @@ export const DEFAULT_SCOPES = ['packages/persona/', 'apps/desktop/', 'scripts/pe
 export function checkHeadClosure(options = {}) {
   const root = options.root ?? REPO_ROOT
   const ref = options.ref ?? 'HEAD'
-  const known = new Set(options.known ?? [])
-  const scopes = options.scopes ?? DEFAULT_SCOPES
   const parsed = git(['rev-parse', '--verify', `${ref}^{commit}`], { root })
   if (parsed.status !== 0) throw new Error(`ref inexistente: ${ref}`)
-  const listed = listTree(ref, root)
+  return closureOfTreeish(ref, { ...options, root, label: ref, commit: String(parsed.stdout).trim().slice(0, 10), subject: 'commit' })
+}
+
+/**
+ * A regra do fecho sobre QUALQUER árvore do git (commit, ou uma árvore ainda sem commit: `git write-tree`): é o que `check-tree-closure.mjs` usa. Mesma regra, mesma saída.
+ * @param {string} treeish - O que o `git ls-tree` entende (commit ou árvore).
+ * @param {{ root?: string, known?: Iterable<string>, scopes?: readonly string[] | 'all', label?: string, commit?: string, subject?: 'commit' | 'árvore' }} options
+ */
+export function closureOfTreeish(treeish, options = {}) {
+  const root = options.root ?? REPO_ROOT
+  const ref = options.label ?? treeish
+  const known = new Set(options.known ?? [])
+  const scopes = options.scopes ?? DEFAULT_SCOPES
+  const listed = listTree(treeish, root)
   const { tree } = listed
   const sources = scopes === 'all' ? listed.sources : listed.sources.filter((item) => scopes.some((scope) => item.path.startsWith(scope)))
   const blobs = readBlobs(sources.map((item) => item.sha), root)
@@ -178,11 +189,12 @@ export function checkHeadClosure(options = {}) {
       unresolved.push({ file: path, spec, line })
     }
   }
-  return { ok: unresolved.length === 0, ref, commit: String(parsed.stdout).trim().slice(0, 10), files: sources.length, imports, unresolved, knownHit }
+  return { ok: unresolved.length === 0, ref, commit: options.commit ?? treeish.slice(0, 10), subject: options.subject ?? 'commit', files: sources.length, imports, unresolved, knownHit }
 }
 
 export function renderText(result) {
-  const lines = result.unresolved.map((item) => `FALHOU ${item.file}:${String(item.line)} — import '${item.spec}' não existe no commit (arquivo novo sem git add, ou apagado?)`)
+  const where = result.subject === 'árvore' ? 'na árvore' : 'no commit'
+  const lines = result.unresolved.map((item) => `FALHOU ${item.file}:${String(item.line)} — import '${item.spec}' não existe ${where} (arquivo novo sem git add, ou apagado?)`)
   lines.push(`${result.ok ? 'PASSOU' : 'FALHOU'} — fecho de importações de ${result.ref} (${result.commit}): ${String(result.files)} arquivo(s), ${String(result.imports)} import(s) relativo(s), ${String(result.unresolved.length)} sem alvo${result.knownHit > 0 ? `, ${String(result.knownHit)} conhecido(s) pelo baseline` : ''}.`)
   return lines.join('\n')
 }

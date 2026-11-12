@@ -47,7 +47,9 @@ describe('HONEST-1 · o que o host não obedece não é opção', () => {
 
   it('quando o host disser que obedece janelas de silêncio, elas voltam (o gancho está pronto)', () => {
     view({ obeyed: { quietWindows: true } })
-    expect(screen.getByText(/Noites de semana/u)).toBeTruthy()
+    // P1-10 (Muse 07:07): a janela é uma linha "Toda noite · 22h às 7h · Toda a equipe" (o host só tem início e fim, todo dia; sem Dias nem Quem).
+    expect(screen.getByText('Toda noite · 22h às 7h · Toda a equipe')).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull() // sem handlers a lista é só leitura
   })
 
   it('sem regras e sem poder criar: o estado vazio não oferece botão nenhum (controle falso é pior que nenhum)', () => {

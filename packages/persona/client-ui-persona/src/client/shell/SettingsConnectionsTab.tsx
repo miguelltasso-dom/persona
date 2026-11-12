@@ -11,6 +11,7 @@ import { RemoteConnectionsPanel } from '../data/lumen-remote-panels.tsx'
 import { RemoteTeamCard } from '../members/RemoteTeamCard.tsx'
 import { ConnectedBrowserProfiles } from '../browser/ConnectedBrowserProfiles.tsx'
 import { ConnectedStation } from '../station/ConnectedStation.tsx'
+import { isStationEnabled } from '../station/station-flag.ts'
 import { SettingsScrollFrame } from './SettingsScrollFrame.tsx'
 import styles from './SettingsConnectionsTab.module.css'
 
@@ -22,9 +23,12 @@ export function SettingsConnectionsTab(props: LumenRemotePanelProps & LocalePane
         <div className={styles.teamCard}>
           <ConnectedBrowserProfiles {...props} />
         </div>
-        <div className={styles.teamCard}>
-          <ConnectedStation {...props} />
-        </div>
+        {/* D-113: a Estação está em construção; o cartão só existe com a flag `station` (o host recusa as chamadas dela de qualquer forma). */}
+        {isStationEnabled() && (
+          <div className={styles.teamCard}>
+            <ConnectedStation {...props} />
+          </div>
+        )}
         <div className={styles.teamCard}>
           <RemoteTeamCard {...props} />
         </div>

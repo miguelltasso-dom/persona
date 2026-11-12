@@ -57,6 +57,14 @@ export class BackgroundWork {
     return this.background.has(ticketId)
   }
 
+  /**
+   * Whether a run is driving this Task right now, in front or in the background (it stays until the Task settles). Another message's sweep must leave it alone: its own run launches it, on its own runner.
+   * @param ticketId - Task.
+   */
+  isDriven(ticketId: string): boolean {
+    return this.tasks.has(ticketId)
+  }
+
   /** The Tasks running in the background right now (the host asks whether ANOTHER Task of the same persona is among them before it hands a runner out). */
   ids(): string[] {
     return [...this.background]

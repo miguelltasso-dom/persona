@@ -174,7 +174,7 @@
   height: 48px;
   padding: var(--persona-space-1) var(--persona-space-4);
   border-bottom: 1px solid var(--persona-outline-soft);
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink);
 }
 

@@ -128,9 +128,7 @@ export function splitPath(path: string): { readonly name: string; readonly folde
 function sideText(ops: readonly DiffOp[], side: 'before' | 'after'): string {
   const lines: string[] = []
   for (const op of ops) {
-    if (op.t === 'same') lines.push(op.text)
-    else if (op.t === 'del' && side === 'before') lines.push(op.text)
-    else if (op.t === 'add' && side === 'after') lines.push(op.text)
+    if (op.t === 'same' || (op.t === 'del' && side === 'before') || (op.t === 'add' && side === 'after')) lines.push(op.text)
   }
   return lines.join('\n')
 }

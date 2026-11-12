@@ -286,6 +286,12 @@ export function SecondBrainHome({
             <ul className={styles.companyLines}>
               {startHereLines.map(line => <li key={line} data-company-line="">{line}</li>)}
             </ul>
+            {/* Carbon P1-08: the description can be changed after it is saved (the same dialog, with the text the team reads now). */}
+            {onDescribeCompany !== undefined && (
+              <Button variant="secondary" size="s" aria-label={`${t('page.edit')} ${t('home.startHereLabel')}`} onClick={() => { onDescribeCompany() }}>
+                {t('page.edit')}
+              </Button>
+            )}
             {startHerePage !== undefined && onOpenPage !== undefined && (
               <Button variant="secondary" size="s" aria-label={`${t('home.startHereOpen')} ${startHerePage.title}`} onClick={() => { onOpenPage(startHerePage.id) }}>
                 {t('home.startHereOpen')}

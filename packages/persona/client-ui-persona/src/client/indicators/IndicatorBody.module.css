@@ -119,7 +119,7 @@
 
 .lineLast b {
   color: var(--persona-ink);
-  font: 800 16px/20px var(--persona-font-text);
+  font: 600 16px/20px var(--persona-font-text);
 }
 
 .lineEnds {
@@ -156,7 +156,7 @@
   width: 20px;
   height: 20px;
   border-radius: 50%;
-  font: 800 13px/1 var(--persona-font-text);
+  font: 600 13px/1 var(--persona-font-text);
 }
 
 .markOk {

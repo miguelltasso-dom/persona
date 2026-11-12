@@ -31,6 +31,7 @@ export type FlagName =
   | 'remoteTeamTab'
   | 'channelSections'
   | 'toolsCatalog'
+  | 'station'
 
 export interface FlagSpec {
   /** A chave do `localStorage` (e do `window.__PERSONA_FLAGS__`, que também aceita o nome curto). */
@@ -67,6 +68,8 @@ export const FLAGS: Readonly<Record<FlagName, FlagSpec>> = {
   channelSections: { key: 'persona.flag.channelSections', defaultOn: false },
   // Item 26 (Muse §26 + decisão do Keel/Muse 12/11): a aba Configurações › Ferramentas só liga quando existir o fluxo "Conectar" (26.5): nenhum cartão morto ao Miguel.
   toolsCatalog: { key: 'persona.flag.toolsCatalog', defaultOn: false },
+  // Item 24 (D-113, Atlas/Keel 12/11): a Estação ainda está em construção, então o cartão "Estação de Agentes" não existe em Configurações › Conexões (o host também recusa as 4 chamadas).
+  station: { key: 'persona.flag.station', defaultOn: false },
 }
 
 export const FLAG_NAMES = Object.keys(FLAGS) as readonly FlagName[]

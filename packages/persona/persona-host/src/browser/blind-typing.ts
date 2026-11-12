@@ -205,7 +205,10 @@ export async function typeLoginBlind(input: BlindLoginInput): Promise<BlindLogin
 
 interface MaskEntry {
   readonly forms: readonly string[]
+  /** When the window ends; `Infinity` for a PINNED secret (it ends when its owner is released). */
   readonly until: number
+  /** Carbon P0-05a: what a pinned secret is tied to (`profile:<id>` = the Chrome that holds its traffic). */
+  readonly owner?: string
 }
 
 /** Keeps typed secrets out of the host's outputs for a while. */
@@ -220,6 +223,27 @@ export class SecretMask {
   add(secret: string, now: number, ms: number = MASK_MS): void {
     if (secret === '') return
     this.entries.push({ forms: secretForms(secret), until: now + ms })
+  }
+
+  /**
+   * Carbon P0-05a: mask a secret for as long as the thing that holds its traffic lives, not for a clock. The warm Chrome keeps the request of the login (and the MCP server of the browser keeps its network
+   * list) for as long as the session lives, so ten minutes later `get_network_request` would hand the password over; a pinned secret keeps the window (and the raw reads) closed until its owner is released.
+   * @param secret - The value that must not be shown.
+   * @param owner - What holds its traffic (`profile:<id>` of the Chrome the page was typed in).
+   */
+  pin(secret: string, owner: string): void {
+    if (secret === '') return
+    this.entries.push({ forms: secretForms(secret), until: Number.POSITIVE_INFINITY, owner })
+  }
+
+  /**
+   * The thing that held the traffic is gone (the Chrome closed): its pinned secrets stop being masked.
+   * @param owner - The owner given to {@link SecretMask.pin}.
+   */
+  release(owner: string): void {
+    for (let index = this.entries.length - 1; index >= 0; index -= 1) {
+      if (this.entries[index]!.owner === owner) this.entries.splice(index, 1)
+    }
   }
 
   /**

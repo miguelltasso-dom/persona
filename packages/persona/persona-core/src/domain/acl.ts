@@ -82,17 +82,20 @@ function inDm(actor: Actor, dmId: string, memberIds: readonly string[]): boolean
 }
 
 function vaultReadable(actor: Actor, resource: Extract<AclResource, { type: 'vault' }>): boolean {
-  if (resource.status === 'revoked') return isOwner(actor)
-  switch (resource.visibility.kind) {
-    case 'workspace':
-      return true
-    case 'project':
-      return inProject(actor, resource.visibility.projectId)
-    case 'persona':
-      return actor.kind === 'persona' && actor.id === resource.visibility.personaId
-    case 'members':
-      return resource.visibility.memberIds.includes(actor.id)
-  }
+  const readable = ((): boolean => {
+    switch (resource.visibility.kind) {
+      case 'workspace':
+        return true
+      case 'project':
+        return inProject(actor, resource.visibility.projectId)
+      case 'persona':
+        return actor.kind === 'persona' && actor.id === resource.visibility.personaId
+      case 'members':
+        return resource.visibility.memberIds.includes(actor.id)
+    }
+  })()
+  // A revoked record is read by the owner only (the audit of what the team forgot), and only when the SAME record would be read active: the private memory of a persona or of named members stays theirs.
+  return resource.status === 'revoked' ? readable && isOwner(actor) : readable
 }
 
 function vaultWritable(actor: Actor, resource: Extract<AclResource, { type: 'vault' }>): boolean {

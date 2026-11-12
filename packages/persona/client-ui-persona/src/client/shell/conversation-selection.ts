@@ -7,6 +7,7 @@
 
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from '../remote/persona-live-store.ts'
+import { isChannelSectionsEnabled } from './channel-sections-flag.ts'
 import type { ShellState, ShellStoreHandle } from './create-shell-store.ts'
 
 export type ConversationTarget =
@@ -26,15 +27,16 @@ export function sameConversation(a: ConversationTarget | null | undefined, b: Co
 }
 
 type ShellPart = Pick<ShellState, 'activePanel'>
-type LivePart = Pick<PersonaLiveSnapshot, 'tenant' | 'selectedDmId' | 'dms'>
+type LivePart = Pick<PersonaLiveSnapshot, 'tenant' | 'selectedDmId' | 'dms'> & Partial<Pick<PersonaLiveSnapshot, 'selectedChannelId'>>
 
 /**
  * A conversa aberta agora: canal quando a área principal é o #geral; DM quando é a tela de DMs com uma DM escolhida
  * (a pessoa do outro lado); qualquer outra tela (Visão geral, Projetos…) não tem conversa ativa.
+ * Item 22 (atrás de `persona.flag.channelSections`): o canal aberto é o escolhido na barra (`selectedChannelId`); sem escolha, o #geral de sempre.
  */
 export function activeConversation(shell: ShellPart, live: LivePart): ConversationTarget | null {
   if (shell.activePanel === 'channels') {
-    const id = live.tenant?.channelId
+    const id = (isChannelSectionsEnabled() ? live.selectedChannelId : null) ?? live.tenant?.channelId
     return id === undefined || id === '' ? null : { kind: 'channel', id }
   }
   if (shell.activePanel === 'directMessages') {

@@ -34,7 +34,7 @@
 .who {
   margin-bottom: var(--persona-space-1);
   color: var(--persona-ink);
-  font: 800 13px/18px var(--persona-font-text);
+  font: 600 13px/18px var(--persona-font-text);
 }
 
 .time {
@@ -62,7 +62,7 @@
   display: block;
   margin-bottom: var(--persona-space-1);
   color: var(--persona-brand);
-  font: 800 13px/16px var(--persona-font-text);
+  font: 600 13px/16px var(--persona-font-text);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -122,7 +122,7 @@
   border-radius: 50%;
   background: var(--persona-lilac-200);
   color: var(--persona-ink);
-  font: 800 13px/1 var(--persona-font-text);
+  font: 600 13px/1 var(--persona-font-text);
 }
 
 .text {

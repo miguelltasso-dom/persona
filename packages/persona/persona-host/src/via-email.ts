@@ -17,6 +17,11 @@ export interface ViaEmailLookup {
   readonly trigger: (id: string) => Pick<Trigger, 'viaEmail'> | undefined
   /** A Task by id. */
   readonly ticket: (id: string) => Ticket | undefined
+  /**
+   * Carbon P0-05a: what the Gestor's plan recorded about where it came from (`campaign:<plan>:<n>` opens its Tasks, so the lineage of the message that asked for the plan would be lost). Absent or
+   * `undefined` = unknown, which is never "no e-mail".
+   */
+  readonly campaign?: (planId: string) => { readonly viaEmail?: boolean } | undefined
 }
 
 /** The longest chain of Tasks it walks (a handoff of a handoff of…); beyond it the answer is "yes": an unreadable history is not a safe one. */
@@ -36,6 +41,9 @@ export function cameByEmail(ticket: Ticket, lookup: ViaEmailLookup): boolean {
     const ids = [row.origin.triggerId, ...row.origin.triggerIds, ...row.inputs.flatMap(input => (input.kind === 'trigger' ? [input.triggerId] : []))]
     for (const id of ids) {
       if (lookup.trigger(id)?.viaEmail === true || isEventRunId(id)) return true
+      // A campaign part: only a lineage that says "not from an e-mail" clears it; an unknown one (nothing recorded, the plan gone) is marked.
+      const plan = /^campaign:(.+):\d+$/u.exec(id)?.[1]
+      if (plan !== undefined && lookup.campaign?.(plan)?.viaEmail !== false) return true
       // A part of a split request is made from the message it was split from.
       const message = /^split:(.+):[^:]+$/u.exec(id)?.[1]
       if (message !== undefined && (lookup.trigger(message)?.viaEmail === true || isEventRunId(message))) return true
@@ -43,7 +51,7 @@ export function cameByEmail(ticket: Ticket, lookup: ViaEmailLookup): boolean {
       const asker = /^handoff:([^:]+):/u.exec(id)?.[1]
       if (asker !== undefined) {
         const parent = lookup.ticket(asker)
-        if (parent !== undefined && walk(parent, depth + 1)) return true
+        if (parent === undefined || walk(parent, depth + 1)) return true // a Task whose asker is gone has an unreadable history: it is not "no e-mail"
       }
     }
     return false

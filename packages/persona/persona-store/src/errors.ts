@@ -19,9 +19,9 @@ export type StoreErrorCode =
 
 /** pt-BR line for the UI. Machine `code` stays stable. */
 export const STORE_USER_MESSAGES: Record<StoreErrorCode, string> = {
-  'foreign-application': 'Este arquivo não é um banco do Persona.',
-  'version-too-new': 'Este banco é de uma versão mais nova do Persona. Atualize o app para abrir.',
-  'unrecognized-database': 'Não reconheço este arquivo como um banco do Persona.',
+  'foreign-application': 'Este arquivo não é um banco da Persona.',
+  'version-too-new': 'Este banco é de uma versão mais nova da Persona. Atualize o app para abrir.',
+  'unrecognized-database': 'Não reconheço este arquivo como um banco da Persona.',
   'migration-gap': 'A migração do banco está incompleta. Restaure um backup.',
   'migration-failed': 'Não consegui migrar o banco. O backup anterior foi preservado.',
   'backup-failed': 'Não consegui copiar o banco antes de migrar.',

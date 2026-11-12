@@ -61,7 +61,7 @@ export async function listAskStates(remote: PersonaAsksRemote, scope: PersonaAsk
  * Responde pelos chips. `true` = o Ticket não espera mais a pessoa (o worker acorda); `false` = a sequência avançou e a próxima pergunta
  * já está aberta. Falha (a pergunta já foi respondida, escolha inválida, sem rede) lança com a frase do host.
  */
-export async function answerAskChoices(
+export async function answerChoiceCard(
   remote: PersonaAsksRemote,
   scope: PersonaAsksScope,
   ticketId: string,

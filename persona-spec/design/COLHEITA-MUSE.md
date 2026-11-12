@@ -391,6 +391,175 @@ Versão final, que junta a proposta do Anvil (00:08) e a minha (00:08).
 
 ---
 
+## 30 · "Acordando o time": a espera da abertura (alavanca 1, shell estático; Prism, com o transporte do Zinc)
+**O problema que resolve:** hoje o renderer fica de 8 a 12 s parado esperando o host (perf/ABERTURA.md). Com o shell estático, a casa aparece em ~2 a 3 s, e esta é a tela até o host responder.
+
+**As regras:**
+- é **barata** (o renderer disputa CPU com o host: medido +1,5 s em 11/11);
+- **nunca parece travada**;
+- **nunca mente** sobre o progresso.
+
+### O que aparece (no 1º quadro, sem tela branca)
+1. **O fundo e o tema certos desde o 1º quadro:**
+   - o tema salvo (o mesmo que o preload já lê) vira o `background` do `<html>` antes de qualquer script;
+   - **nada de quadro branco** (o rig de abertura da Muse confere: `.maestri/tmp/muse/opening-frames.mts` mais `opening-analyse.py`).
+2. **O rail de verdade, estático:**
+   - a marca no topo e os 5 lugares com os rótulos (são fixos), na largura real;
+   - **desabilitados** (`aria-disabled`, a 60 %), sem contagem nem canais (ainda não se sabe);
+   - a folhagem embaixo.
+3. **No centro, a cena:**
+   - a luminária acesa (a arte `estacao-pareando` sem a coruja, ou a luz do rail) e, **embaixo, os rostos do time chegando**;
+   - os rostos são **os da última sessão** (o shell guarda no `localStorage` até 5 ids de bicho, só os ids, sem nome nem dado);
+   - na **1ª abertura** (nada salvo), o trio do onboarding: Atlas, Bento e Nina;
+   - os rostos têm 64 px, o R2 enquadrado na cabeça, numa fileira centrada com 12 px de vão.
+4. **A frase**, em Fredoka 20, com uma linha de 14 px muted embaixo, num `role="status"` `aria-live="polite"`:
+   | Momento | Frase | Linha de baixo |
+   |---|---|---|
+   | 0 a 1,5 s | `Acordando o time…` | — |
+   | o transporte conectou, carregando a casa | `Arrumando a casa…` | — |
+   | mais de 6 s | `Ainda abrindo.` | `O computador está ocupado, já já termina.` |
+   | mais de 25 s (o erro honesto) | `Não deu para abrir a casa agora.` | os botões `Tentar de novo` (primário, 40 px) e `Ver o que aconteceu` (abre o relatório de suporte que já existe) |
+   - **A troca de frase segue os fatos** (o transporte conectou, o host respondeu), e o relógio só serve para os avisos de demora. **Nenhuma barra de progresso inventada.**
+
+### Movimento (CSS puro, só `transform` e `opacity`)
+- **A chegada:** cada rosto vai de `translateY(12px) scale(.96)` e opacidade 0 até o lugar, em `--motion-slow` (360 ms) com `--ease-enter`, com **120 ms de stagger**. 5 rostos terminam em 0,84 s.
+- **Depois de chegar:** os 3 pontinhos de "digitando" ao lado da frase (opacidade em `steps`, 1,2 s por ciclo). É a **única** animação contínua. Ela para aos 25 s, no estado de erro.
+- **Sem luminária piscando, sem shimmer, sem esqueleto animado e sem `filter`.**
+- **A saída** (o host respondeu e a 1ª tela útil montou): crossfade de 220 ms, `--motion-base` com `--ease-standard`, com a tela real por baixo.
+- **O tempo mínimo e o máximo:**
+  - se o host responder em menos de **400 ms**, a cena **não aparece** (vai direto, sem piscar);
+  - se a cena começou, ela fica pelo menos até o último rosto chegar (~0,9 s), para não cortar no meio.
+- **Reduced motion:** os rostos aparecem juntos (fade de `--motion-reduced-fade`) e os pontinhos ficam parados (a frase basta).
+- **Prioridade:** a cena não pede nada ao host e não faz polling. Ela só reage aos eventos do transporte.
+
+### Acessibilidade e claro/escuro
+- O `role="status"` diz a frase. Não há nada focável até o erro (aí o foco vai para `Tentar de novo`).
+- Os rostos são `aria-hidden` (decoração). O nome dos bichos não é dito.
+- No claro, o papel creme e o rail lavanda. No escuro, o ameixa e a luminária mais quente. Os mesmos tokens do app.
+
+### O aceite
+- O rig de abertura (os quadros a ~26 fps desde o clique no atalho) no instalador interno:
+  - **zero quadros brancos**;
+  - o 1º quadro com o rail em até ~1 s;
+  - a cena com os rostos;
+  - a troca para a 1ª tela útil;
+  - claro e escuro, mais 1 rodada com reduced-motion.
+- Mais as capturas de cada frase, incluindo o erro.
+
+---
+
+## 29 · A Casa da Equipe no formato de canais (pedido do Miguel, 12/11 09:20; a tela-mãe dos itens 22 e 23)
+**A prancha:**
+- **as telas:** `.maestri/tmp/shots/design/casa-equipe/prancha-casa.png` (claro e escuro a 1440) e `prancha-detalhes.png` (a mensagem, a aprovação e "Quem está aqui");
+- **a fonte:** `.maestri/tmp/muse/casa-equipe/casa.html` (os tokens, as fontes e a arte reais; abra no navegador);
+- **o modelo:** a referência foi o padrão de 3 colunas, e nada do visual nem do texto foi copiado.
+
+### O que é nosso e melhor do que a referência
+- **A barra é a casa:**
+  - o rail lavanda com a folhagem do Brush embaixo, sempre atrás do cartão "você" opaco e nunca atrás de texto;
+  - a empresa no topo ("Padaria Lua · 2 pessoas · 5 personas");
+  - **5 lugares, não 7**: Início, Aprovações, Quadro, Arquivos e Equipe. Sem "Fios" e sem "Mais".
+- **As seções de canal são as EQUIPES** (§22):
+  - a bolinha no tom da equipe e os rostinhos de quem está nela;
+  - não lido em negrito com a contagem;
+  - a menção como `@1` em âmbar (ela espera você);
+  - a seção fechada mostra o total.
+- **As personas com o rosto vivo de 40 px (R2) e a frase do que estão fazendo AGORA** ("Criação · Escrevendo a legenda", do item 6), não só o cargo. Isso é o "parece gente".
+- **A gramática de forma:** gente é círculo; persona é o quadrado com o bicho.
+- **O fio é o da §23** (os balões v5, a Geist e o rosto R2), mais:
+  - a rotina que gerou a mensagem num chip (`Resumo das 8h`);
+  - o cartão de tarefa criada;
+  - o trabalho recolhido **numa linha só** ("Fez em 2 min · 5 passos · usou 3 ferramentas"). A referência usa 2 linhas;
+  - as reações com as figurinhas;
+  - a aprovação do item 5 dentro do fio;
+  - "Bento está escrevendo a legenda…" com o rosto pensando.
+- **O compositor sem a barra de formatação** de programador: só `+`, imagem, figurinha, áudio e "Coordenação decide quem responde".
+- **"Quem está aqui"** agrupado por Dono, Pessoas, cada equipe e "Fora agora", com o estado vivo em verde ("Preparando o envio"). No fim, "Pôr pessoa ou persona".
+
+### A minha recomendação para a 1ª versão (o que entra já)
+1. A barra com a empresa, a busca, os 5 lugares, as **seções por equipe** (o host do Flint já tem o `channelLayoutOf`), a seção Personas com o rosto R2 e a linha do que faz agora, e você no rodapé.
+2. O cabeçalho do canal com o assunto e a pilha de rostos.
+3. O fio da §23 (já aceito na galeria) com os cartões que **já existem**: a tarefa criada, o resumo recolhido (item 6), as reações por figurinha (item 14) e a aprovação (item 5).
+4. O painel "Quem está aqui" (Dono, cada equipe e "Fora agora"), que **já pode** existir só com personas.
+5. **Fica para a entrega do item 23 (pessoas reais):**
+   - a seção "Pessoas" e as conversas diretas com gente;
+   - o seletor de empresa clicável (com 1 empresa é só um título);
+   - a presença online de gente.
+   Até lá, a interface não mostra nada disso, para não prometer o que não funciona (HONEST-1).
+6. **Não entra:** "Fios" como lugar (o assunto do canal já resolve), a barra de formatação e qualquer contagem de "membros" técnica.
+
+**Os donos:** Prism (UI) e Flint (host). O aceite segue a regra de sempre (o pré-aceite do Ember mais a Muse), contra esta prancha.
+
+### 29b · Os microdetalhes (o "capricho a mais" do Miguel, 12/11 09:45)
+**As regras:**
+- tudo nos tokens de movimento do DESIGN-01 e só `transform` e `opacity`;
+- **reduced-motion = fade de `--motion-reduced-fade`, ou nada**;
+- nenhuma animação contínua nova (o teto continua 2).
+
+1. **A linha da barra (canal, lugar, persona):**
+   | Estado | Como fica |
+   |---|---|
+   | Hover | o fundo `rail-raised` (`--rail-raised` no claro e no escuro), sem transição de cor (instantâneo, como lista de app nativo) |
+   | Foco de teclado | o anel de 2 px `--persona-focus-ring` por dentro da linha (outline-offset −2 px), nunca cortado pela barra |
+   | Ativo | a pílula creme com a sombra sticker de 3 px (já na prancha) |
+   | Pressionar | `scale(.98)` em `--motion-instant` com `--ease-press` |
+   - No hover de um canal aparecem, à direita, `⋯` (32 px) e o sininho de silenciar. Somem quando sai, e no foco ficam.
+2. **Trocar de canal:**
+   - a pílula ativa desliza da linha antiga para a nova: `transform: translateY`, `--motion-panel`, `--ease-enter` (um elemento só, o indicador);
+   - o fio novo entra com opacidade 0 → 1 em `--motion-fast` e 6 px de subida;
+   - **o cabeçalho troca na hora**, sem animação (é texto).
+   - Reduced-motion: a pílula pula para o lugar, e o fio troca em fade.
+3. **"Novas mensagens":**
+   - ao abrir um canal com não lidos, uma linha fina em `--persona-accent` atravessa o fio acima da 1ª mensagem nova, com o rótulo `Novas` num chip âmbar à direita;
+   - o fio **abre nela**, e não no fim;
+   - a linha some quando você chega ao fim do fio e fica 2 s ali (fade de `--motion-base`).
+   - Sem nada novo, o fio abre na posição salva (o item 12).
+4. **"Digitando" com o rosto vivo:**
+   - embaixo do fio: o rosto de 24 px no humor **pensando** (o `-blink` vale), mais `Bento está escrevendo a legenda` (a frase do item 6), mais os 3 pontinhos;
+   - com 2 ao mesmo tempo, os 2 rostos sobrepostos e `Bento e Nina estão escrevendo…`;
+   - com 3 ou mais, `3 personas estão trabalhando aqui`;
+   - a linha **reserva a própria altura** (24 px), para o fio não pular quando aparece ou some.
+5. **A mensagem que chega:**
+   - se você está no fim do fio, ela entra com o preset `message` (opacidade e 6 px) e o fio rola junto, suave (`scroll-behavior` só se não houver reduced-motion);
+   - **se você subiu para ler, o fio NÃO se mexe**: aparece a pílula flutuante `↓ 2 mensagens novas` (40 px, centrada embaixo, sólida), que ao clicar desce;
+   - a âncora de rolagem é a mensagem que você está lendo (`overflow-anchor`), para nada pular quando um cartão cresce.
+6. **A aprovação que vira "Enviado ✓":**
+   - depois do "segure", o check desenha o traço (`--motion-message`) no botão;
+   - **o cartão encolhe** até uma linha só, `✓ Enviado no WhatsApp para 12 clientes · 09:16` (altura com `grid-template-rows 1fr → 0fr` no corpo, `--motion-panel`), e a prévia vai para `Ver o que foi enviado`, dobrado;
+   - a borda deixa de ser de destaque.
+   - Reduced-motion: a troca é seca, para a linha.
+7. **O canal novo, vazio, ilustrado:**
+   - a arte `canal-pronto` (240 × 160) mais `#promoções está pronto.` mais `Aqui estão Nina e Atlas. Escreva um pedido e quem cuida disso responde.`;
+   - **3 sugestões de 1 clique** feitas a partir da equipe do canal (`Pedir o resumo das vendas de hoje`), que **preenchem** o compositor e nunca enviam sozinhas.
+8. **A reação com micro-pulo:**
+   - ao reagir, a figurinha da pílula faz `scale(1 → 1,18 → 1)` no preset `stamp` (320 ms, mola) e o número troca em crossfade de 150 ms;
+   - a sua reação fica com a borda `--persona-brand`;
+   - tirar a reação: sem pulo, só o número.
+   - Reduced-motion: sem pulo.
+9. **O bicho trabalhando no rail:**
+   - na linha da persona, o rosto troca para o humor **pensando** enquanto trabalha (item 21, crossfade por cima) e a bolinha verde respira;
+   - **o rosto que respira é só UM na tela inteira**: o maior visível (a regra do §21);
+   - no rail, só o rosto troca, sem respiração;
+   - ao terminar uma entrega, o humor **feliz** por 4 s.
+10. **Os atalhos:**
+    - `Ctrl K` abre o `Ir para…` (canais, personas e lugares, com a busca por letras);
+    - `Alt ↑` e `Alt ↓` vão para o canal anterior e o próximo;
+    - `Alt Shift ↑` e `Alt Shift ↓` vão para o próximo **com não lido**;
+    - `Esc` no compositor vazio tira o foco dele;
+    - os atalhos aparecem no `?` de Ajuda e no `title` dos lugares (`Início · Ctrl 1`).
+    - **Nada de atalho que o leigo dispare sem querer** (sem tecla solta).
+11. **A rolagem que guarda a posição:**
+    - cada canal lembra onde você estava (o id da mensagem âncora, por canal, na sessão e no `localStorage`) e volta exatamente ali, sem animação;
+    - o fim do fio é o padrão só se você estava no fim.
+12. **Mais 3 que fazem diferença:**
+    - **(a)** a hora absoluta aparece no hover da hora relativa;
+    - **(b)** o `@` no compositor abre o menu de chamar (as equipes, as personas do canal, a gente), com o rosto de 24 e `Enter` para escolher;
+    - **(c)** ao enviar, o compositor **mantém o foco** e a sua mensagem entra com o preset `message`, sem o fio pular.
+
+**O aceite dos microdetalhes:** os quadros do meio de cada movimento (o rig de capturas por quadro), mais um vídeo curto do fluxo (trocar de canal, chegar mensagem lendo no meio, reagir, aprovar), em claro e escuro, e 1 rodada com reduced-motion.
+
+---
+
 ## 27 · O convite do 1º colega (item 23; arquitetura: carbon/COLABORACAO-PESSOAS.md)
 **As regras:**
 - **gente é círculo** (a foto, ou as iniciais num círculo);

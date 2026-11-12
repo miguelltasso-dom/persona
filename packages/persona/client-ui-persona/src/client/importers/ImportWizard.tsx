@@ -1,4 +1,5 @@
 /** Importação avançada (exportação de outra ferramenta) pelo host: prévia → confirmar → desfazer. Sem host, sem botão. */
+import { randomUuid } from '../remote/random-id.ts'
 import { useRef, useState, type ChangeEvent, type ReactNode } from 'react'
 import type { ImportBatchView, ImportFileView, ImportPreviewView } from '@deepseek-ai/dsh-persona-host/types'
 import { Button, Card, Notice, Screen, ScreenHeader, UiIcon } from '../primitives/index.ts'
@@ -110,7 +111,7 @@ export function ImportWizard({ dict = defaultDict, initialState = 'ready', impor
     setBusy(true)
     setError(null)
     setStep('progress')
-    void importer.confirm(crypto.randomUUID(), files).then(
+    void importer.confirm(randomUuid(), files).then(
       (result) => { setBatch(result) },
       () => { setError('confirm') },
     ).finally(() => { setBusy(false) })

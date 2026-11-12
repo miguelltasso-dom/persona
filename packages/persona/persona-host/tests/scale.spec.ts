@@ -18,6 +18,12 @@ function timeMs(fn: () => void): number {
   return performance.now() - start
 }
 
+/**
+ * Samples per RPC. With 12 the "p95" (`ceil(0.95 * 12) - 1 = 11`) was the MAXIMUM, so one GC pause or one cold call failed the suite (104-215 ms on a loaded machine, 12/11). 30 samples after one
+ * untimed warm-up pass make the p95 the second-worst call: a real slowdown (like the actor re-read per card in `listTasks`, ~65 ms) still shows, a single spike does not.
+ */
+const SAMPLES = 30
+
 it('synthetic 10k/1k/30/10: p95 of main RPCs stays under 100 ms', async () => {
   const dir = await mkdtemp(join(tmpdir(), 'persona-scale-'))
   const db = join(dir, 'persona.db')
@@ -35,7 +41,12 @@ it('synthetic 10k/1k/30/10: p95 of main RPCs stays under 100 ms', async () => {
   const searchSamples: number[] = []
   const taskSamples: number[] = []
   const personaSamples: number[] = []
-  for (let i = 0; i < 12; i += 1) {
+  // One untimed pass of each RPC: the first call of a process pays statement compilation and the JIT, which the person does not feel on the next click.
+  h.listMessages(page)
+  h.search({ ...scope, actorId: 'ana', query: 'needle', limit: 20 })
+  h.listTasks(scope)
+  h.listPersonas(scope)
+  for (let i = 0; i < SAMPLES; i += 1) {
     listSamples.push(timeMs(() => {
       const got = h.listMessages({ ...page, afterSeq: i * 50 })
       expect(got.events.length).toBeLessThanOrEqual(50)

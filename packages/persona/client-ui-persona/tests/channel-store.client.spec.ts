@@ -40,6 +40,7 @@ function build() {
     listApprovals: () => ok([]),
     listDailySummaries: () => ok([]),
     getChannelLayout: vi.fn(() => ok(LAYOUT)),
+    getChannelHeader: vi.fn((request: { channelId: string }) => ok({ channelId: request.channelId, name: request.channelId === 'canal-vendas' ? 'vendas' : 'geral', members: [], respondem: request.channelId === 'canal-vendas' ? 'Respondem aqui: Lia e Téo' : '', empty: { kind: 'ready', title: 'pronto', body: '' } })),
     postMessage,
   }
   return { remote, listMessages, followed, postMessage }
@@ -60,12 +61,29 @@ describe('com a flag ligada', () => {
     expect(store.observable.getSnapshot().channelLayout?.sections.map(section => section.name)).toEqual([null, 'Vendas'])
   })
 
+  it('o layout da barra é lido junto com o resto, sem ninguém pedir (e o canal aberto sobrevive a um refresh)', async () => {
+    const { store } = await booted(true)
+    await vi.waitFor(() => { expect(store.observable.getSnapshot().channelLayout?.sections).toHaveLength(2) })
+    await store.selectChannel!('canal-vendas')
+    await store.refresh()
+    expect(store.observable.getSnapshot().selectedChannelId).toBe('canal-vendas')
+    expect(store.observable.getSnapshot().channelLayout?.sections).toHaveLength(2)
+  })
+
   it('abrir outro canal lê as mensagens DELE, segue o fluxo dele e guarda qual está aberto', async () => {
     const { store, listMessages, followed } = await booted(true)
     await store.selectChannel!('canal-vendas')
     expect(store.observable.getSnapshot().selectedChannelId).toBe('canal-vendas')
     expect(listMessages).toHaveBeenCalledWith(expect.objectContaining({ streamKind: 'channel', ownerId: 'canal-vendas' }))
     await vi.waitFor(() => { expect(followed).toContain('canal-vendas') })
+  })
+
+  it('o cabeçalho do canal que abriu vem do host e o do canal anterior sai (nunca o "Respondem aqui" de outro canal)', async () => {
+    const { store } = await booted(true)
+    await store.selectChannel!('canal-vendas')
+    await vi.waitFor(() => { expect(store.observable.getSnapshot().channelHeader?.respondem).toBe('Respondem aqui: Lia e Téo') })
+    await store.selectChannel!(null)
+    await vi.waitFor(() => { expect(store.observable.getSnapshot().channelHeader?.respondem).toBe('') })
   })
 
   it('o que a pessoa escreve vai para o canal aberto (nunca para o #geral por engano)', async () => {

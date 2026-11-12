@@ -10,6 +10,7 @@ import {
   type ConnectorAccess, type ConnectorGrantRepos, type EventRepos, type ProductRepos, type StoredConnectorGrant, type StoredPersona,
   type TicketConnectorAuth, type TicketConnectorAuthRepos,
 } from '@deepseek-ai/dsh-persona-store'
+import { normalizeToolName } from './connector-catalog.ts'
 import { humanAuthoredRequests, preAllowFor, type AuthoredEvent, type ConnectorAutonomy, type PermissionGate } from './connector-policy.ts'
 import type { Orchestration } from './orchestration.ts'
 import { RemoteFault } from './remote-guard.ts'
@@ -148,6 +149,37 @@ export class ConnectorGrantsHost {
     this.deps.orchestration.evictWarmRunners(persona.projectId, persona.id)
     this.announce(request.workspaceId, request.projectId, persona, change.grant)
     return this.viewOf(change.grant)
+  }
+
+  /**
+   * Item 26 (contracts/connector-grant-by-name.md): give a persona a tool of the catalog BY ITS NAME. The host resolves it among the connectors of the persona's OWN
+   * CLI with the catalog's matching rule (an exact name beats a partial one), so the connector's id (the proxy URL of an account connector) never goes through the
+   * screen. Then it is exactly {@link grant}: same refusals, same audit, nothing waived.
+   * @param request - Who, which tool (by name) and the level (default: read).
+   * @param actorId - The workspace owner doing it.
+   */
+  grantByName(
+    request: { readonly workspaceId: string; readonly projectId: string; readonly personaId: string; readonly name: string; readonly access?: ConnectorAccess },
+    actorId: string,
+  ): ConnectorGrantView {
+    const persona = this.personaOf(request.workspaceId, request.personaId)
+    const wanted = normalizeToolName(request.name)
+    if (wanted === '') throw new RemoteFault('invalid-payload', 'Informe qual ferramenta.')
+    const cli = persona.runner.kind === 'cli' ? persona.runner.cli : ''
+    const available = cli === '' ? [] : this.deps.ports().availableConnectors?.(cli) ?? []
+    const partial = available.filter((item) => {
+      const own = normalizeToolName(item.name)
+      // Whole WORDS, one way only: the card's name inside the connector's ("Gmail" -> "claude.ai Gmail"). Never the connector's inside the card's ("Gmail" is not "Mail") nor inside a word (CONN-2).
+      return own !== '' && ` ${own} `.includes(` ${wanted} `)
+    })
+    const exact = partial.filter(item => normalizeToolName(item.name) === wanted)
+    const pool = exact.length > 0 ? exact : partial
+    const chosen = pool[0]
+    if (chosen === undefined) {
+      throw new RemoteFault('not-found', `A conta ainda não tem ${request.name.trim()}: ligue pelo botão Conectar.`, { reason: 'connector-not-available' })
+    }
+    if (pool.length > 1) throw new RemoteFault('conflict', 'Achei mais de um com esse nome. Escolha pelo nome inteiro.', { reason: 'connector-ambiguous' })
+    return this.grant({ workspaceId: request.workspaceId, projectId: request.projectId, personaId: persona.id, connector: chosen, access: request.access ?? 'read' }, actorId)
   }
 
   /**

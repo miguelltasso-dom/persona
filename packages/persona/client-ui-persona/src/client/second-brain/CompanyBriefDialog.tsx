@@ -9,13 +9,15 @@ import styles from './SecondBrain.module.css'
 export interface CompanyBriefDialogProps {
   readonly dict: LocaleDict
   readonly onClose: () => void
+  /** The description the team reads now, when the person is EDITING it (Carbon P1-08); absent = a new one, the field starts empty. */
+  readonly initialText?: string | undefined
   /** Saves the profile. A rejection is shown as a sentence and the dialog stays open with the text still in the field. */
   readonly onSave: (text: string) => Promise<void>
 }
 
-export function CompanyBriefDialog({ dict, onClose, onSave }: CompanyBriefDialogProps): ReactNode {
+export function CompanyBriefDialog({ dict, onClose, initialText, onSave }: CompanyBriefDialogProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
-  const [text, setText] = useState('')
+  const [text, setText] = useState(initialText ?? '')
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const save = (): void => {

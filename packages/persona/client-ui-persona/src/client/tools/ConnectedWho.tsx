@@ -15,6 +15,8 @@ interface WhoWire {
   listConnectorGrants?(request: ProjectScopeRequest): Promise<RemoteResult<unknown>>
   grantConnector?(request: ProjectScopeRequest & { personaId: string; connector: { cli: string; id: string; name: string }; access: 'read' | 'write' }): Promise<RemoteResult<unknown>>
   revokeConnector?(request: ProjectScopeRequest & { personaId: string; cli: string; connectorId: string }): Promise<RemoteResult<unknown>>
+  /** Item 26: the host resolves the connector by the card's NAME, so the first face of a tool nobody holds yet can be ticked without the screen ever knowing an id. */
+  grantConnectorByName?(request: ProjectScopeRequest & { personaId: string; name: string; access: 'read' | 'write' }): Promise<RemoteResult<unknown>>
 }
 
 interface WhoData {
@@ -59,13 +61,20 @@ export function ConnectedWho({ persona, scope, card, onClose }: ConnectedWhoProp
     return () => { live = false }
   }, [persona, wire, card, scope.workspaceId, scope.projectId, reload])
 
-  const canWrite = typeof wire.grantConnector === 'function' && typeof wire.revokeConnector === 'function'
+  const byName = typeof wire.grantConnectorByName === 'function'
+  const canWrite = (typeof wire.grantConnector === 'function' || byName) && typeof wire.revokeConnector === 'function'
   const onToggle = useCallback(async (row: WhoRow, next: boolean): Promise<void> => {
-    if (data === undefined || typeof wire.grantConnector !== 'function' || typeof wire.revokeConnector !== 'function') return
+    if (data === undefined || typeof wire.revokeConnector !== 'function') return
     if (next) {
       const connector = ref ?? refOfTool(card, data.grants)
-      if (connector === undefined) throw new Error('no-ref')
-      await unwrapRemote(await wire.grantConnector({ ...scope, personaId: row.face.id, connector, access: 'read' }))
+      if (connector !== undefined && typeof wire.grantConnector === 'function') {
+        await unwrapRemote(await wire.grantConnector({ ...scope, personaId: row.face.id, connector, access: 'read' }))
+      } else if (typeof wire.grantConnectorByName === 'function') {
+        // Nobody holds this tool yet (no connector to hand): the host finds it on her CLI by the card's name.
+        await unwrapRemote(await wire.grantConnectorByName({ ...scope, personaId: row.face.id, name: card.name, access: 'read' }))
+      } else {
+        throw new Error('no-ref')
+      }
     } else {
       for (const grant of row.grants) {
         await unwrapRemote(await wire.revokeConnector({ ...scope, personaId: row.face.id, cli: grant.cli, connectorId: grant.connectorId }))
@@ -80,6 +89,7 @@ export function ConnectedWho({ persona, scope, card, onClose }: ConnectedWhoProp
       faces={data?.faces ?? []}
       grants={data?.grants ?? []}
       connectorRef={ref}
+      canGrantWithoutRef={byName}
       state={state}
       onToggle={canWrite ? onToggle : undefined}
       onRetry={() => { setState('loading'); setReload(count => count + 1) }}

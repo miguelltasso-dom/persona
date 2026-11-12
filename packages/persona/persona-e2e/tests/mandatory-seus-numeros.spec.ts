@@ -21,12 +21,18 @@ const OFFER = `Vendemos bem ontem.\n${marker(SALES)}`
 const TESTED = marker({ ...SALES, valor: 'R$ 1.300', bruto: 1300 })
 const FELL = marker({ ...SALES, valor: 'R$ 900', bruto: 900, tendencia: '-31% desde ontem', direcao: 'desce' })
 
+// "200%" de verdade: o navegador a 200% tem a METADE da largura em px de CSS (720 × 450 no lugar de 1440 × 900), e é isso que dispara os media queries
+// (a Visão geral vira 1 coluna abaixo de 1180 px). O `style.zoom` antigo não mudava o viewport: a grade ficava em 2 colunas e a coluna "Precisa de você"
+// encolhia para ~50 px (Muse 06:58: os arquivos `*-200.png` agora têm 720 × 450 px).
+const VIEWPORT = { 1: { width: 1440, height: 900 }, 2: { width: 720, height: 450 } } as const
+
 async function theme(page: Page, dark: boolean, zoom: 1 | 2, anchor = '[data-seus-numeros]'): Promise<void> {
-  await page.evaluate(([isDark, z]) => {
+  await page.evaluate((isDark) => {
     if (isDark) document.body.setAttribute('data-ds-dark-theme', 'true')
     else document.body.removeAttribute('data-ds-dark-theme')
-    document.documentElement.style.zoom = String(z)
-  }, [dark, zoom] as const)
+    document.documentElement.style.zoom = ''
+  }, dark)
+  await page.setViewportSize(VIEWPORT[zoom])
   const tip = page.getByRole('button', { name: 'Entendi' })
   if (await tip.isVisible()) await tip.click()
   await page.waitForTimeout(700)
@@ -43,7 +49,7 @@ async function shots(page: Page, name: string, anchor = '[data-seus-numeros]'): 
   for (const dark of [false, true]) {
     for (const zoom of [1, 2] as const) {
       await theme(page, dark, zoom, anchor)
-      await page.screenshot({ path: join(SHOTS, `${name}-${dark ? 'escuro' : 'claro'}-${String(zoom * 100)}.png`) })
+      await page.screenshot({ path: join(SHOTS, `${name}-${dark ? 'escuro' : 'claro'}-${String(zoom * 100)}.png`), animations: 'disabled' })
     }
   }
   await theme(page, false, 1, anchor)
@@ -172,6 +178,7 @@ describe.skipIf(!run).sequential('Colheita 19a · Seus números, no app real', (
 
     // "Ver o número": rola até o cartão NA MESMA tela e põe o foco nele com o anel do DS por 1,5 s (sem ir para Aprovações).
     const urlBefore = page.url()
+    await page.waitForTimeout(1500) // o tema acabou de voltar para o claro: deixa as transições dos botões terminarem antes do quadro do anel
     await page.getByRole('button', { name: 'Ver o número' }).click()
     await cardLocator.waitFor({ state: 'visible' })
     const ringed = await page.waitForFunction(() => {
@@ -180,7 +187,7 @@ describe.skipIf(!run).sequential('Colheita 19a · Seus números, no app real', (
     }, undefined, { timeout: 3_000 }).then(() => true, () => false)
     expect(ringed, 'o cartão recebe o foco e o anel').toBe(true)
     await page.waitForTimeout(500) // a rolagem suave termina antes da captura
-    await page.screenshot({ path: join(SHOTS, 'aviso-ver-o-numero-claro-100.png') })
+    await page.screenshot({ path: join(SHOTS, 'aviso-ver-o-numero-claro-100.png'), animations: 'disabled' })
     expect(page.url(), 'nada de navegar').toBe(urlBefore)
     await page.waitForFunction(() => document.querySelector('[data-spotlight="true"]') === null, undefined, { timeout: 5_000 })
 

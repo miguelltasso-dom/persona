@@ -28,7 +28,7 @@ const tree = spawnSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: root, encodin
 if (existsSync(stampPath)) {
   try {
     const stamp = JSON.parse(readFileSync(stampPath, 'utf8'))
-    if (stamp.tree === tree && stamp.skippedSmoke !== true) {
+    if (stamp.tree === tree && stamp.skippedSmoke !== true && stamp.content === true) { // content: a stamp from before the clean-room/lint steps existed is not enough
       console.log(`[pre-push] persona gate already passed for tree ${tree.slice(0, 10)} (${stamp.at}); accepting`)
       process.exit(0)
     }

@@ -16,12 +16,19 @@ import {
   type VaultRepos,
 } from '@deepseek-ai/dsh-persona-store'
 import { SECRET_FACT_KEYS } from './cofre-migrate.ts'
+import { mayReadPrivateRecord } from './private-records.ts'
 
 /** Who and what to pack. */
 export interface ExportRequest {
   readonly workspaceId: string
   readonly projectId?: string
   readonly includeDmIds?: readonly string[]
+}
+
+/** Carbon P0-13: what the asker may NOT get. Absent = the owner (and the specs): everything. */
+export interface ExportAccess {
+  /** Whether a Cofre record of the project goes in the archive (its visibility and status, for this actor). */
+  readonly canReadRecord?: (record: ReturnType<VaultRepos['listRecords']>[number]) => boolean
 }
 
 /** Packed archive. */
@@ -38,7 +45,8 @@ export interface ExportArchive {
  * @param request - Scope + optional DM ids.
  * @param actorId - Session actor.
  * @param board - Optional project flows/sprints (shared; never DMs).
- * @param gov - Optional workspace governance (shared; never DMs).
+ * @param gov - Optional workspace governance (shared; never DMs). The host passes it for the owner only.
+ * @param access - Optional filter of what the asker may read (Cofre records). Absent = all.
  */
 export function exportMarkdown(
   product: ProductRepos,
@@ -48,6 +56,7 @@ export function exportMarkdown(
   actorId: string,
   board?: SqliteBoardRepos,
   gov?: SqliteGovernanceRepos,
+  access?: ExportAccess,
 ): ExportArchive {
   const files = new Map<string, string>()
   const projects = request.projectId === undefined
@@ -101,6 +110,8 @@ export function exportMarkdown(
       files.set(`${prefix}dms/${slug(dm.id)}.md`, redact(`# DM ${dm.id}\n\n${body}\n`))
     }
     for (const record of vault.listRecords(project.id)) {
+      if (!mayReadPrivateRecord(record, actorId)) continue // P1-NOVO: what was said to one persona in a DM is private to who said it; the owner's archive too
+      if (access?.canReadRecord !== undefined && !access.canReadRecord(record)) continue // Carbon P0-13: a record private to somebody else, or revoked, is not the asker's
       // Carbon P0-09: a connector token / the webhook secret an older build kept as a record body never travels, whatever the status of the record.
       if (record.factKey !== undefined && SECRET_FACT_KEYS.includes(record.factKey)) continue
       files.set(

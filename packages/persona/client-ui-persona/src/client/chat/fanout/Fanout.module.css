@@ -69,14 +69,14 @@
 
 .name {
   margin: 0;
-  font: 800 13px/18px var(--persona-font-text);
+  font: 600 13px/18px var(--persona-font-text);
   color: var(--persona-ink);
 }
 
 .text,
 .textFull {
   margin: 0;
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;

@@ -195,6 +195,70 @@ it('the replay text never carries the raw wire markers of a held message, and th
   expect(book.list('pp')[0]).toMatchObject({ eventIds: ['e1', 'e2'], firstDelivery: { executorId: 'coord', title: 'Primeira entrega' } })
 })
 
+/** A team with functions (the request that lists several is SPLIT between them, TEAM-13). */
+function seedTeam(h: PersonaHost): void {
+  seed(h)
+  for (const [id, name, title] of [['bia', 'Bia', 'Redação'], ['teo', 'Teo', 'Design']] as const) {
+    h.createPersona({
+      id, workspaceId: 'ws', projectId: 'pp', name, title, description: title, personality: 'Calma.', instructions: 'Faça.',
+      avatarKind: 'gallery', avatarRef: id, runnerKind: 'dsh', runnerCli: '', runnerModel: 'm', canRecruit: false, createdBy: 'ana',
+    })
+  }
+  h.teamworkEnabled = true
+}
+
+const works = (h: PersonaHost) => h.orchestration.runtime('pp').repo.tickets.list().filter(ticket => !ticket.title.startsWith('Revisar:'))
+const assignments = (h: PersonaHost): string[] => works(h).map(ticket => `${ticket.execution?.name ?? '?'}: ${ticket.execution?.assignment ?? ''}`)
+
+// P0-06a (Carbon, colheita S1 fix): the release can never swallow a held request. A request that SPLITS by function used to be the carrier and the next
+// request of the conversation (u2) was lost in silence (the split read only u1's words).
+it('a held request that SPLITS by function does not swallow the request that came after it', async () => {
+  const h = host()
+  seedTeam(h)
+  quota(h, 97)
+  await say(h, 'Faça texto e arte do cartaz da promoção')
+  await say(h, 'Monte a tabela de preços')
+  expect(queue(h)[0]?.eventIds).toHaveLength(2)
+
+  quota(h, 30, '2026-11-11T22:00:00.000Z')
+  expect(h.orchestration.releaseWindowQueue('pp')).toBe(1)
+  await h.orchestration.flush('pp')
+  const rows = assignments(h)
+  expect(rows.some(row => row.startsWith('Bia:') && row.includes('texto'))).toBe(true) // the split still happens: her part…
+  expect(rows.some(row => row.startsWith('Teo:') && row.includes('arte'))).toBe(true) // …and his
+  expect(rows.some(row => row.includes('tabela de preços')), `the second request vanished: ${JSON.stringify(rows)}`).toBe(true)
+  expect(queue(h)).toHaveLength(0)
+})
+
+// …and a handoff written by a colleague, held in the same conversation as a message of the owner, lost its own Task (the carrier became the owner's
+// message and took the handoff's route), so the persona who asked for help waited for her colleague forever.
+it('a held handoff keeps its own Task when the owner also wrote in the conversation', async () => {
+  const h = host()
+  seedTeam(h)
+  quota(h, 97)
+  const handoff = h.events.append({
+    id: 'handoff:t1:c1', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral', type: 'handoff',
+    body: 'Pedido da Guia para a Bia', actorId: 'coord', subjectId: '', occurredAt: '2026-11-11T18:10:00.000Z',
+  })
+  h.orchestration.ingest(handoff, 'channel', 'geral', '', undefined, {
+    executorId: 'bia', title: 'Texto do cartaz', mode: 'task', mandateActorId: 'ana', assignment: 'Escreva o texto do cartaz',
+  })
+  await say(h, 'Monte a tabela de preços')
+  expect(works(h)).toHaveLength(0) // both wait for the renewal
+  expect(queue(h)[0]?.eventIds).toEqual(['handoff:t1:c1', 'u1'])
+
+  quota(h, 30, '2026-11-11T22:00:00.000Z')
+  expect(h.orchestration.releaseWindowQueue('pp')).toBe(1)
+  await h.orchestration.flush('pp')
+  const rows = assignments(h)
+  expect(rows.some(row => row.startsWith('Bia:') && row.includes('Escreva o texto do cartaz')), `the handoff Task was lost: ${JSON.stringify(rows)}`).toBe(true)
+  expect(rows.some(row => row.includes('tabela de preços')), `the owner's request vanished: ${JSON.stringify(rows)}`).toBe(true)
+  expect(rows.filter(row => row.includes('Escreva o texto do cartaz'))).toHaveLength(1) // the owner's words never ran under the handoff's route
+  // the Task is born from the HANDOFF's own event (`handoff:<ticket>:<call>`): that is what delivers back to the persona who asked
+  const bia = works(h).find(ticket => ticket.execution?.assignment?.includes('Escreva o texto do cartaz'))
+  expect(bia?.origin.triggerId).toBe('handoff:t1:c1')
+})
+
 it('keeps a routine request out of the model and never answers it with silence', async () => {
   const h = host()
   seed(h)

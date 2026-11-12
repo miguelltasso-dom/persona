@@ -134,7 +134,7 @@
 
 .pathLine {
   margin: 0;
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink);
 }
 
@@ -162,7 +162,7 @@
 
 .noteTitle {
   margin: 0;
-  font: 800 13px/18px var(--persona-font-text);
+  font: 600 13px/18px var(--persona-font-text);
   color: var(--persona-ink);
 }
 
@@ -182,7 +182,7 @@
 .noteList {
   margin: 0;
   padding-left: var(--persona-space-4);
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink);
   overflow-wrap: anywhere;
 }

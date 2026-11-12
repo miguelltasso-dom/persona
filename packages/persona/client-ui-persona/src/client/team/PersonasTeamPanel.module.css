@@ -94,7 +94,7 @@
 .task {
   overflow-wrap: anywhere;
   color: var(--persona-ink);
-  font: 500 13px/19px var(--persona-font-text);
+  font: 400 13px/19px var(--persona-font-text);
 }
 
 .taskIdle {

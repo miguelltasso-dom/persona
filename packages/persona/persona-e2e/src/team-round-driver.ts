@@ -16,7 +16,7 @@ import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { PADARIA_SCENARIOS, type PadariaScenarioId } from './eval-padaria-scenarios.ts'
 import { hostRpcOk } from './gauge-sb-ges.ts'
-import { readHostFlags, v11FlagsOn, type HostFlags } from './host-flags.ts'
+import { readHostFlags, readHostSurfaces, surfacesProblems, v11FlagsOn, type HostFlags, type HostSurfaces } from './host-flags.ts'
 import { readLedgerEvidence, type LedgerEvidence } from './ledger-evidence.ts'
 import { REPO_ROOT } from './paths.ts'
 import { openRealPersonaApp, type RealPersonaSession } from './real-app-session.ts'
@@ -52,7 +52,12 @@ export const ATTACHMENT_NAME = 'foto.png'
  */
 /** The art file the stub's parts write in their cwd (the Task's draft) — an SVG, since the persona has no image tool. */
 export const ART_FILE = 'cartaz-arte.svg'
-const ART_SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><rect width="1080" height="1350" fill="#1F40AE"/><circle cx="540" cy="480" r="240" fill="#DC2626"/><text x="540" y="500" text-anchor="middle" fill="#fff" font-size="72">2 por R$ 9</text></svg>\n'
+/**
+ * The offer the stub's parts write is READ from the prompt of their own turn (the fake CLI fills `{{prompt:REGEX}}`), not a fixed sentence: a worker that can only write what it was told. When the host does not
+ * carry the person's request (its price) to the part, her delivery says "(não informado)" and the `bia-text` / art checks fail — before, the stub said "2 por R$ 9" anyway and they passed without a real hand-off.
+ */
+const OFFER_FROM_PROMPT = String.raw`{{prompt:(\d+ por R\$ ?\d+)}}`
+const ART_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1350"><rect width="1080" height="1350" fill="#1F40AE"/><circle cx="540" cy="480" r="240" fill="#DC2626"/><text x="540" y="500" text-anchor="middle" fill="#fff" font-size="72">${OFFER_FROM_PROMPT}</text></svg>\n`
 /** Bolt: the reviewer gets the author's WHOLE delivery in the PROMPT of her turn, inside this block (not in the card note). */
 export const ENTREGA_BLOCK = '<entrega>'
 /** The delimiters of the bilhete in the assignment of whoever receives a pass/help/review. */
@@ -67,11 +72,15 @@ export const NARRATION_STEPS: readonly string[] = [
   'Nenhum arquivo de imagem no diretório de trabalho. Vou verificar o diretório e procurar `foto.png` mais amplamente.',
 ]
 export const DELIVERY_END = 'FIM-DA-ENTREGA-COMPLETA'
-const LONG_DELIVERY = [
+const deliveryOf = (offer: string): string => [
   'Aqui está a minha parte, pronta para a revisão.',
-  ...Array.from({ length: 8 }, (_, index) => `Item ${String(index + 1)}: o cartaz do pão de queijo da Padaria Lua mostra a oferta "2 por R$ 9", de sexta a domingo, com o contato do WhatsApp no rodapé e o destaque em vermelho sobre o fundo azul.`),
+  ...Array.from({ length: 8 }, (_, index) => `Item ${String(index + 1)}: o cartaz do pão de queijo da Padaria Lua mostra ${offer}, de sexta a domingo, com o contato do WhatsApp no rodapé e o destaque em vermelho sobre o fundo azul.`),
   `Conferência final: valores, dias e telefone iguais ao pedido. ${DELIVERY_END}`,
 ].join('\n')
+/** The delivery of a part that was TOLD the offer: it says the one it read in its own prompt. */
+const LONG_DELIVERY = deliveryOf(`a oferta "${OFFER_FROM_PROMPT}"`)
+/** The delivery of a colleague who got only a bilhete (a contrast check, a review): nobody told her the price, so she does not say one. */
+const COLLEAGUE_DELIVERY = deliveryOf('a oferta combinada')
 
 interface CastMember { readonly id: string; readonly name: string; readonly title: string; readonly description: string; readonly instructions: string; readonly avatarRef: string }
 
@@ -116,7 +125,7 @@ export interface TeamRoundOptions {
 
 export interface TeamRoundResult {
   readonly engine: 'fake' | 'real'
-  readonly preflight: { readonly isolation?: { readonly version: string; readonly fingerprint: string; readonly problems: readonly string[] } | undefined; readonly hostFlags: HostFlags | undefined; readonly flagsOn: boolean; readonly claudeReady: boolean | undefined; readonly personas: readonly string[] }
+  readonly preflight: { readonly isolation?: { readonly version: string; readonly fingerprint: string; readonly problems: readonly string[] } | undefined; readonly hostFlags: HostFlags | undefined; readonly hostSurfaces?: HostSurfaces | undefined; readonly flagsOn: boolean; readonly claudeReady: boolean | undefined; readonly personas: readonly string[] }
   readonly attachmentId: string
   readonly requestId: string
   /** Why the watchdog killed the host, if it did. */
@@ -323,7 +332,7 @@ export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRound
         { match: 'Sua parte:', reply: LONG_DELIVERY },
         // The colleague of a pass/help (her prompt carries the bilhete) — and the art part when it RESUMES with the colleague's delivery: a plain answer, not the stub's default first-delivery text.
         // It still ends in DELIVERY_END: the resumed art part is what the reviewer is handed, and the reviewer must get the whole of it.
-        { match: BILHETE_BLOCK, reply: `Li o bilhete e os arquivos que chegaram no meu rascunho.\n${LONG_DELIVERY}` },
+        { match: BILHETE_BLOCK, reply: `Li o bilhete e os arquivos que chegaram no meu rascunho.\n${COLLEAGUE_DELIVERY}` },
       ],
     },
     cleanHostEnv: true,
@@ -346,6 +355,12 @@ export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRound
     const hostFlags = readHostFlags(session.host.output(), session.host.home)
     const flagsOn = v11FlagsOn(hostFlags)
     if (!flagsOn) throw new PreflightRefusal(`preflight: the host boot line does not show the four switches ON with defaults=production (${JSON.stringify(hostFlags ?? null)})`)
+    // D-113 (Keel 12/11): the rehearsal runs on the product's default of the SURFACES too: invite/station/channels/skillImport OFF (the team must work without them). The shared browser is recorded, and
+    // demanded ON (`PERSONA_TEAM10_SHARED_BROWSER=on`) once the product's default for it is turned on.
+    const hostSurfaces = readHostSurfaces(session.host.output(), session.host.home)
+    const sharedBrowserDemand = process.env.PERSONA_TEAM10_SHARED_BROWSER === 'on' ? 'on' : process.env.PERSONA_TEAM10_SHARED_BROWSER === 'off' ? 'off' : 'any'
+    const surfaceProblems = surfacesProblems(hostSurfaces, sharedBrowserDemand)
+    if (surfaceProblems.length > 0) throw new PreflightRefusal(`preflight: the host surfaces are not the product's default: ${surfaceProblems.join('; ')} (${JSON.stringify(hostSurfaces ?? null)})`)
     const tenant: V11Tenant = await v11Tenant(page)
     const scope = { workspaceId: tenant.workspaceId, projectId: tenant.projectId }
     // The host probes the CLI in the background: right after the boot `phase` is still "checking" (available:false, loggedIn:false) — NOT an answer. Wait for "ready" (the stub
@@ -510,10 +525,12 @@ export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRound
     })
     copyDatabase(options.home, join(options.outDir, 'evidence'))
     writeFileSync(join(options.outDir, 'reading-transcript.md'), reading.markdown)
+    // The boot lines the host printed (the flags and the five surfaces as they resolved): the proof that the round ran on the product's defaults (D-113), readable without any env.
+    writeFileSync(join(options.outDir, 'host-boot-lines.txt'), `${session.host.output().split(/\r?\n/u).filter(line => /\[persona-host\] (?:flags|surfaces) /u.test(line)).map(line => line.trim()).join('\n')}\n`)
     if (transcript !== undefined) writeFileSync(join(options.outDir, 'transcript.md'), renderTranscriptMarkdown(transcript, `TEAM-10 (${options.engine}) — o que a pessoa vê`))
     return {
       engine: options.engine,
-      preflight: { isolation, hostFlags, flagsOn, claudeReady, personas: roster.map(row => row.name) },
+      preflight: { isolation, hostFlags, hostSurfaces, flagsOn, claudeReady, personas: roster.map(row => row.name) },
       attachmentId: attachment.id, requestId, aborted, timedOut, ledger, transcript, verdict,
       threadLines: rows.length, reading, stubImageTurns, stubRequestTurns, reviewPromptsWhole, draftProof, stubProof, answeredAsks: answerer.answered, askStopped: answerer.stopped, shots, elapsedMs: Date.now() - startedAt, quota: { before: quotaBefore, after: quotaAfter }, morningBrief, diagnostics, hostSoftLines,
     }

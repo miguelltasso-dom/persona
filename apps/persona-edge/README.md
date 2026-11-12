@@ -14,3 +14,5 @@ Local only for now: `pnpm --filter @deepseek-ai/dsh-persona-edge dev` (wrangler 
 Deploy (quando o Atlas liberar): `persona-spec/CLOUDFLARE-DEPLOY.md`. Sem conta: `pnpm exec wrangler deploy --dry-run --outdir .wrangler/dry`.
 
 `WorkspaceHub` is the only sequencer (`seq === head+1` or `SEQ_GAP`). DMs/private need `shared: true`. GitHub webhooks are HMAC-verified, then become `WebhookEnvelope` on the workspace DO. Attachments go to R2. Tests: `pnpm exec vitest run apps/persona-edge`.
+
+Local secret (P2-03a): `wrangler.toml` holds no secret and the worker is not exposed on `workers.dev` (`workers_dev = false`). For a local run copy `.dev.vars.example` to `.dev.vars` (git-ignored) and fill `GITHUB_WEBHOOK_SECRET`; while it is empty the edge refuses webhooks. In production the value goes through `wrangler secret put`. The specs pass their own value.

@@ -194,7 +194,7 @@ it('the review wire reads the Task (title, who did it, what it asked), never its
   const tickets = new Map([['t1', { title: 'Cartaz da promoção de pão de queijo', execution: { name: 'Bia', assignment: 'Faça o cartaz com o preço novo.' } }]])
   const wire = {
     screens: h.screens, product: h.product,
-    orchestration: { runtime: () => ({ repo: { tickets: { get: (id: string) => tickets.get(id) } } }), now: () => '2026-11-10T10:00:00.000Z' },
+    orchestration: { runtime: () => ({ repo: { tickets: { get: (id: string) => tickets.get(id) } } }), now: () => '2026-11-10T10:00:00.000Z', localOffsetMinutes: () => 0 },
   } as unknown as FeedbackWireDeps
   expect(learnFromAcceptedReview(wire, { ...SCOPE, ticketId: 't1' })?.note).toMatchObject({ title: 'Cartaz da promoção de pão de queijo', request: 'Faça o cartaz com o preço novo.' })
   learnFromRequestedChanges(wire, { projectId: 'pp', ticketId: 't1', feedback: 'Mais curto' })
@@ -209,4 +209,19 @@ it('the old technical receipt ("Revisão aceita: <ticket>") is not a memory in M
   h.vault.createRecord({ id: 'mem-fb-t9', ...SCOPE, kind: 'memory', body: 'Revisão aceita: t9. t9', authorId: 'review', visibility: { kind: 'workspace' } })
   h.vault.createRecord({ id: 'real-1', ...SCOPE, kind: 'memory', body: 'A padaria abre às 7h.', authorId: 'ana', visibility: { kind: 'workspace' } })
   expect(h.listMemory(SCOPE).map(row => row.body)).toEqual(['A padaria abre às 7h.'])
+})
+
+it('Carbon P2-03c: a "day" is the owner\'s LOCAL day, not the UTC one: three uses on one evening (UTC-3) are ONE day, and the offer waits for a second local day', () => {
+  const h = host()
+  seed(h)
+  const clock = { at: '2026-11-10T23:30:00.000Z' } // 20:30 on the 10th in São Paulo
+  const local: PlaybookDeps = { ...deps(h, clock), offsetMinutes: () => -180 }
+  notePlaybookWin(local, win('t1'))
+  clock.at = '2026-11-11T01:30:00.000Z' // 22:30 on the 10th: already the 11th in UTC
+  notePlaybookWin(local, win('t2'))
+  clock.at = '2026-11-11T02:30:00.000Z' // 23:30 on the 10th
+  expect(notePlaybookWin(local, win('t3'))?.offered).toBe(false) // one local day: the proof needs two
+  expect(listPlaybook(h.screens.screens, 'pp', 'bia')[0]?.uses.map(use => use.day)).toEqual(['2026-11-10', '2026-11-10', '2026-11-10'])
+  clock.at = '2026-11-11T12:00:00.000Z' // the 11th at 09:00: a second local day
+  expect(notePlaybookWin(local, win('t4'))?.offered).toBe(true)
 })

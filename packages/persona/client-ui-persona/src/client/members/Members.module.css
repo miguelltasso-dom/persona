@@ -1,7 +1,7 @@
 /* Estado calmo da seção remota quando a equipe não está ligada (cena 20; mesmo texto do cartão Equipe à distância). */
 .calmBody {
   margin: var(--persona-space-2) 0 0;
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink-soft);
 }
 

@@ -44,34 +44,50 @@ export function filterEmailMessages(
   return messages.filter(message => matchesEmailFilter(message, filter))
 }
 
-/** The items of an address list: split on commas that are not inside a quoted display name (`"Beltrano, B." <b@c.com>` is ONE item). */
-function listItems(value: string): string[] {
-  const items: string[] = []
-  let current = ''
+/**
+ * Blanks what a mail client never reads as an address: the quoted strings (`"..."`, with `\"` inside) and the comments (`(...)`, nested). A display name
+ * or a comment may carry a FAKE `<address>` (P0-06c: `"<cliente@parceiro.com.br>" <atacante@externo.com>`); what is left is the real structure. An
+ * unterminated quote or comment blanks the rest: no address is better than a forged one.
+ * @param value - The raw header value.
+ */
+function withoutNamesAndComments(value: string): string {
+  let clean = ''
   let quoted = false
-  for (const char of value) {
-    if (char === '"') quoted = !quoted
-    if (char === ',' && !quoted) {
-      items.push(current)
-      current = ''
+  let depth = 0
+  for (let at = 0; at < value.length; at += 1) {
+    const char = value.charAt(at)
+    if (depth > 0) {
+      if (char === '\\') at += 1
+      else if (char === '(') depth += 1
+      else if (char === ')') depth -= 1
+    } else if (quoted) {
+      if (char === '\\') at += 1
+      else if (char === '"') quoted = false
+    } else if (char === '"') {
+      quoted = true
+      clean += ' '
+    } else if (char === '(') {
+      depth = 1
+      clean += ' '
     } else {
-      current += char
+      clean += char
     }
   }
-  items.push(current)
-  return items
+  return clean
 }
 
 /**
- * The real addresses of a header (`From:`, `To:`): per item of the list, what sits between `<...>` when there is one, else the bare address. A display
- * name is NEVER an address (P0-11: `"cliente@parceiro.com.br" <atacante@externo.com>` is sent by atacante@externo.com).
+ * The real addresses of a header (`From:`, `To:`): per item of the list, what sits between `<...>` OUTSIDE the quotes and comments (the last one, which is
+ * where the grammar puts the angle-addr), else the bare address. A display name is NEVER an address (P0-11: `"cliente@parceiro.com.br" <atacante@externo.com>`
+ * is sent by atacante@externo.com; P0-06c: the same with the fake address in `<...>` inside the quotes).
  * @param value - The raw header value.
  * @returns The addresses, lower case.
  */
 function addressesOf(value: string): string[] {
   const found: string[] = []
-  for (const item of listItems(value)) {
-    const angled = /<([^<>\s]+)>/u.exec(item)?.[1]
+  // The quotes and comments are gone first, so a comma inside a name ("Beltrano, B.") no longer splits the list.
+  for (const item of withoutNamesAndComments(value).split(',')) {
+    const angled = [...item.matchAll(/<([^<>\s]+)>/gu)].at(-1)?.[1]
     const bare = angled === undefined ? /[^\s<>"',;()]+@[^\s<>"',;()]+/u.exec(item)?.[0] : undefined
     const address = angled ?? bare
     if (address !== undefined) found.push(address.toLowerCase())

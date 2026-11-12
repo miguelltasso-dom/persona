@@ -186,6 +186,6 @@
 
 .embeddedTitle {
   margin: 0;
-  font: 800 20px/28px var(--persona-font-display, var(--persona-font-text));
+  font: 600 20px/28px var(--persona-font-display, var(--persona-font-text));
   color: var(--persona-ink);
 }

@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto'
 import { isTechnicalAuthor } from './thread-authors.ts'
 import { z } from 'zod'
 import { RemoteFault } from './remote-guard.ts'
+import { RemoteLive } from './remote-live.ts'
 import type { Actor, ChannelSealedPayload, SyncEnvelope } from '@deepseek-ai/dsh-persona-core'
 import {
   ChannelCryptoError, ChannelKeyring, HttpTransport, MemoryIdentityStore, SyncClient, SyncTransportError, createRequestSigner, fingerprint, inviteLinkOf, loadOrCreateIdentity,
@@ -12,7 +13,7 @@ import {
 import { SqliteSyncLog, type EventRepos, type PersonaStore, type ScreenRepos, type StoredEvent } from '@deepseek-ai/dsh-persona-store'
 import type {
   AcceptRemoteInviteRequest, ConnectRemoteTeamRequest, RemoteTeamState,
-  InviteLinkView, InvitePreview, InviteView, IssueInviteRequest, JoinStatus, ProjectScopeRequest,
+  InviteLinkView, InvitePreview, InviteView, IssueInviteRequest, JoinStatus, PresenceView, ProjectScopeRequest,
   RemoteMemberView,
 } from './types.ts'
 
@@ -76,6 +77,10 @@ export interface RemoteTeamOptions {
   readonly vault: () => RemoteTeamVault | undefined
   readonly topicOf: (projectId: string, channelId: string) => string | undefined
   readonly pollMs: number
+  /** F4: keep one live WebSocket to the hub per connected team (wake-up + presence). Off by default; the app turns it on, the poll stays as the safety net. */
+  readonly live?: boolean
+  /** D-113: whether the invite surface is ON. OFF = inert: nothing resumes, polls, syncs or opens a socket. Default: on (the host wires it to the surface switch). */
+  readonly enabled?: () => boolean
   readonly timeoutMs: number
   readonly fetch?: typeof fetch
   /** This device's identity (the Cofre's sealed slot in the app). Absent = one in memory for this host only (tests): the keys do not survive a restart. */
@@ -104,6 +109,7 @@ export class RemoteTeamHost {
   private identityPromise: Promise<Identity> | undefined
   private readonly memoryIdentity = new MemoryIdentityStore()
   private readonly signers = new Map<string, RequestSigner>()
+  private readonly lives = new Map<string, RemoteLive>()
   /** The channel keys THIS device holds, per project. In memory only: after a restart they are opened again from the wraps the hub holds. */
   private readonly keyrings = new Map<string, ChannelKeyring>()
   private readonly rosters = new Map<string, RosterRow[]>()
@@ -117,6 +123,11 @@ export class RemoteTeamHost {
     const stopAppends = options.events.subscribe((event) => { if (event.type !== 'partial') this.enqueue(event) })
     const stopChanges = options.events.subscribeChanges((event) => { if (event.type !== 'partial') this.enqueue(event) })
     this.stopListening = () => { stopAppends(); stopChanges() }
+  }
+
+  /** @returns Whether the invite surface is ON (D-113). The one question every entry that touches the network, a timer or a socket asks first. */
+  isEnabled(): boolean {
+    return this.options.enabled?.() ?? true
   }
 
   /** @returns Current Cofre capability, including an absent provider. */
@@ -152,10 +163,12 @@ export class RemoteTeamHost {
 
   /** @param scope - Existing project to resume. */
   resume(scope: ProjectScopeRequest): void {
+    if (!this.isEnabled()) return // D-113: a team stored by an earlier build is not resumed while the surface is off
     const state = this.state(scope)
     if (state === undefined) return
     this.connections.set(scope.projectId, state)
     this.arm()
+    this.syncLive(state) // resume: the live link comes back with the app
   }
 
   /** @param request - Explicit channels. @param actor - Server-resolved owner. @returns Durable connection state. */
@@ -368,6 +381,7 @@ export class RemoteTeamHost {
 
   /** @param scope - Connected project. @returns State after serialized push/pull; refusals remain visible and durable. */
   async sync(scope: ProjectScopeRequest): Promise<RemoteTeamState | undefined> {
+    if (!this.isEnabled()) return undefined // D-113: not one byte to the network while the surface is off
     const next = this.work.then(() => this.exchange(scope))
     this.work = next.then(() => undefined, () => undefined)
     try {
@@ -383,6 +397,8 @@ export class RemoteTeamHost {
   /** Stop polling/listening and await all SQLite users before host disposal. */
   async dispose(): Promise<void> {
     if (this.timer !== undefined) clearInterval(this.timer)
+    for (const live of this.lives.values()) live.stop() // this.stopLives()
+    this.lives.clear()
     this.stopListening()
     await this.work
   }
@@ -503,7 +519,63 @@ export class RemoteTeamHost {
     this.options.screens.put(state.projectId, KIND, 'connection', state)
     this.connections.set(state.projectId, state)
     this.arm()
+    this.syncLive(state)
     return this.withLag(state)
+  }
+
+  /**
+   * F4: the live link follows the state: one WebSocket while the team is connected, none otherwise. It only WAKES this host (the same `sync` the poll runs) and carries presence.
+   * @param state - The state that was just saved.
+   */
+  private syncLive(state: RemoteTeamState): void {
+    if (!this.isEnabled()) {
+      for (const live of this.lives.values()) live.stop() // D-113: the surface was switched off: no socket stays open
+      this.lives.clear()
+      return
+    }
+    if (this.options.live !== true) return
+    const known = this.lives.get(state.projectId)
+    if (state.status === 'revoked' || state.status === 'vault_unavailable') {
+      known?.stop()
+      this.lives.delete(state.projectId)
+      return
+    }
+    // An "offline" state is usually one failed exchange: the link has its own reconnect and the next wake recovers the exchange, so it stays. A guest that has only ASKED
+    // (offline + PENDING_APPROVAL, never connected) has no link yet: the hub would refuse the upgrade.
+    if (known !== undefined || state.status !== 'connected') return
+    const target = `/w/${encodeURIComponent(state.workspaceId)}/sync`
+    const live = new RemoteLive({
+      url: `${state.edgeUrl.replace(/^http/u, 'ws')}${target}`,
+      authorize: async () => (await this.signerFor(state.actorId)).authorize({ method: 'GET', target }),
+      onWake: () => {
+        void this.sync(state).catch((error: unknown) => { void error }) // sync persisted the failure; the next wake or poll resumes the durable cursor
+      },
+      onRevoked: () => {
+        this.lives.delete(state.projectId)
+        void this.sync(state).catch((error: unknown) => { void error }) // the hub says no: the next sync records the revocation
+      },
+    })
+    this.lives.set(state.projectId, live)
+    live.start()
+  }
+
+  /**
+   * F4: who is here right now. The devices come from the live link (the hub derives the roster from its open sockets); the names from the member list. A member with no live
+   * device is "fora"; busy or away is "ausente"; online is "online".
+   * @param scope - A connected project.
+   */
+  async presence(scope: ProjectScopeRequest): Promise<PresenceView[]> {
+    const state = this.state(scope)
+    if (state === undefined || state.status === 'revoked') return []
+    const live = this.lives.get(scope.projectId)?.roster() ?? []
+    return (await this.members(scope)).filter(member => member.status === 'active').map((member) => {
+      const devices = live.filter(row => row.actor === member.actorId && row.state !== 'out')
+      const here = devices.find(row => row.state === 'online') ?? devices[0]
+      return {
+        actorId: member.actorId, name: member.displayName, state: here === undefined ? 'fora' as const : here.state === 'online' ? 'online' as const : 'ausente' as const,
+        machine: here?.machine ?? null,
+      }
+    })
   }
 
   private withLag(state: RemoteTeamState): RemoteTeamState {
@@ -666,7 +738,7 @@ export class RemoteTeamHost {
   }
 
   private arm(): void {
-    if (this.timer !== undefined || this.options.pollMs === 0) return
+    if (this.timer !== undefined || this.options.pollMs === 0 || !this.isEnabled()) return
     this.timer = setInterval(() => {
       for (const state of this.connections.values()) {
         void this.sync(state).catch((error: unknown) => {
@@ -707,6 +779,11 @@ export class RemoteTeamHost {
     const response = await this.fetch(`${edgeUrl}/w/${encodeURIComponent(workspaceId)}${path}`)
     if (!response.ok) throw new SyncTransportError('REMOTE_TEAM_REQUEST_FAILED', response.status)
     return response.json()
+  }
+
+  /** @returns This device's identity (the owner's signing key when this host owns a team). The same promise the hub calls use, so the key is created once. */
+  deviceIdentity(): Promise<Identity> {
+    return this.identityOf()
   }
 
   /** This device's identity: the Cofre's slot in the app, one in memory for a bare host. Loaded once. */

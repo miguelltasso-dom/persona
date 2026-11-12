@@ -11,7 +11,7 @@
 // Mesmo recorte do hook: *.{ts,tsx,mts,cts,mjs}, fora de vendor/*/src/**, só arquivos que existem; MAIS: *.d.ts (emit gerado que nunca vai ao stage) fica de fora, `--include-dts` traz de volta.
 // Erro reprova (exit 1); aviso só conta. Exit 2 = uso errado / oxlint não achado ou quebrou.
 import { execFileSync, spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -118,12 +118,37 @@ export function runLint({ root, files, config = '.oxlintrc.staged.json', oxlint,
   return problems
 }
 
-export function summarize(files, problems) {
-  const errors = problems.filter((p) => p.severity === 'erro')
-  const warnings = problems.filter((p) => p.severity === 'aviso')
+/** O que o baseline guarda: { file: { rule: quantos erros hoje } } (só ERROS; sem número de linha, para não quebrar quando alguém edita o arquivo). */
+export function baselineOf(problems) {
+  const out = {}
+  for (const p of problems) if (p.severity === 'erro') { out[p.file] = out[p.file] ?? {}; out[p.file][p.rule] = (out[p.file][p.rule] ?? 0) + 1 }
+  return out
+}
+
+/**
+ * RATCHET (Gauge, Carbon P2-01): a dívida de hoje é perdoada ATÉ o número que o baseline guarda por arquivo e regra; um erro a mais do que isso é NOVO e reprova. O número só pode descer
+ * (regere o baseline depois de pagar). Separa `fresh` (reprova) de `known` (dívida conhecida, só conta).
+ */
+export function applyBaseline(problems, allow) {
+  const left = {}
+  for (const [file, rules] of Object.entries(allow ?? {})) left[file] = { ...rules }
+  const fresh = []
+  const known = []
+  for (const p of problems) {
+    if (p.severity !== 'erro') { fresh.push(p); continue }
+    const room = left[p.file]?.[p.rule] ?? 0
+    if (room > 0) { left[p.file][p.rule] = room - 1; known.push(p) } else fresh.push(p)
+  }
+  return { fresh, known }
+}
+
+export function summarize(files, problems, allow) {
+  const { fresh, known } = allow === undefined ? { fresh: problems, known: [] } : applyBaseline(problems, allow)
+  const errors = fresh.filter((p) => p.severity === 'erro')
+  const warnings = fresh.filter((p) => p.severity === 'aviso')
   const byFile = {}
   for (const p of errors) byFile[p.file] = (byFile[p.file] ?? 0) + 1
-  return { ok: errors.length === 0, files: files.length, errors: errors.length, warnings: warnings.length, problems, byFile }
+  return { ok: errors.length === 0, files: files.length, errors: errors.length, warnings: warnings.length, known: known.length, problems: fresh, byFile }
 }
 
 export function renderText(result) {
@@ -131,7 +156,7 @@ export function renderText(result) {
   for (const p of result.problems) out.push(`${p.severity === 'erro' ? 'FALHOU' : 'aviso'} [lint] ${p.file}:${p.line}:${p.column} — ${p.message} [${p.rule}]`)
   const perFile = Object.entries(result.byFile).sort((a, b) => b[1] - a[1])
   if (perFile.length > 0) out.push(`por arquivo: ${perFile.map(([f, n]) => `${f} (${n})`).join(', ')}`)
-  out.push(`${result.ok ? 'PASSOU' : 'FALHOU'} — lint (staged): ${result.files} arquivo(s), ${result.errors} erro(s), ${result.warnings} aviso(s).`)
+  out.push(`${result.ok ? 'PASSOU' : 'FALHOU'} — lint (staged): ${result.files} arquivo(s), ${result.errors} erro(s), ${result.warnings} aviso(s)${result.known > 0 ? `, ${result.known} da dívida conhecida (baseline: só pode descer)` : ''}.`)
   return out.join('\n')
 }
 
@@ -139,7 +164,7 @@ export function renderText(result) {
 
 export function parseArgs(argv) {
   const args = { files: [], flags: new Set() }
-  const withValue = new Set(['--root', '--base', '--config', '--oxlint', '--report'])
+  const withValue = new Set(['--root', '--base', '--config', '--oxlint', '--report', '--baseline', '--write-baseline'])
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
     if (arg === '--files') { while (i + 1 < argv.length && !argv[i + 1].startsWith('--')) args.files.push(argv[++i]) } else if (withValue.has(arg)) {
@@ -158,7 +183,13 @@ function main() {
     const root = resolve(args.root ?? REPO_ROOT)
     const files = collectFiles({ root, base: args.base, staged: args.flags.has('staged'), files: args.files, includeDts: args.flags.has('include-dts') })
     const problems = files.length === 0 ? [] : runLint({ root, files, config: args.config, oxlint: args.oxlint, fix: args.flags.has('fix'), noIgnore: args.flags.has('no-ignore') })
-    result = summarize(files, problems)
+    if (args['write-baseline'] !== undefined) {
+      writeFileSync(resolve(args['write-baseline']), `${JSON.stringify({ geradoEm: new Date().toISOString(), why: 'Dívida de lint conhecida (Carbon P2-01): o gate perdoa ATÉ estes números por arquivo e regra; erro a mais é novo e reprova. Só pode descer: regere depois de pagar.', allow: baselineOf(problems) }, null, 2)}\n`)
+      console.log(`baseline gravado: ${String(problems.filter((p) => p.severity === 'erro').length)} erro(s) em ${String(Object.keys(baselineOf(problems)).length)} arquivo(s)`)
+    }
+    if (args.baseline !== undefined && !existsSync(resolve(args.baseline))) throw new UsageError(`baseline não existe: ${args.baseline}`)
+    const allow = args.baseline === undefined ? undefined : JSON.parse(readFileSync(resolve(args.baseline), 'utf8')).allow ?? {}
+    result = summarize(files, problems, allow)
   } catch (error) {
     console.error(error instanceof UsageError ? error.message : `erro ao checar: ${String(error.message ?? error).slice(0, 300)}`)
     process.exit(2)

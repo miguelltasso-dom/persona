@@ -4,6 +4,44 @@ Mais recente no topo. Dono: store, host, sync, `apps/persona-edge`.
 
 ---
 
+## 12/11 11:13 — R2-04 (revisão do Lumen + RED do Gauge) CORRIGIDO: o registro privado saía POR ID
+
+`approveMemory`/`editMemory`/`forgetMemory` por id (`assertMemoryReachable`), "contexto usado" (`readableUsedRows`; `listUsedContext` amarra o evento ao projeto e à ACL da DM) e react/pin/unpin/edit/delete/`listMessageAudit` (`requireOwnableMessage`: linha de DM só para participante). Prova: `r2-04-private-by-id.host.spec.ts` (novo, 4/4) + 19 testes vizinhos + o spec do Gauge sem `listUsedContext`; `check-pkg persona-host` OK; lint 0. Detalhe em `colheita-s1-respostas.md`. Limite: approve/edit/forget aceitam id de qualquer tipo de registro (decisão do Keel).
+
+---
+
+## 12/11 10:45 — RODADA 2 do Carbon (BLOQUEADO em 752e85396a): meus itens fechados, vermelho primeiro em cada um
+
+Detalhe item a item (cenário, o que reproduziu, correção, prova, limites) em `persona-spec/carbon/auditorias/colheita-s1-respostas.md` (Rodada 2). Resumo:
+- **P1-NOVO (meu, interno): memória de DM vazava entre membros** — 4 superfícies (listMemory, leitor desconhecido, Segundo cérebro revogado, exportação do dono); regra única `persona-host/src/private-records.ts`; o Tally fechou o mesmo buraco no `vaultReadable` do core. Contrato `persona-spec/contracts/memoria-da-dm-para-o-time.md` (aprovado; "Tornar do time" só depois do veredito do Carbon).
+- **P1-04 (A–D):** balão do turno reprovado revertido e Parar sem gravar a fala reprovada; `hostActs:false` na conversa; recusa do gate nativo PRÓPRIO vira prova negada (`persona-runners/src/resolve/runner-refusals.ts`); `<details>` em `pendingInStream`. E ("Direcionar agora") é do Flint.
+- **P1-08 UI:** `ConnectedCofre` passa `keepSecretOnEdit` (editar sem redigitar a senha); Resumo da empresa ganha "Editar" com o texto atual no diálogo.
+- **P2-03c:** o "dia" do Playbook é o dia LOCAL (`offsetMinutes`).
+- **Anotação para a Muse (Keel 10:09):** durante a correção do turno o balão fica VAZIO por alguns segundos (o "digitando" some enquanto há mensagem em streaming); ela decide a linha neutra. O botão "Editar" do cartão "Comece aqui" ainda não foi visto no app real.
+**Arquivos novos desta rodada (Keel inclui):** `persona-host/src/private-records.ts`, `persona-host/tests/{memory-dm-privacy,turn-close-p1-04}.host.spec.ts`, `persona-runners/src/resolve/runner-refusals.ts`, `client-ui-persona/tests/{connected-cofre-keep-secret,company-summary-edit-p1-08}.client.spec.tsx`.
+**Pendente com decisão alheia:** conferência no app real dos 3 pontos do P1-11 + do Editar/Cofre (só quando o Rivet/Probe liberarem a trava `build`); "Tornar do time" (Carbon).
+
+---
+
+## 12/11 08:40 — Contrato "Tornar do time" (memória de DM → equipe) escrito, sem código; achado de privacidade na listagem
+
+`persona-spec/contracts/memoria-da-dm-para-o-time.md` (a pedido do Keel; implementação só depois do veredito do Carbon): só o dono, só pela tela, só memória dita por ele; prévia exata + confirmação em 2 passos (`previewMemoryForTeam` / `promoteMemoryToTeam` com texto igual ao da prévia); a mensagem original da DM **não** sobe (a citação pública vira o fato); nunca sobe segredo/Cofre/dado de terceiros (host recusa, não só a tela); desfazer = voltar a `persona` com versão nova; trilha `memory_promotion`; aceite listado.
+**Achado (pergunta aberta §6 para o Carbon, existe hoje, independe do botão):** `ScreenRepos.listMemory(projectId, viewerId)` usa `viewerId` só para o "Você disse…" e **não filtra**: em espaço com mais de uma pessoa, qualquer membro que abra a Memória vê a memória de DM de outro dono, com a mensagem inteira (`proof.quote`). Proposta: entregar a memória `persona` só ao autor (`proof.byId`). Não mexi: muda o que cada membro vê, espera decisão.
+
+---
+
+## 12/11 08:30 — P1-11 (resto) FECHADO: skills aprendidas, perfil que vazava DM alheia, DM sem estado/passo (vermelho primeiro em cada um)
+
+**Skills aprendidas (`learned-…`, a oferta "Virar skill?" do Playbook).** Reproduzido: `learned-skill-p1-11.host.spec.ts` (desligar uma aprendida dava `INVALID_TEACH`; compartilhar já funcionava no host) e `skills-learned-p1-11.client.spec.tsx` (o adaptador e o painel só conheciam `taught-…`: nenhuma ação). Corrigido: o adaptador marca `origin:'learned'`; `SkillsPanel` dá "Desativar" e "Compartilhar" para `taught` e `learned` (a decisão de ativar continua em Aprovações: "Revisar proposta"); `rollbackTaughtSkill` do host aceita `learned` (gancho de 2 linhas em `index.ts`: desliga e sobe a versão; qualquer outra origem mantém a recusa do engine); o perfil liga "Desativar" ao Remote certo.
+**Perfil que vazava memória/skill privada de DM de OUTRA persona.** Reproduzido: `profile-private-p1-11.client.spec.ts` (3 vermelhos: o perfil do Teo listava o que o dono disse só à Bia). Corrigido: `memoriesOfPersona` (fica o do time + o dito a essa persona; privada sem nome não aparece em perfil nenhum) e `skillsOfPersona` (fica compartilhada, sem dono, ou dela); `SkillView.personaId?` (tipo aditivo + `toSkillView`) diz de quem é; ligado em `lumen-remote-panels.tsx` (2 linhas).
+**DM de persona pausada / em silêncio / em rascunho dizia "Disponível" e escondia o passo.** Reproduzido: `dm-state-p1-11.client.spec.tsx` (5 vermelhos). Corrigido: a linha da DM sai de `dmRowOf` (`remote/dm-rows.ts`, arquivo novo): copia `paused`, `quiet`, `draftFiles` e `step` do membro da faixa e usa o vocabulário único (`personaStateOf`) para rótulo e tom; `DmRowUi.step` e a `peer` da `DirectMessagesView` levam os fatos até o cabeçalho ("Pausada", "Descansando", "Num rascunho") e até a linha do passo sob "escrevendo…".
+
+**Prova.** Vermelho: client 8 falhas / host 1 (`INVALID_TEACH`). Verde: 8 arquivos / 55 testes (3 specs novos + host novo + playbook.host + skills-panel-actions + dm-view + dm-working-control) · `memory-owner-source` 15/15 · `remote-load-storm` 6/6 · `check-pkg persona-host` OK (46 s) · `check-pkg client-ui-persona` OK (72 s) · `check-lint-staged` 15 arquivos 0 erros · `check-cleanroom` 0 falhas. Tudo pela trava `check`, um arquivo/pacote por vez (pack do Rivet rodando).
+**Arquivos novos (Keel inclui):** `client-ui-persona/src/client/remote/dm-rows.ts` · `client-ui-persona/tests/{profile-private-p1-11.client.spec.ts, skills-learned-p1-11.client.spec.tsx, dm-state-p1-11.client.spec.tsx}` · `persona-host/tests/learned-skill-p1-11.host.spec.ts`.
+**Limites.** Não rodei o app real nem E2E (pack em andamento; a regra é só um arquivo por vez): os specs montam a `DirectMessagesView` e o `SkillsPanel` de verdade, mas a conferência no app fica para depois do pack. O modal "Nova conversa" (`availablePersonas`) ainda lê o rótulo pelo mapa antigo (`WORK_STATUS_KEY`) e ignora `paused`: fora do P1-11, deixei como está. Sobra do achado do Carbon: "Tornar do time" para uma memória de DM (promover ao time) é funcionalidade nova (Remote + botão), não correção: aguardo decisão do Keel/Muse.
+
+---
+
 ## 12/11 05:55 — SPRINT DE CORREÇÃO (Carbon colheita-s1): P0-09, P1-01, P1-03, RED-3 e parte do P1-11, cada um com vermelho primeiro
 
 **Regra seguida:** reproduzir antes de corrigir (teste vermelho, depois verde); o que não reproduziu foi registrado em `persona-spec/carbon/auditorias/colheita-s1-respostas.md`, sem corrigir às cegas.

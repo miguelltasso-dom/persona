@@ -17,9 +17,11 @@ const t = ((key: string, params?: Readonly<Record<string, string | number>>) => 
 
 afterEach(() => { cleanup() })
 
-describe('P1-05 · Aparência monta os sons discretos', () => {
-  it('mostra a seção "Sons discretos" com o interruptor', () => {
+describe('P1-03 · sons discretos sem efeito ficam escondidos na Aparência', () => {
+  // Carbon P1-03: o SoundsSection grava a preferência, mas nenhum evento do app toca som (createSoundEffects sem chamadores).
+  // Keel: "SoundsSection sem efeito = esconder até tocar". Vermelho: hoje a seção aparece.
+  it('não mostra a seção "Sons discretos" enquanto nenhum som do app toca', () => {
     render(<AppearanceSettingsPanel t={t} themeBridge={createLocalThemeBridge()} />)
-    expect(screen.getByRole('heading', { name: 'Sons discretos' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Sons discretos' })).toBeNull()
   })
 })

@@ -63,14 +63,14 @@ export function ConnectedCofre({ persona, useTenant, useShell, dicts }: LumenRem
   const actions = scope === null ? {} : {
     onSaveLogin: (input: { readonly id?: string; readonly site: string; readonly username: string; readonly password?: string; readonly title?: string }) =>
       quiet(async () => {
-        // The host seals whatever it receives: a login never goes without a password until it keeps the sealed one on an edit (keepSecretOnEdit stays off until then).
-        if (input.password === undefined) throw new Error(t('error.typePassword'))
-        return unwrapRemote(await persona.saveCofreLogin({ workspaceId: scope.workspaceId, projectId: scope.projectId, ...input, password: input.password }))
+        // A NEW login needs its password. An EDIT without one keeps the sealed password (the host's contract: `password` absent + `id`), so fixing a title or a site never asks it again (Carbon P1-08).
+        if (input.password === undefined && input.id === undefined) throw new Error(t('error.typePassword'))
+        return unwrapRemote(await persona.saveCofreLogin({ workspaceId: scope.workspaceId, projectId: scope.projectId, ...input }))
       }),
     onSaveKey: (input: { readonly id?: string; readonly service: string; readonly secret?: string; readonly title?: string }) =>
       quiet(async () => {
-        if (input.secret === undefined) throw new Error(t('error.typeSecret'))
-        return unwrapRemote(await persona.saveCofreKey({ workspaceId: scope.workspaceId, projectId: scope.projectId, ...input, secret: input.secret }))
+        if (input.secret === undefined && input.id === undefined) throw new Error(t('error.typeSecret'))
+        return unwrapRemote(await persona.saveCofreKey({ workspaceId: scope.workspaceId, projectId: scope.projectId, ...input }))
       }),
     onSaveCompany: (input: { readonly id?: string; readonly legalName: string; readonly document: string; readonly email?: string; readonly phone?: string; readonly address?: string }) =>
       quiet(async () => unwrapRemote(await persona.saveCofreCompany({ workspaceId: scope.workspaceId, projectId: scope.projectId, ...input }))),
@@ -85,6 +85,7 @@ export function ConnectedCofre({ persona, useTenant, useShell, dicts }: LumenRem
       state={surfaceOf(gate, state)}
       groups={cofreGroups(entries)}
       sealable={sealable}
+      keepSecretOnEdit
       {...actions}
       onRetry={() => { retryBootstrap(); retry() }}
       t={t}

@@ -55,7 +55,7 @@
 .body {
   margin: 0;
   color: var(--persona-ink-soft);
-  font: 500 15px/22px var(--persona-font-text);
+  font: 400 15px/22px var(--persona-font-text);
 }
 
 .creditsTitle {
@@ -82,7 +82,7 @@
 }
 
 .creditName {
-  font: 800 15px/22px var(--persona-font-text);
+  font: 600 15px/22px var(--persona-font-text);
 }
 
 .license {
@@ -98,7 +98,7 @@
 .holder {
   grid-column: 1 / -1;
   color: var(--persona-ink-soft);
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
 }
 
 .holder {
@@ -116,7 +116,7 @@
 
 .madeBy {
   color: var(--persona-ink-soft);
-  font: 500 13px/20px var(--persona-font-text);
+  font: 400 13px/20px var(--persona-font-text);
 }
 
 .link {

@@ -16,6 +16,8 @@ export interface ImapCredentials {
   readonly secure: boolean
   readonly user: string
   readonly password: string
+  /** Carbon MH-2: the address to connect to (already vetted by the host: the name is NOT resolved again); `host` stays the name the TLS certificate is checked against. */
+  readonly connectTo?: string
 }
 
 /** What to read: the login plus an optional folder and cap. */
@@ -131,9 +133,10 @@ interface ReadOnlySession {
 }
 
 async function openReadOnly(options: ImapReadOptions): Promise<ReadOnlySession> {
+  const target = options.connectTo ?? options.host
   const socket = options.secure
-    ? tlsConnect({ host: options.host, port: options.port, servername: options.host })
-    : netConnect({ host: options.host, port: options.port })
+    ? tlsConnect({ host: target, port: options.port, servername: options.host })
+    : netConnect({ host: target, port: options.port })
   socket.setTimeout(options.timeoutMs ?? DEFAULT_TIMEOUT_MS)
   const session = new ImapSession(socket, options.totalTimeoutMs ?? DEFAULT_TOTAL_TIMEOUT_MS)
   try {
@@ -158,9 +161,11 @@ async function openReadOnly(options: ImapReadOptions): Promise<ReadOnlySession> 
  * Read the mailbox from the vault's JSON credential. A malformed credential reads nothing; a refused login or a
  * failed connection rejects with the server's reason (never the secret).
  * @param secret - Vault value (`{ host, port, secure, user, password, mailbox?, limit? }`).
+ * @param policy - Carbon MH-1/MH-2: `resolveHost` turns the host into the ONE vetted address to connect to, or undefined when the host is refused (then NO socket is opened and the call rejects).
+ * @param policy.resolveHost - The host policy; absent = connect as the credential says (the reader's own specs).
  * @returns The parsed messages (empty for a malformed credential).
  */
-export async function readImapInboxFromSecret(secret: string): Promise<readonly EmailMessage[]> {
+export async function readImapInboxFromSecret(secret: string, policy: { readonly resolveHost?: (host: string) => Promise<string | undefined> } = {}): Promise<readonly EmailMessage[]> {
   let parsed: unknown
   try {
     parsed = JSON.parse(secret)
@@ -174,8 +179,11 @@ export async function readImapInboxFromSecret(secret: string): Promise<readonly 
   const user = typeof row.user === 'string' ? row.user : ''
   const password = typeof row.password === 'string' ? row.password : ''
   if (host === '' || user === '' || password === '') return []
+  const connectTo = policy.resolveHost === undefined ? undefined : await policy.resolveHost(host)
+  if (policy.resolveHost !== undefined && connectTo === undefined) throw new Error('imap: host recusado (rede privada, nome que não resolve ou resolução que falhou)')
   return readImapInbox({
     host,
+    ...(connectTo === undefined ? {} : { connectTo }),
     user,
     password,
     port: typeof row.port === 'number' && Number.isInteger(row.port) ? row.port : 993,

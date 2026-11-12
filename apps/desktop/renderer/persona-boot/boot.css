@@ -1,14 +1,22 @@
-/* Muse · 1ª janela (design/BOOT-SPEC.md). Tokens = client-ui-persona/theme/persona-palette.css (dirD). */
+/* Muse · 1ª janela (design/BOOT-SPEC.md) + "Acordando o time" (COLHEITA-MUSE §30).
+   Tokens = client-ui-persona/theme/persona-palette.css; a drift test (boot-ui.spec.ts) keeps these copies equal. */
 
 :host {
   --paper: #faf3e4; --card: #fffbf3; --ink: #34243f; --ink-soft: #5e4e6b; --outline: #34243f; --outline-soft: rgb(52 36 63 / .16);
   --accent: #e8af54; --accent-hover: #f3c877; --wash: #f2eaf8; --sunken: #f3e8d2;
+  --rail: #675290; --rail-ink: #ffffff; --rail-ink-soft: #e4d7f1; --glow: .2;
+  --motion-base: 220ms; --motion-slow: 360ms; --motion-reduced-fade: 100ms;
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1); --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :host { --paper: #1e1526; --card: #2a1e35; --ink: #f6eee0; --ink-soft: #d3c6df; --outline: #120c18; --outline-soft: rgb(246 238 224 / .16); --wash: #2e2140; --sunken: #18111f; color-scheme: dark; }
+  :host { --paper: #1e1526; --card: #2a1e35; --ink: #f6eee0; --ink-soft: #cdbfdb; --outline: #120c18; --outline-soft: rgb(200 184 232 / .16); --wash: #2e2140; --sunken: #18111f;
+    --rail: #2a1e3a; --rail-ink: #f6eee0; --rail-ink-soft: #c8b8e8; --glow: .32; color-scheme: dark; }
 }
-:host[data-theme='dark'] { --paper: #1e1526; --card: #2a1e35; --ink: #f6eee0; --ink-soft: #d3c6df; --outline: #120c18; --outline-soft: rgb(246 238 224 / .16); --wash: #2e2140; --sunken: #18111f; color-scheme: dark; }
+:host([data-theme='dark']) { --paper: #1e1526; --card: #2a1e35; --ink: #f6eee0; --ink-soft: #cdbfdb; --outline: #120c18; --outline-soft: rgb(200 184 232 / .16); --wash: #2e2140; --sunken: #18111f;
+  --rail: #2a1e3a; --rail-ink: #f6eee0; --rail-ink-soft: #c8b8e8; --glow: .32; color-scheme: dark; }
+:host([data-theme='light']) { --paper: #faf3e4; --card: #fffbf3; --ink: #34243f; --ink-soft: #5e4e6b; --outline: #34243f; --outline-soft: rgb(52 36 63 / .16); --wash: #f2eaf8; --sunken: #f3e8d2;
+  --rail: #675290; --rail-ink: #ffffff; --rail-ink-soft: #e4d7f1; --glow: .2; color-scheme: light; }
 
 * { box-sizing: border-box; }
 
@@ -16,28 +24,61 @@
 :host { position: fixed; inset: 0; z-index: 2147483647; display: block; background: var(--paper); color: var(--ink); font: 500 15px/1.5 'Persona Nunito', 'Segoe UI', system-ui, sans-serif; }
 [hidden] { display: none !important; }
 
-.boot { display: grid; place-items: center; min-height: 100%; padding: 24px; text-align: center; }
+.boot { display: grid; grid-template-columns: 264px minmax(0, 1fr); height: 100%; }
+
+/* The real rail, static: brand, the five places (disabled, no counts, no channels: none of that is known yet) and the foliage. */
+.rail { position: relative; isolation: isolate; display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow: clip;
+  padding: calc(20px + env(titlebar-area-height, 0px)) 12px 16px; background: var(--rail); color: var(--rail-ink); border-right: 1.5px solid var(--outline); }
+.brand { display: flex; align-items: center; gap: 12px; padding: 0 8px 4px; }
+.badge { display: grid; place-items: center; width: 40px; height: 40px; border-radius: 13px; background: #fffbf3; border: 1.5px solid var(--outline); box-shadow: 0 3px 0 0 var(--outline); transform: rotate(-4deg); }
+.badge img { width: 26px; height: 30px; object-fit: contain; }
+.word { font: 700 27px/1 'Persona Fredoka', 'Segoe UI', sans-serif; letter-spacing: -.02em; }
+.places { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; opacity: .6; }
+.place { display: flex; align-items: center; gap: 12px; min-height: 36px; padding: 0 12px; border-radius: 14px; font: 700 15px/1.2 'Persona Nunito', 'Segoe UI', sans-serif; cursor: default; }
+.place svg { flex: none; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; opacity: .88; }
+.foliage { position: absolute; z-index: -1; left: 0; right: 0; bottom: 0; height: 150px; pointer-events: none;
+  background: url(assets/rail-foliage-light.webp) bottom center / cover no-repeat; }
+@media (prefers-color-scheme: dark) { .foliage { background-image: url(assets/rail-foliage-dark.webp); } }
+:host([data-theme='dark']) .foliage { background-image: url(assets/rail-foliage-dark.webp); }
+:host([data-theme='light']) .foliage { background-image: url(assets/rail-foliage-light.webp); }
+
+.stage { display: grid; place-items: center; min-width: 0; padding: 24px; text-align: center; }
 .splash, .error { display: grid; justify-items: center; gap: 10px; max-width: 440px; }
 
-.symbol { width: 56px; height: 56px; margin-bottom: 8px; border-radius: 16px; }
-.symbol.small { width: 40px; height: 40px; }
-.pose { width: 200px; height: 200px; object-fit: contain; animation: breathe 3.2s ease-in-out infinite; transform-origin: 50% 100%; }
-.error .pose { width: 180px; height: 180px; animation: none; }
+/* The scene stays out of the first 400 ms (boot.js sets data-scene='on'): a host that answers right away never shows it. */
+[data-scene='off'] .splash { visibility: hidden; }
 
-.status { margin: 4px 0 0; font: 700 18px/1.35 'Persona Fredoka', 'Segoe UI', sans-serif; }
-.hint { margin: 0; color: var(--ink-soft); font-weight: 600; }
+.lamp { position: relative; width: 92px; height: 114px; margin-bottom: 18px; }
+.lamp::before { content: ''; position: absolute; z-index: -1; inset: -34px -48px -10px; background: radial-gradient(closest-side, rgb(232 175 84 / var(--glow)), transparent); pointer-events: none; }
+.lamp img { display: block; width: 100%; height: 100%; object-fit: contain; }
 
-.dots { display: inline-flex; gap: 6px; margin-top: 6px; }
-.dots i { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); border: 1.5px solid var(--outline); animation: dot 1.2s ease-in-out infinite; }
-.dots i:nth-child(2) { animation-delay: .15s; }
-.dots i:nth-child(3) { animation-delay: .3s; }
+.faces { display: flex; justify-content: center; gap: 12px; min-height: 64px; }
+/* R2: the bust framed on the head (same crop as the Avatar `head` crop in the app). */
+.face { display: block; flex: none; width: 64px; height: 64px; overflow: hidden; border: 1.5px solid var(--outline); border-radius: 30%; background: var(--wash); }
+.face img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; transform: scale(1.42) translateY(9%); transform-origin: 50% 30%; }
+[data-scene='on'] .face { animation: arrive var(--motion-slow) var(--ease-enter) both; }
+[data-scene='on'] .face:nth-child(2) { animation-delay: 120ms; }
+[data-scene='on'] .face:nth-child(3) { animation-delay: 240ms; }
+[data-scene='on'] .face:nth-child(4) { animation-delay: 360ms; }
+[data-scene='on'] .face:nth-child(5) { animation-delay: 480ms; }
+
+.phrase { display: inline-flex; align-items: center; gap: 10px; margin-top: 10px; }
+.status { margin: 0; font: 600 20px/1.3 'Persona Fredoka', 'Segoe UI', sans-serif; }
+.hint { margin: 0; color: var(--ink-soft); font-size: 14px; font-weight: 600; }
+
+/* "Typing" dots: opacity only, in steps, 1.2 s a cycle. The only continuous animation; it ends with the splash (error hides it). */
+.dots { display: inline-flex; gap: 5px; }
+.dots i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-soft); animation: typing 1.2s steps(1, end) infinite; }
+.dots i:nth-child(2) { animation-delay: .4s; }
+.dots i:nth-child(3) { animation-delay: .8s; }
 
 h1 { margin: 6px 0 0; font: 700 22px/1.3 'Persona Fredoka', 'Segoe UI', sans-serif; }
 h1:focus { outline: none; }
-.:host { position: fixed; inset: 0; z-index: 2147483647; display: block; margin: 0 0 8px; color: var(--ink-soft); font-weight: 600; }
+.error .pose { width: 180px; height: 180px; object-fit: contain; }
+.body { margin: 0 0 8px; color: var(--ink-soft); font-weight: 600; }
 
 .actions { display: grid; justify-items: center; gap: 8px; }
-.primary { min-height: 44px; padding: 10px 22px; border: 1.5px solid var(--outline); border-radius: 999px; background: var(--accent); color: #34243f; box-shadow: 0 3px 0 0 var(--outline); font: 800 16px/1.2 'Persona Nunito', sans-serif; cursor: pointer; }
+.primary { min-height: 40px; padding: 8px 22px; border: 1.5px solid var(--outline); border-radius: 999px; background: var(--accent); color: #34243f; box-shadow: 0 3px 0 0 var(--outline); font: 800 16px/1.2 'Persona Nunito', sans-serif; cursor: pointer; }
 .primary:hover { background: var(--accent-hover); }
 .primary:active { transform: translateY(2px); box-shadow: 0 1px 0 0 var(--outline); }
 .link { min-height: 32px; padding: 0 6px; border: 0; background: none; color: var(--ink-soft); font: 700 14px/1 'Persona Nunito', sans-serif; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
@@ -47,17 +88,21 @@ h1:focus { outline: none; }
 .details summary { cursor: pointer; }
 .details code { display: block; margin-top: 6px; padding: 8px 10px; border: 1px solid var(--outline-soft); border-radius: 10px; background: var(--sunken); font: 600 12px/1.5 ui-monospace, Consolas, monospace; overflow-wrap: anywhere; user-select: all; }
 
-/* Crossfade splash → error (and → app): 220 ms; reduced motion: 120 ms fade, no breathing, no dots bounce. */
-.splash, .error { animation: enter 220ms cubic-bezier(0, 0, .2, 1) both; }
+/* Phase swap splash → error: 220 ms fade. Faces arrive from 12 px below and a touch smaller; only transform and opacity move. */
+.splash, .error { animation: enter var(--motion-base) var(--ease-standard) both; }
 @keyframes enter { from { opacity: 0; transform: translateY(4px); } }
-@keyframes breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.015, .99); } }
-@keyframes dot { 0%, 100% { transform: translateY(0); opacity: .45; } 50% { transform: translateY(-3px); opacity: 1; } }
+@keyframes arrive { from { opacity: 0; transform: translateY(12px) scale(.96); } to { opacity: 1; transform: none; } }
+@keyframes typing { 0% { opacity: 1; } 33.3% { opacity: .28; } 100% { opacity: .28; } }
 @media (prefers-reduced-motion: reduce) {
-  .pose, .dots i { animation: none; }
-  .dots i { opacity: .7; }
-  .splash, .error { animation: fade 120ms linear both; }
+  /* The faces appear together, as a fade; the dots stand still (the phrase says it). */
+  [data-scene='on'] .face, [data-scene='on'] .face:nth-child(n) { animation: fade var(--motion-reduced-fade) linear both; animation-delay: 0ms; }
+  .dots i { animation: none; opacity: .7; }
+  .splash, .error { animation: fade var(--motion-reduced-fade) linear both; }
   @keyframes fade { from { opacity: 0; } }
 }
 
-:host(.leaving) { opacity: 0; transition: opacity 220ms ease-out; pointer-events: none; }
-@media (prefers-reduced-motion: reduce) { :host(.leaving) { transition-duration: 120ms; } }
+/* Leaving: the real screen is already underneath; 220 ms crossfade. */
+:host(.leaving) { opacity: 0; transition: opacity var(--motion-base) var(--ease-standard); pointer-events: none; }
+@media (prefers-reduced-motion: reduce) { :host(.leaving) { transition-duration: var(--motion-reduced-fade); } }
+
+@media (max-width: 719px) { .boot { grid-template-columns: minmax(0, 1fr); } .rail { display: none; } }

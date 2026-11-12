@@ -119,6 +119,8 @@ export interface ChannelComposerProps extends PropsLocale<'persona.chat'> {
   readonly responding?: boolean | undefined
   /** DM: o único "responder" é a persona da conversa; a lógica de fila/direcionar/parar vale, mas o seletor "Quem responde" e o `@nome` não existem. */
   readonly responderHidden?: boolean | undefined
+  /** P1-01 (conversa da tarefa): sem o seletor "Quem responde" (`responderHidden`), mas o `@nome` chama uma persona do fio mesmo assim (só no modo CV-3, flag navPlaces). */
+  readonly mentionsWithoutSelector?: boolean | undefined
   /** TEAM-8c (atrás de `persona.flag.teamwork`): a pessoa está dando a opinião dela sobre um pedido da equipe; mostra o chip "Opinando sobre: {pergunta} · ✕". */
   readonly opinionContext?: { readonly requestId: string; readonly question: string } | undefined
   readonly onClearOpinionContext?: (() => void) | undefined
@@ -185,6 +187,7 @@ export function ChannelComposer({
   stop,
   responding,
   responderHidden = false,
+  mentionsWithoutSelector = false,
   opinionContext,
   onClearOpinionContext,
   replyTarget,
@@ -224,7 +227,7 @@ export function ChannelComposer({
   // CV-3 / CV-8: o "Quem responde" com a equipe inteira (popover) e o `@nome`. Só no modo CV-3 (flag navPlaces ou o canal oferece o fan-out);
   // fora dele o seletor é o `<select>` de sempre. A escolha vale SÓ para a próxima mensagem.
   const [placesNav] = useState(isPlacesNavEnabled)
-  const menuMode = (placesNav || fanoutChoices !== undefined) && !responderHidden
+  const menuMode = (placesNav || fanoutChoices !== undefined) && (!responderHidden || mentionsWithoutSelector)
   const [menuOpen, setMenuOpen] = useState(false)
   const [menuQuery, setMenuQuery] = useState('')
   const [menuActive, setMenuActive] = useState(0)

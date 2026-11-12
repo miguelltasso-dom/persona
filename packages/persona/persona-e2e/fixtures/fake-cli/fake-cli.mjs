@@ -120,7 +120,7 @@ function applyWriteRules(promptText) {
     if (rule.fillIn === true && existsSync(target)) continue
     try {
       mkdirSync(dirname(target), { recursive: true })
-      const content = typeof rule.content === 'string' ? rule.content : `escrito pelo fake-cli em ${new Date().toISOString()}\n`
+      const content = typeof rule.content === 'string' ? fromPrompt(rule.content, promptText) : `escrito pelo fake-cli em ${new Date().toISOString()}\n`
       writeFileSync(target, content)
       logInvocation('write', { proc: process.pid, seq: turnCounter, file: clean.replace(/\\/gu, '/'), cwd: process.cwd(), sha: createHash('sha256').update(content).digest('hex'), ...(rule.fillIn === true ? { recreated: true } : {}) })
     } catch (error) {
@@ -367,7 +367,27 @@ function rawPromptOf(content) {
   return blocks.map(block => (typeof block === 'string' ? block : (block && typeof block.text === 'string' ? block.text : ''))).join('\n')
 }
 
+/**
+ * `{{prompt:REGEX}}` inside a reply or a file content: what the stub READ in the prompt of THIS turn (the first group, else the whole match; nothing found: "(não informado)"). A worker that can
+ * only write what it was told: when the host does not carry the person's facts to it, the delivery lacks them, instead of a fixed sentence saying them anyway (Gauge P2-02, `bia-text` passed without a real hand-off).
+ */
+function fromPrompt(template, promptText) {
+  if (typeof template !== 'string' || !template.includes('{{prompt:')) return template
+  return template.replace(/\{\{prompt:(.+?)\}\}/gu, (_all, source) => {
+    try {
+      const hit = new RegExp(source, 'iu').exec(promptText ?? '')
+      return hit === null ? '(não informado)' : (hit[1] ?? hit[0])
+    } catch {
+      return '(expressão inválida)'
+    }
+  })
+}
+
 function getReplyText(promptText) {
+  return fromPrompt(replyTextRaw(promptText), promptText)
+}
+
+function replyTextRaw(promptText) {
   const byRule = ruleReply(promptText)
   if (byRule !== undefined) return byRule
   const sequence = process.env.FAKE_CLI_REPLIES
@@ -389,6 +409,12 @@ function getLatencyMs() {
   if (env === undefined) return 0
   const n = Number(env)
   return Number.isFinite(n) && n >= 0 ? n : 0
+}
+
+/** `FAKE_CLI_STEP_MS`: pause before each narrated step and before the final reply (default 0: the whole turn arrives at once, as it always did). */
+function stepDelayMs() {
+  const n = Number(process.env.FAKE_CLI_STEP_MS)
+  return Number.isFinite(n) && n > 0 ? n : 0
 }
 
 function getFailure() {
@@ -642,11 +668,15 @@ if (tool === 'codex' && rawArgs.includes('app-server')) {
       }
 
       // What a real model says between its tool calls (see `ruleNarration`): each step is a text block + a tool call, answered by the tool's result.
-      ruleNarration(promptText).forEach((narrated, index) => {
+      // With `FAKE_CLI_STEP_MS` the steps (and the final reply) are spread over time, so two turns of one persona can overlap their streams; unset, nothing waits.
+      const stepMs = stepDelayMs()
+      for (const [index, narrated] of ruleNarration(promptText).entries()) {
+        if (stepMs > 0) await sleep(stepMs)
         const toolUseId = `toolu_fake_${String(turnCounter)}_${String(index)}`
         console.log(JSON.stringify({ type: 'assistant', message: { role: 'assistant', content: [{ type: 'text', text: narrated }, { type: 'tool_use', id: toolUseId, name: 'Glob', input: { pattern: '**/*' } }] } }))
         console.log(JSON.stringify({ type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: toolUseId, content: '(nenhum resultado)' }] } }))
-      })
+      }
+      if (stepMs > 0) await sleep(stepMs)
 
       console.log(JSON.stringify({
         type: 'assistant',

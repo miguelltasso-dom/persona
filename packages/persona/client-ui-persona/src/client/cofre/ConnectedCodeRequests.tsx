@@ -24,6 +24,8 @@ export interface HostCodeRequest {
   readonly id: string
   readonly personaId: string
   readonly reason: string
+  /** The login the persona said the code is for (Carbon P1-02), when she named one. */
+  readonly site?: string | undefined
   readonly state: 'pending' | 'filled' | 'taken' | 'cancelled' | 'expired'
   readonly createdAt: string
   readonly expiresAt: string
@@ -62,6 +64,7 @@ export function codeRequestRows(requests: readonly HostCodeRequest[], people: re
       personaName: who?.name ?? request.personaId,
       faceSrc: personaFaceSrc(who?.avatarRef, request.personaId),
       reason: request.reason,
+      ...(request.site === undefined || request.site === '' ? {} : { site: request.site }),
       state: request.state,
       expiresAt: request.expiresAt,
     }

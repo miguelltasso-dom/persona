@@ -96,3 +96,47 @@ describe('P0-11: the origin filter reads the real address', () => {
     expect(matchesEmailFilter(message({ to }), { to: ['@d.com'] })).toBe(false)
   })
 })
+
+// P0-06c (Carbon, colheita S1 fix): the quotes of a display name may carry a FAKE `<address>`: the real one is the angle-addr OUTSIDE the quotes and comments.
+describe('P0-06c: a quoted display name with <...> inside is never the sender', () => {
+  const from = (value: string) => message({ from: value })
+  const partner = { from: ['parceiro.com.br'] }
+
+  it('"<cliente@parceiro.com.br>" <atacante@externo.com> is sent by atacante@externo.com', () => {
+    const spoof = from('"<cliente@parceiro.com.br>" <atacante@externo.com>')
+    expect(matchesEmailFilter(spoof, partner)).toBe(false)
+    expect(matchesEmailFilter(spoof, { from: ['@parceiro.com.br'] })).toBe(false)
+    expect(matchesEmailFilter(spoof, { from: ['cliente@parceiro.com.br'] })).toBe(false)
+    expect(matchesEmailFilter(spoof, { from: ['@externo.com'] })).toBe(true) // the real sender
+  })
+
+  it('a quote escaped inside the name does not close it early', () => {
+    const spoof = from(String.raw`"Cliente \" <cliente@parceiro.com.br> \" Silva" <atacante@externo.com>`)
+    expect(matchesEmailFilter(spoof, partner)).toBe(false)
+    expect(matchesEmailFilter(spoof, { from: ['externo.com'] })).toBe(true)
+  })
+
+  it('a comment with a fake <address> is not the sender either', () => {
+    const spoof = from('Atacante (<cliente@parceiro.com.br>) <atacante@externo.com>')
+    expect(matchesEmailFilter(spoof, partner)).toBe(false)
+    expect(matchesEmailFilter(spoof, { from: ['externo.com'] })).toBe(true)
+  })
+
+  it('only the real address of each item of a list counts', () => {
+    const to = '"<a@fake.com>" <real@loja.com.br>, Outro <outro@x.com>'
+    expect(matchesEmailFilter(message({ to }), { to: ['@fake.com'] })).toBe(false)
+    expect(matchesEmailFilter(message({ to }), { to: ['@loja.com.br'] })).toBe(true)
+    expect(matchesEmailFilter(message({ to }), { to: ['@x.com'] })).toBe(true)
+  })
+
+  it('a quoted name WITHOUT an angle-addr has no address at all (a name is not an address)', () => {
+    expect(matchesEmailFilter(from('"cliente@parceiro.com.br"'), partner)).toBe(false)
+  })
+
+  it('what must keep working: plain, named, quoted-name-with-comma and bare senders', () => {
+    expect(matchesEmailFilter(from('cliente@parceiro.com.br'), partner)).toBe(true)
+    expect(matchesEmailFilter(from('Cliente <cliente@parceiro.com.br>'), partner)).toBe(true)
+    expect(matchesEmailFilter(from('"Silva, Cliente" <cliente@parceiro.com.br>'), partner)).toBe(true)
+    expect(matchesEmailFilter(from('Cliente (financeiro) <cliente@parceiro.com.br>'), partner)).toBe(true)
+  })
+})

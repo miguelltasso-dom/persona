@@ -51,6 +51,8 @@ export class BrowserHost {
       onChange: () => { this.save() },
       ...(input.chrome === undefined ? {} : { chrome: input.chrome }),
       ...(input.onTakeover === undefined ? {} : { onTakeover: input.onTakeover }),
+      // Carbon P0-05a: a typed secret stays masked as long as the Chrome that holds its traffic lives; when that Chrome closes it is let go.
+      onClosed: (profileId) => { this.mask.release(`profile:${profileId}`) },
     })
     this.service.restore(stored.profiles, stored.grants)
     this.opener = browserTurnOpener({

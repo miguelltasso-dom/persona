@@ -58,8 +58,8 @@ import { tasksToKanbanCards } from './adapters/kanban.ts'
 import { countStaleReviews } from '../kanban/review-stale.ts'
 import { readKanbanScaleSeed } from '../kanban/kanban-scale-dev.ts'
 import { mockLargeKanbanCards } from '../kanban/mock-large-kanban-cards.ts'
-import { memoryViewsToRows } from './adapters/memory.ts'
-import { skillViewsToRecords } from './adapters/skills.ts'
+import { memoriesOfPersona, memoryViewsToRows } from './adapters/memory.ts'
+import { skillViewsToRecords, skillsOfPersona } from './adapters/skills.ts'
 import { personaImpactToUi } from './adapters/insights.ts'
 import { currentUsagePeriod, usageBookToMeters } from './adapters/usage.ts'
 import { officialQuotasToProviderPools, usageMetersWithoutQuotaDuplicates } from './adapters/usage-pooled.ts'
@@ -181,7 +181,9 @@ function houseLocksFromHost(kinds: readonly { readonly kind: HouseLockKind }[], 
   return kinds.map(({ kind }) => {
     const rule = rules.find(row => row.kind === kind)
     const applied = rule?.applied === undefined ? undefined : { thisWeek: rule.applied.thisWeek, lastWhat: rule.applied.lastWhat }
-    return { kind, on: rule !== undefined, ...(applied === undefined ? {} : { applied }) }
+    // Muse 07:07: paying and deleting ALWAYS ask (D-084, item 5): their lock is shown on and cannot be switched off (the host would let it be saved off, and it would change nothing).
+    const locked = kind === 'never-spend' || kind === 'never-delete'
+    return { kind, on: rule !== undefined, ...(locked ? { locked: true as const } : {}), ...(applied === undefined ? {} : { applied }) }
   })
 }
 
@@ -964,7 +966,7 @@ export function RemoteSecondBrainPanel({ persona, useTenant, useShell, selectMai
       const src = personaPortrait(row)
       return src === undefined ? [] : [[row.id, src] as const]
     }))
-    return { home, personaNames, personaAvatars, pages, grants, librarianName: indexKeeperName(personas), companyLines: companyProfileLines(profile) }
+    return { home, personaNames, personaAvatars, pages, grants, librarianName: indexKeeperName(personas), companyLines: companyProfileLines(profile), companyText: profile ?? '' }
   }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, loadKey, load)
   const payload = state.status === 'ready' ? state.data : null
@@ -1019,6 +1021,7 @@ export function RemoteSecondBrainPanel({ persona, useTenant, useShell, selectMai
       onReload={reload}
       selectMainPanel={selectMainPanel}
       companyLines={payload?.companyLines ?? []}
+      companyText={payload?.companyText ?? ''}
       {...(typeof persona.createVaultRecord === 'function' ? { onSaveCompanyBrief } : {})}
       view={view}
       footer={footer}
@@ -1057,11 +1060,14 @@ export function RemoteRulesPanel({ persona, useTenant, useShell }: LumenRemotePa
   const { state, retry } = usePersonaRemoteLoad(scope !== null, loadKey, load)
   const payload = state.status === 'ready' ? state.data : null
   const kinds = payload?.kinds
+  // The quiet windows are updated here once the host accepted a change (no reload: a reload shows the loading screen and would drop the editor's draft and its "Desfazer"); a fresh load wins.
+  const [quietLocal, setQuietLocal] = useState<readonly QuietWindowView[] | undefined>(undefined)
+  useEffect(() => { setQuietLocal(undefined) }, [payload])
   const rulesProps = payload === null
     ? { rules: [] as const, quietWindows: [] as const, triageLog: [] as const }
     : {
       rules: triageRulesFromHost(payload.rules),
-      quietWindows: quietFromHost(payload.quiet),
+      quietWindows: quietFromHost(quietLocal ?? payload.quiet),
       limits: limitsFromHost(payload.limits),
       triageLog: triageLogFromHost(payload.triageLog),
       ...(kinds === undefined ? {} : {
@@ -1090,12 +1096,27 @@ export function RemoteRulesPanel({ persona, useTenant, useShell }: LumenRemotePa
     }
     setReloadToken(token => token + 1)
   }
+  /** Muse 07:07: the quiet window of the whole team (the host obeys start and end, every day): saved, or deleted (the host stops obeying at once). */
+  const saveQuiet = async (item: { readonly id: string; readonly label: string; readonly start: string; readonly end: string }): Promise<void> => {
+    if (scope === null) return
+    // Only the four fields the host knows (the screen's own rows carry more, e.g. `days`).
+    await unwrapRemote(await persona.putQuietWindow({ workspaceId: scope.workspaceId, projectId: scope.projectId, id: item.id, label: item.label, start: item.start, end: item.end }))
+    setQuietLocal([...(quietLocal ?? payload?.quiet ?? []).filter(row => row.id !== item.id), { id: item.id, label: item.label, start: item.start, end: item.end }])
+  }
+  const deleteQuiet = async (id: string): Promise<void> => {
+    if (scope === null) return
+    await unwrapRemote(await persona.deleteQuietWindow({ workspaceId: scope.workspaceId, projectId: scope.projectId, id }))
+    setQuietLocal((quietLocal ?? payload?.quiet ?? []).filter(row => row.id !== id))
+  }
   // HONEST-1: the screen offers only what the host obeys (`getRuleKinds` → `obeyed`, the lock card, the quiet windows). Without that answer: no quiet windows, no locks.
   // An empty list is not an empty screen: the budget is always there, and the rules card says there is none.
+  const canEditQuiet = kinds !== undefined && typeof persona.deleteQuietWindow === 'function'
   return (
     <TriageRulesView
       {...rulesProps}
       onToggleLock={kinds === undefined ? undefined : toggleLock}
+      onSaveQuiet={canEditQuiet ? saveQuiet : undefined}
+      onDeleteQuiet={canEditQuiet ? deleteQuiet : undefined}
       initialState={remotePanelSurface(gate, state, () => false)}
       onRemoteRetry={() => { retryBootstrap(); retry(); setReloadToken(token => token + 1) }}
       onSaveLimits={(limits) => {
@@ -1224,9 +1245,9 @@ export function RemoteProfilePanel({
       primary: picked,
       row,
       autonomy,
-      memoryRows: memoryViewsToRows(memoryViews, workspaceId, projectId),
+      memoryRows: memoryViewsToRows(memoriesOfPersona(memoryViews, picked.name), workspaceId, projectId), // P1-11: not what was told to ANOTHER persona in a DM
       playbook,
-      skillRecords: skillViewsToRecords(skillViews),
+      skillRecords: skillViewsToRecords(skillsOfPersona(skillViews, picked.id)),
       hostCard,
       talkAcl,
       swapPolicy,
@@ -1359,7 +1380,7 @@ export function RemoteProfilePanel({
   }
   const skillActions: NonNullable<ComponentProps<typeof PersonaProfilePage>['skillActions']> = {
     onActivate: skill => skillAction(skill, async request => unwrapRemote(await persona.activateTaughtSkill(request))),
-    onRollback: skill => (skill.origin === 'taught'
+    onRollback: skill => (skill.origin !== undefined // taught or learned (P1-11): "Desativar" goes back to candidate; a plain skill goes back a version
       ? skillAction(skill, async request => unwrapRemote(await persona.rollbackTaughtSkill(request)))
       : skillAction(skill, async request => unwrapRemote(await persona.rollbackSkill({ workspaceId: request.workspaceId, projectId: request.projectId, id: request.skillId })))),
     onShare: skill => skillAction(skill, async request => unwrapRemote(await persona.publishTaughtSkill({ ...request, scope: 'team', explicit: true }))),

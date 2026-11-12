@@ -23,7 +23,7 @@ describe('secure shell', () => {
     expect(PERSONA_CSP).toContain('http://127.0.0.1:*')
     expect(PERSONA_CSP).toContain('ws://127.0.0.1:*')
     expect(PERSONA_CSP).not.toContain('sha256-')
-    expect(PERSONA_CSP).not.toContain('unsafe-eval')
+    expect(PERSONA_CSP).not.toContain("'unsafe-eval'") // D-114: 'wasm-unsafe-eval' (só WASM) é permitido; eval geral nunca
     expect(PERSONA_CSP).not.toMatch(/script-src[^;]*'unsafe-inline'/u)
     expect(PERSONA_CSP).not.toMatch(/https:/u)
   })

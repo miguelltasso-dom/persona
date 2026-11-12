@@ -432,4 +432,29 @@ describe('persona-e2e fake CLI fixtures', () => {
     expect(await ask('Atualize o cardápio. O pão francês passa a custar R$ 1,10')).toBe('final') // most specific rule first
     expect(await ask('bom dia')).toBe('padrão')
   })
+
+  it('FAKE_CLI_RULES `{{prompt:REGEX}}`: the reply says what the worker READ in its own prompt (the first group); told nothing, it says "(não informado)"', async () => {
+    const rules = JSON.stringify([{ match: 'cartaz', reply: String.raw`Oferta: {{prompt:(\d+ por R\$ ?\d+)}}.` }])
+    const ask = async (text: string): Promise<string> => {
+      const { parsed } = await runCliSession(['claude', '-p', '--input-format', 'stream-json'],
+        [{ type: 'user', uuid: 'cmd-from-prompt', message: { role: 'user', content: [{ type: 'text', text }] } }],
+        { FAKE_CLI_RULES: rules, FAKE_CLI_REPLY: 'padrão' })
+      const assistant = parsed.find(row => (row as { type?: string }).type === 'assistant') as { message: { content: { text: string }[] } }
+      return assistant.message.content[0]!.text
+    }
+    expect(await ask('Faz o cartaz do pão de queijo: 2 por R$ 9 de sexta a domingo')).toBe('Oferta: 2 por R$ 9.')
+    expect(await ask('Faz o cartaz do pão de queijo da Padaria Lua')).toBe('Oferta: (não informado).')
+  })
+
+  it('FAKE_CLI_STEP_MS spreads the narrated steps and the final reply over time; unset, nothing waits', async () => {
+    const rules = JSON.stringify([{ match: 'passos', reply: 'fim', narration: ['um', 'dois', 'três'] }])
+    const turn = async (env: NodeJS.ProcessEnv): Promise<number> => {
+      const { elapsedMs } = await runCliSession(['claude', '-p', '--input-format', 'stream-json'],
+        [{ type: 'user', uuid: 'cmd-steps', message: { role: 'user', content: [{ type: 'text', text: 'em passos' }] } }],
+        { FAKE_CLI_RULES: rules, ...env })
+      return elapsedMs
+    }
+    const spread = await turn({ FAKE_CLI_STEP_MS: '200' })
+    expect(spread, '3 narrated steps + the final reply, 200 ms each').toBeGreaterThanOrEqual(700)
+  })
 })

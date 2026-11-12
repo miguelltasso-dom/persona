@@ -164,6 +164,9 @@ export function createElectronBuilderConfig(
     asarUnpack: unpack,
     extraResources: [
       { from: buildPaths.runtime, to: 'runtime' },
+      // D-101 (item 20): the pinned on-demand component manifest, written by prepare-dsh (stt today).
+      ...existsSync(join(buildPaths.root, 'components.json'))
+        ? [{ from: join(buildPaths.root, 'components.json'), to: 'components.json' }] : [],
       { from: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
       { from: fileURLToPath(new URL('../resources/THIRD_PARTY_NOTICES.txt', import.meta.url)), to: 'THIRD_PARTY_NOTICES.txt' },
       // Windows tray bitmaps; macOS keeps the Dock and ships no menu bar icon.

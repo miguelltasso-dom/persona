@@ -94,7 +94,12 @@ export interface TaskProposalDeps {
   readonly screens: ScreenRepos
   readonly events: Pick<EventRepos, 'append' | 'has'>
   readonly proactivity: Pick<ProactivityHost, 'getAutonomy'> & { readonly offsetMinutes?: (iso: string) => number }
-  readonly orchestration: { now(): string; runtime(projectId: string): { readonly repo: { readonly tickets: { list(): Ticket[] } } } }
+  readonly orchestration: {
+    now(): string
+    runtime(projectId: string): { readonly repo: { readonly tickets: { list(): Ticket[] } } }
+    /** Where a Task lives (its conversation): a Task born in a private DM is never proposed about in the shared channel. */
+    conversationOfTicket?(projectId: string, ticketId: string): { readonly streamKind: 'channel' | 'dm' } | undefined
+  }
   /** Goal objective of the project's active sprint, when there is one. */
   readonly activeGoal: (projectId: string) => string | undefined
   /** Posts `@{persona} …` as the person; the pipeline makes it a Ticket (or holds it). */
@@ -305,6 +310,8 @@ export class TaskProposalHost implements TaskProposalPort {
     const speaksForTeam = persona.systemRoles.includes('coordination')
     for (const ticket of tickets) {
       if (ticket.ended !== undefined || hasPendingDelivery(ticket)) continue // a result waiting for the person is theirs to review
+      // A Task born in a private DM is not the shared channel's to talk about: its title and the question the persona asked there are the DM's.
+      if (this.deps.orchestration.conversationOfTicket?.(projectId, ticket.id)?.streamKind === 'dm') continue
       // A persona proposes about HER work; the Coordenação speaks for what nobody owns.
       const owner = ticket.execution?.name
       if (owner === undefined || owner === '' ? !speaksForTeam : owner !== persona.name) continue

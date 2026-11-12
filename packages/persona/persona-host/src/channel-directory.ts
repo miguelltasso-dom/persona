@@ -123,7 +123,16 @@ export interface TeamChannelsBridgeDeps {
   readonly sectors: (projectId: string) => readonly { readonly id: string; readonly name: string }[]
   /** persona id → sector id. */
   readonly sectorOf: (projectId: string) => ReadonlyMap<string, string>
+  /** The equipes the PERSON assembled (item 22, H22). A mirror of a sector (`sourceId`) is the sector itself: it adds no equipe. Absent = none. */
+  readonly equipes?: (projectId: string) => readonly { readonly id: string; readonly name: string; readonly sourceId?: string; readonly archivedAt?: string; readonly personaIds: readonly string[] }[]
+  /** The categories the person made by hand. Absent = none. */
+  readonly categories?: (projectId: string) => readonly { readonly id: string; readonly name: string; readonly position: number }[]
+  /** Where the person put channels: channel id → category and order. A placement wins over the automatic section of a team channel. Absent = none. */
+  readonly placements?: (projectId: string) => ReadonlyMap<string, { readonly categoryId: string; readonly position: number }>
 }
+
+/** Sections the person made come AFTER the automatic ones (one per equipe), whatever their positions. */
+const HAND_MADE_SECTION_BASE = 1000
 
 /**
  * The directory over what exists today: the organogram's sectors are the equipes, CV-6's channels are the channels, and who is on a channel
@@ -135,29 +144,43 @@ export function directoryOverTeamChannels(deps: TeamChannelsBridgeDeps): Channel
   return {
     teams: (projectId) => {
       const sectorOf = deps.sectorOf(projectId)
-      return deps.sectors(projectId).map(sector => ({
-        id: sector.id,
-        name: sector.name,
-        personaIds: [...sectorOf].filter(([, sectorId]) => sectorId === sector.id).map(([personaId]) => personaId),
-      }))
+      const own = (deps.equipes?.(projectId) ?? []).filter(equipe => equipe.sourceId === undefined && equipe.archivedAt === undefined)
+      return [
+        ...deps.sectors(projectId).map(sector => ({
+          id: sector.id,
+          name: sector.name,
+          personaIds: [...sectorOf].filter(([, sectorId]) => sectorId === sector.id).map(([personaId]) => personaId),
+        })),
+        ...own.map(equipe => ({ id: equipe.id, name: equipe.name, personaIds: equipe.personaIds })),
+      ]
     },
     // The app makes ONE section per equipe (the screen shows no difference between "equipe" and "categoria"): the section of an equipe exists
     // while the equipe has a channel that is not archived, in the order of the organogram's sectors. Sections the person made by hand come
     // with the storage of categories (not built yet).
     categories: (projectId) => {
       const withChannel = new Set(deps.channels.list(projectId).filter(channel => channel.kind === 'team' && channel.sourceId !== undefined && channel.archivedAt === undefined).map(channel => channel.sourceId))
-      return deps.sectors(projectId)
+      const automatic = deps.sectors(projectId)
         .filter(sector => withChannel.has(sector.id))
         .map((sector, position) => ({ id: teamSectionIdOf(sector.id), name: sector.name, position, teamId: sector.id }))
+      const byHand = (deps.categories?.(projectId) ?? []).map(category => ({ id: category.id, name: category.name, position: HAND_MADE_SECTION_BASE + category.position }))
+      return [...automatic, ...byHand]
     },
-    channels: projectId => deps.channels.list(projectId).map(channel => ({
-      id: channel.id,
-      name: channel.name,
-      kind: channel.kind,
-      ...(channel.sourceId === undefined ? {} : { teamId: channel.sourceId }),
-      ...(channel.kind === 'team' && channel.sourceId !== undefined ? { categoryId: teamSectionIdOf(channel.sourceId) } : {}),
-      ...(channel.archivedAt === undefined ? {} : { archived: true }),
-    })),
+    channels: (projectId) => {
+      const placed = deps.placements?.(projectId)
+      return deps.channels.list(projectId).map((channel) => {
+        const place = placed?.get(channel.id)
+        return {
+          id: channel.id,
+          name: channel.name,
+          kind: channel.kind,
+          ...(channel.sourceId === undefined ? {} : { teamId: channel.sourceId }),
+          ...(place !== undefined
+            ? { categoryId: place.categoryId, position: place.position }
+            : channel.kind === 'team' && channel.sourceId !== undefined ? { categoryId: teamSectionIdOf(channel.sourceId) } : {}),
+          ...(channel.archivedAt === undefined ? {} : { archived: true }),
+        }
+      })
+    },
     membersOf: (projectId, channelId) => {
       if (deps.channels.get(channelId) === undefined) return undefined
       return deps.teamChannels.membersOf(projectId, channelId).filter(member => member.kind === 'persona').map(member => member.id)

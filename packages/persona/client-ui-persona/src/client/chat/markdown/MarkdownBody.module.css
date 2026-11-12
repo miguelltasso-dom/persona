@@ -18,7 +18,7 @@
 .heading {
   margin: var(--persona-space-1) 0 0;
   font-family: var(--persona-font-text);
-  font-weight: 800;
+  font-weight: 600;
   color: var(--persona-ink);
 }
 

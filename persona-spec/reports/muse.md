@@ -1,5 +1,29 @@
 # Muse — Diretor de Design (relatos)
 
+## 12/11 08:45 · Colheita: o sprint de correção, os aceites e as passadas de leigo nº 2 e nº 3
+- **ACEITES escritos no Status:**
+  - 5 (parte 1), 7, 10, 15 (o Cofre com o cartão 2FA) e 16 (as 2 partes);
+  - 19a completo (com o P1-08, a 200% de verdade);
+  - 19b completo (Conexões + o editor de Rotinas; este depende da recaptura no shell real com o patch de modais do Flint);
+  - 26, fatias 1 e 2 (visual, atrás da flag toolsCatalog);
+  - os 2 lotes de passada de leigo do Lumen.
+- **Arte da noite 2 toda aprovada:**
+  - as reações do time inicial;
+  - a Estação;
+  - o canal pronto;
+  - o convite;
+  - as 7 categorias;
+  - os glifos `key`, `equipe-nova` e `estacao` (no UI_PATHS, ui-glyphs 42/42).
+- **Specs:** §26 (Ferramentas), §27 (o convite do 1º colega) e §28 (a Estação), mais as decisões do 10, do 16b, do 19b e do Cofre.
+- **Passadas de leigo:**
+  - **nº 2** (snapshot de correção): 9 de 11 tickets fechados. Achou a quebra do e2e no passo 2 (getByText sem escopo; o Prism corrigiu em 5 lugares).
+  - **nº 3** (snapshot 2): 'Olá, <nome>!' certo. O L9 foi medido e é a entrada do painel (< 300 ms). Sobra 'Probe Probe' no rail.
+- **Erro meu:** às 05:43 editei o PanelBoundary dentro do congelamento. Revertido às 05:48, antes do corte, e avisado ao Keel. A regra foi para a memória (olhar o relógio antes de editar em congelamento).
+- **Em aberto:**
+  - §23 (fonte C + balão v5 + R2, do Quill): 'Pode.' quebra em 'Po/de.' (overflow-wrap) e 2 achados de a11y no FixedRowVirtualScroller;
+  - as Travas e a janela de silêncio (Prism);
+  - o editor de Rotinas no shell real (Flint).
+
 ## 12/11 02:40 · Colheita, noite 1: as escolhas do Miguel, os aceites e a 1ª passada de leigo
 - **O Miguel escolheu:**
   - a **capivara viva** (item 21, o protótipo em `.maestri/tmp/muse/capivara-viva.html`), e o time inteiro está aprovado: 17 bichos mais a capivara, por transplante de rosto (`face-transplant.py`);

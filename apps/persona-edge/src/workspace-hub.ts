@@ -363,10 +363,21 @@ export class WorkspaceHub implements DurableObject {
       const info = this.socketInfo(socket)
       if (info === undefined) continue
       if (this.denyStream(this.asActor(info.actor), envelope.streamId) !== undefined) {
-        if (this.denyActor(this.asActor(info.actor)) !== undefined) socket.close(1008, 'ACCESS_REVOKED')
+        if (this.denyActor(this.asActor(info.actor)) !== undefined) this.cutRevoked(socket)
         continue
       }
       this.push(socket, payload)
+    }
+  }
+
+  /** The member was removed: tell the device (`revoked`, so it does not depend on the close event) and close the socket with the policy code. */
+  private cutRevoked(socket: WebSocket): void {
+    this.push(socket, JSON.stringify({ type: 'revoked' }))
+    try {
+      socket.close(1008, 'ACCESS_REVOKED')
+    }
+    catch (error) {
+      void error
     }
   }
 
@@ -761,12 +772,7 @@ export class WorkspaceHub implements DurableObject {
     // F3: the one who left is cut NOW, not at the next push: their sockets are closed (the close event tells the others who is still here).
     for (const socket of this.state.getWebSockets()) {
       if (this.socketInfo(socket)?.actor !== actorId) continue
-      try {
-        socket.close(1008, 'ACCESS_REVOKED')
-      }
-      catch (error) {
-        void error
-      }
+      this.cutRevoked(socket)
     }
     // The owner's device must now rotate every channel that has keys: the one who left cannot read the next epoch.
     return Response.json({ member: next, rotateChannels: this.epochChannels() })
@@ -909,7 +915,7 @@ export class WorkspaceHub implements DurableObject {
    */
   putMember(member: WorkspaceMember): void {
     if (member.revokedAt !== undefined) {
-      for (const socket of this.state.getWebSockets(`actor:${member.actor.id}`)) socket.close(1008, 'ACCESS_REVOKED')
+      for (const socket of this.state.getWebSockets(`actor:${member.actor.id}`)) this.cutRevoked(socket)
     }
     this.sql.exec(
       `INSERT INTO member (actor_id, workspace_id, invite_id, revoked_at, body)

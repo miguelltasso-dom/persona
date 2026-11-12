@@ -28,9 +28,16 @@ function stableIndex(seed: string, size: number): number {
  * @returns o endereço do rosto: o animal da referência, ou um bicho estável da galeria.
  */
 export function personaFaceSrc(avatarRef: string | undefined, personaId: string): string {
+  return AVATAR_96[personaFaceKey(avatarRef, personaId) as Avatar96Key]
+}
+
+/**
+ * O bicho (id da galeria) cujo rosto a persona mostra: o da referência, ou um bicho estável da galeria. É o mesmo id que o rosto da abertura
+ * ("Acordando o time") guarda: só o id do bicho, nunca nome nem dado.
+ */
+export function personaFaceKey(avatarRef: string | undefined, personaId: string): string {
   const ref = avatarRef?.trim().toLowerCase() ?? ''
-  if (isGalleryKey(ref)) return AVATAR_96[ref]
+  if (isGalleryKey(ref)) return ref
   const animals = PERSONA_GALLERY_ANIMALS.filter(isGalleryKey)
-  const animal = animals[stableIndex(personaId, animals.length)] ?? 'capivara'
-  return AVATAR_96[animal as Avatar96Key]
+  return animals[stableIndex(personaId, animals.length)] ?? 'capivara'
 }

@@ -60,9 +60,11 @@ export interface PlaybookNote {
 export interface PlaybookDeps {
   readonly screens: ScreensHost
   readonly now: () => string
+  /** The machine's offset from UTC in minutes at an instant (Carbon P2-03c): a "day" of use is the owner's LOCAL day. Absent = UTC (specs). */
+  readonly offsetMinutes?: (iso: string) => number
 }
 
-const STOP = new Set(['para', 'com', 'uma', 'umas', 'uns', 'dos', 'das', 'que', 'por', 'sem', 'sobre', 'entre', 'ate', 'até', 'aos', 'nas', 'nos', 'num', 'numa'])
+const STOP =new Set(['para', 'com', 'uma', 'umas', 'uns', 'dos', 'das', 'que', 'por', 'sem', 'sobre', 'entre', 'ate', 'até', 'aos', 'nas', 'nos', 'num', 'numa'])
 
 function words(text: string): Set<string> {
   const out = new Set<string>()
@@ -86,7 +88,10 @@ function slug(text: string): string {
   return [...words(text)].sort().join('-').slice(0, 70)
 }
 
-function dayOf(iso: string): string {
+function dayOf(iso: string, offsetMinutes = 0): string {
+  const ms = Date.parse(iso)
+  // The calendar day at the owner's clock: 22:30 on the 10th in São Paulo is already the 11th in UTC, and it is still "the 10th" for the person who did the work.
+  if (Number.isFinite(ms)) return new Date(ms + offsetMinutes * 60_000).toISOString().slice(0, 10)
   return /^\d{4}-\d{2}-\d{2}/u.exec(iso)?.[0] ?? iso.slice(0, 10)
 }
 
@@ -150,7 +155,7 @@ export function notePlaybookWin(deps: PlaybookDeps, win: PlaybookWin): PlaybookR
   if (base.uses.some(use => use.ticketId === win.ticketId)) return { note: base, offered: false }
   let note: PlaybookNote = {
     ...base, request: clip(win.request, BODY_LIMIT),
-    uses: [...base.uses, { ticketId: win.ticketId, day: dayOf(at), at, ...(win.conversation === undefined || win.conversation === '' ? {} : { conversation: win.conversation }) }],
+    uses: [...base.uses, { ticketId: win.ticketId, day: dayOf(at, deps.offsetMinutes?.(at) ?? 0), at, ...(win.conversation === undefined || win.conversation === '' ? {} : { conversation: win.conversation }) }],
   }
   let offered = false
   if (isProved(note) && mayOffer(note)) {

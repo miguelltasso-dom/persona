@@ -1,4 +1,5 @@
 import { latestAssignment } from '@deepseek-ai/dsh-persona-engine'
+import { createFakeRunner } from '@deepseek-ai/dsh-persona-runners'
 import { expect, vi } from 'vitest'
 import type PersonaHost from '../src/index.ts'
 import { RAM_FLOOR_BYTES, RAM_PER_CLI_BYTES } from '../src/station/admission.ts'
@@ -119,6 +120,22 @@ it('quitting the host does NOT turn the station off (the shutdown only lets Wind
   await (again as unknown as { ctx: { fiber: { dispose(): Promise<void> } } }).ctx.fiber.dispose()
   const third = reopenJourney(path, '2026-11-04T12:00:00.000Z')
   expect(third.station.isRunning()).toBe(false)
+})
+
+it('P1-08: a runner evicted while working lets Windows sleep again (the dispose emits no `idle`), and the counters of the screen are the real ones', async () => {
+  const h = openJourney('2026-11-04T12:00:00.000Z')
+  seed(h)
+  setFree(h, 32 * GB)
+  h.orchestration.runnerFactory = () => Promise.resolve(createFakeRunner({ holdUntilIdle: true })) // the turn stays open until the runner is cancelled or evicted
+  const ended = vi.spyOn(h.station, 'noteTurnEnded')
+  const runner = await resolve(h) as { ensureSession(id: string, cwd: string, title: string, role: string): Promise<void>; deliver(id: string, request: string, text: string, mode: string): Promise<void> }
+  expect((await h.stationView(SCOPE)).clis).toBe(1) // the warm runner counts (before: always 0)
+  await runner.ensureSession('s1', '.', 'Tarefa', 'worker')
+  await runner.deliver('s1', 'r1', 'faça', 'queue')
+  ended.mockClear()
+  h.orchestration.evictWarmRunners('pp', 'p2')
+  expect(ended).toHaveBeenCalledWith(0) // forgotten: not left "working" forever
+  expect((await h.stationView(SCOPE)).clis).toBe(0)
 })
 
 it('the pairing and the switch survive a restart (they used to live only in RAM)', () => {

@@ -88,6 +88,7 @@
   "thread.detail.project": "Project",
   "thread.detail.column": "Stage",
   "thread.detail.assignee": "Looking after it",
+  "thread.detail.reason": "Why it stopped",
   "thread.detail.due": "Due",
   "card.flowField": "{label} · {value}",
   "chip.dependencyCount": "Depends on {count}",
@@ -270,6 +271,7 @@
   "card.state.todo": "In {name}'s queue",
   "card.state.doing": "{name} is working on it",
   "card.state.reviewing": "{name} is reviewing",
+  "card.state.reviewingTeam": "In review",
   "card.state.client": "Waiting for the client",
   "card.state.waitingYou": "Waiting for you",
   "card.state.stopped": "Stopped"

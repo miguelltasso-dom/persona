@@ -1,6 +1,6 @@
-# Contrato (PROPOSTA) — `grantConnectorByName`: marcar o 1º rosto de "Quem pode usar?" sem conhecer o conector (item 26)
+# Contrato (FEITO em 12/11 08:30; era proposta) — `grantConnectorByName`: marcar o 1º rosto de "Quem pode usar?" sem conhecer o conector (item 26)
 
-Autor: Flint (UI, 12/11 07:00). Dono do host: Anvil/Zinc/Forge (depois de 00:00, ou Flint se o Keel liberar; é um gancho pequeno em `index.ts`, arquivo quente). Base: `connector-grants.md` (D-084), `getConnectorCatalog` (26.4).
+Autor: Flint (12/11). Implementado pelo Flint por ordem do Keel (08:13): 1 Remote em `index.ts` (`grantConnectorByName`), a resolução em `ConnectorGrantsHost.grantByName`, o mesmo casamento de nomes do catálogo (`normalizeToolName`, exportado de `connector-catalog.ts`), dois motivos novos em `RemoteFaultReason`. O Lumen revisa a segurança. UI: `ConnectedWho` (feature-detect), atrás da flag `toolsCatalog`. Base: `connector-grants.md` (D-084), `getConnectorCatalog` (26.4).
 
 ## O problema
 O painel "Quem pode usar?" da aba Ferramentas (item 26, fatia 2) só consegue MARCAR mais um rosto reusando o `ConnectorRef` (`cli`, `id`) de uma concessão que já existe. Uma ferramenta ligada na conta do Claude, mas que ninguém ainda recebeu, não tem concessão: a UI só conhece o NOME do cartão ("Mercado Livre"), e hoje diz "ligue de novo pelo botão Conectar". Não existe Remote que liste os `ConnectorRef` disponíveis, e **não devemos criar um**: o `id` de um conector da conta é a URL do proxy ("nunca mostrado à pessoa", `connector-grants.md`), e passá-lo pela tela só para devolvê-lo ao host é vazamento sem ganho.
@@ -13,7 +13,7 @@ interface GrantConnectorByNameRequest { workspaceId; projectId; personaId: strin
 ```
 - **Resolução (no host):** `availableConnectors(<cli da persona>)`, casando o nome como o catálogo casa o `linked` (sem acento e sem caixa; um contém o outro). Preferir a igualdade exata; mais de um candidato sem igualdade exata = recusa `ambiguous`.
 - **Depois da resolução é o MESMO caminho de `grantConnector`** (`connectorGrants.grant`): mesmas recusas tipadas (`not-grantable`, `isolation-partial`, `limit-reached`), mesma auditoria ("Nina passou a usar Mercado Livre", Desfazer = `revokeConnector`), `confirm` padrão `ask` para `send`/`pay`/`delete`. Nada de classe dispensada por este Remote.
-- **Recusas novas, tipadas, com a frase pronta para a tela:** `not-available` ("A conta ainda não tem Mercado Livre: ligue pelo botão Conectar."), `ambiguous` ("Achei mais de um com esse nome."), além das de `grantConnector`. Só o dono (`requireGovOwner`), como o `grantConnector`.
+- **Recusas novas, tipadas, com a frase pronta para a tela:** `not-found` com `details.reason = connector-not-available` ("A conta ainda não tem Mercado Livre: ligue pelo botão Conectar.") e `conflict` com `details.reason = connector-ambiguous` ("Achei mais de um com esse nome. Escolha pelo nome inteiro."), além de `invalid-payload` (nome vazio), além das de `grantConnector`. Só o dono (`requireGovOwner`), como o `grantConnector`.
 - **Idempotente:** marcar quem já tem devolve a concessão existente.
 
 ## O que muda na UI (Flint, ~15 linhas)

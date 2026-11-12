@@ -272,7 +272,7 @@
   border: var(--persona-border-width) dashed var(--persona-outline-soft);
   border-radius: var(--persona-radius-m);
   color: var(--persona-ink-soft);
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
 }
 
 @media (max-width: 960px) {

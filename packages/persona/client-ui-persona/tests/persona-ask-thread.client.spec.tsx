@@ -8,7 +8,7 @@ import { MessageList, type GeneralChannelViewProps } from '../src/client/chat/Ge
 import { mapMessage, mapMessagePersonaAsk, type ChannelMessageUi } from '../src/client/remote/map-host-ui.ts'
 import { useConnectedPersonaAsks, type PersonaAsksBinding } from '../src/client/ask/use-connected-persona-asks.ts'
 import { PERSONA_ASK_FLAG_KEY } from '../src/client/ask/ask-flag.ts'
-import { answerAskChoices, listAskStates, personaAsksRemoteFrom } from '../src/client/ask/persona-asks-remote.ts'
+import { answerChoiceCard, listAskStates, personaAsksRemoteFrom } from '../src/client/ask/persona-asks-remote.ts'
 import type { MessageView, TeamView } from '../src/client/remote/persona-remote-types.ts'
 import { pt as chatPt } from '../src/client/locale/chat/locales.ts'
 import { bindLocale } from '../src/client/preview/locale-bind.ts'
@@ -126,7 +126,7 @@ describe('o Remote do host (persona-asks-remote)', () => {
     })!
     const states = await listAskStates(remote, TENANT)
     expect(states).toEqual({ a: { status: 'answered', optionIds: ['x'], text: 'oi', answeredAt: 'agora' }, b: { status: 'open', optionIds: [], text: '' } })
-    expect(await answerAskChoices(remote, TENANT, 'tk-1', ['x', 'y'])).toBe(false)
+    expect(await answerChoiceCard(remote, TENANT, 'tk-1', ['x', 'y'])).toBe(false)
     expect(answerAttention).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'proj', ticketId: 'tk-1', text: '', optionIds: ['x', 'y'] })
   })
 
@@ -135,7 +135,7 @@ describe('o Remote do host (persona-asks-remote)', () => {
       listPersonaAsks: () => [],
       answerAttention: () => ({ ok: false, error: { code: 'conflict', message: 'Essa pergunta já foi respondida.' } }),
     })!
-    await expect(answerAskChoices(remote, TENANT, 'tk-1', ['x'])).rejects.toThrow('Essa pergunta já foi respondida.')
+    await expect(answerChoiceCard(remote, TENANT, 'tk-1', ['x'])).rejects.toThrow('Essa pergunta já foi respondida.')
   })
 })
 

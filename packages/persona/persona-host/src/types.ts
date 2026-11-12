@@ -238,6 +238,8 @@ export interface TaskView {
   readonly questionStreamId?: string
   /** IV-10: that question in one line (at most 120 characters, cut at a word), for "Respondendo a {persona}: {pergunta}". */
   readonly question?: string
+  /** Keel 12/11: why a card in Bloqueado stopped, in ONE plain line (at most 120 characters; no id, path, address or error text). Absent when the host has none; the card then says only "Parado". */
+  readonly blockedReason?: string
 }
 
 /** TEAM-6: who is reviewing now and in which round (0, 1 or 2 returns so far). */
@@ -2527,6 +2529,24 @@ export interface JoinRequestView {
   readonly securityCode: string
 }
 
+/** F4: who is here right now (the presence dots of the rail): online, ausente (busy or away) or fora (no device connected). */
+export interface PresenceView {
+  readonly actorId: string
+  readonly name: string
+  readonly state: 'online' | 'ausente' | 'fora'
+  readonly machine: string | null
+}
+
+/** F4 law 3: one persona's sheet (the owner's signature over what she may do). */
+export interface PersonaSheetRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId: string
+}
+
+/** F4 law 3: `solo` = the project is not a connected team (nothing is enforced); `ok` = signed by the owner and unchanged; the rest refuse her: never signed, changed since, or not the owner's signature. */
+export type PersonaSheetStatus = 'solo' | 'ok' | 'unsigned' | 'tampered' | 'foreign'
+
 /** F4: where the guest's request stands, in the words the screen needs. */
 export type JoinStatus = 'sem_pedido' | 'esperando_dono' | 'aceito' | 'recusado' | 'removido' | 'sem_conexao'
 
@@ -3056,6 +3076,8 @@ export interface SkillView {
   readonly source?: { readonly url: string; readonly ref: string; readonly hash: string }
   /** Item 26.10: the body came from outside and is DATA, never instructions to the host. */
   readonly untrusted?: boolean
+  /** P1-11: the persona a skill was made for (taught or learned). A profile leaves out a private skill that is another persona's. */
+  readonly personaId?: string
 }
 
 /** Create or replace a skill. */
@@ -3254,6 +3276,17 @@ export interface GrantConnectorRequest {
   readonly access: 'read' | 'write'
   /** Classes to waive; every class not named stays `ask` (pay and delete ask unless waived HERE, explicitly). */
   readonly confirm?: { readonly send?: 'ask' | 'never'; readonly pay?: 'ask' | 'never'; readonly delete?: 'ask' | 'never' }
+}
+
+/** Give a persona a tool of the catalog by its NAME (item 26). The host resolves the connector on her own CLI; the screen never sees its id. Owner only. */
+export interface GrantConnectorByNameRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId: string
+  /** The name of the catalog card ("Mercado Livre"). */
+  readonly name: string
+  /** Defaults to `read`. Nothing is waived by this door. */
+  readonly access?: 'read' | 'write'
 }
 
 /** Take a connector back from a persona. Owner only; idempotent. */
@@ -5024,4 +5057,5 @@ export type VoiceModelStateView =
   | { readonly state: 'unavailable' }
   | { readonly state: 'failed'; readonly reason: ComponentFailure }
 export type { OAuthCredentialView } from './oauth-vault.ts'
+export type { ArrangeAction, ArrangeChannelsRequest, ChannelCategoryView, EquipeLayoutView, EquipeView } from './equipe-desk.ts'
 export type { SendStickerRequest } from './sticker-send.ts'

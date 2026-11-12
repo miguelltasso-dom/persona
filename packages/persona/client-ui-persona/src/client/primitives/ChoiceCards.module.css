@@ -127,7 +127,7 @@
 
 .body {
   color: var(--persona-ink-soft);
-  font: 500 13px/19px var(--persona-font-text);
+  font: 400 13px/19px var(--persona-font-text);
 }
 
 @media (prefers-reduced-motion: reduce) {

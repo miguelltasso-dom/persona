@@ -12,6 +12,7 @@ import * as blind from '../src/browser/blind-typing.ts'
 import { CdpConnection } from '../src/browser/cdp.ts'
 import * as loginPort from '../src/browser/login-port.ts'
 import { BrowserLoginPorts } from '../src/browser/login-port.ts'
+import { BrowserService } from '../src/browser/service.ts'
 import * as loginTool from '../src/browser/login-tool.ts'
 import type { HarnessIdentity } from '../src/harness-routines.ts'
 
@@ -239,5 +240,66 @@ describe('P0-02: the CDP client does not hang', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+// ── Carbon P0-05a (snapshot 2): the password is still in the warm Chrome after the 10 minutes ────────────────────────────────────────────────────────
+
+describe('P0-05a: a typed secret stays masked as long as the Chrome that holds its traffic lives', () => {
+  it('a pinned secret does not expire with the 10 minutes; releasing its owner (the Chrome closed) ends it', () => {
+    const mask = new blind.SecretMask()
+    mask.pin(PASSWORD, 'profile:p1')
+    expect(mask.live(blind.MASK_MS + 5_000)).toBe(true)
+    expect(mask.redact(`x ${PASSWORD}`, 3 * 60 * 60_000)).toBe(`x ${blind.MASK}`)
+    mask.release('profile:other') // another Chrome closing does not end it
+    expect(mask.live(1)).toBe(true)
+    mask.release('profile:p1')
+    expect(mask.live(1)).toBe(false)
+    expect(mask.redact(`x ${PASSWORD}`, 1)).toBe(`x ${PASSWORD}`)
+  })
+
+  it('the login port pins the password to the profile of the live session (not to the clock)', async () => {
+    const mask = new blind.SecretMask()
+    const ports = new BrowserLoginPorts({
+      liveSessionOf: () => ({ port: 9222, profileId: 'p-loja' }),
+      loginsOf: () => [LOJA],
+      secretOf: () => Promise.resolve(PASSWORD),
+      mask, now: () => 1_000,
+      type: () => Promise.resolve({ typed: true, line: 'x' }),
+    })
+    await ports.open(WHO, { login: 'loja', ticketId: 't1' })
+    expect(mask.live(1_000 + blind.MASK_MS + 60_000)).toBe(true) // 11 minutes later the window is still open
+    mask.release('profile:p-loja')
+    expect(mask.live(1_000 + blind.MASK_MS + 60_000)).toBe(false)
+  })
+})
+
+describe('P0-05a: the browser service tells the host when a Chrome is closed', () => {
+  async function service(closed: string[]): Promise<{ service: BrowserService; profileId: string }> {
+    const { mkdtempSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const dataRoot = mkdtempSync(join(tmpdir(), 'persona-closed-'))
+    const instance = new BrowserService({
+      dataRoot,
+      chrome: () => ({ path: 'C:\chrome-de-mentira\chrome.exe', version: '1' }),
+      launch: () => Promise.resolve({ port: 9222, pid: 1, version: 'fake', close: () => Promise.resolve() }),
+      onClosed: (profileId: string) => { closed.push(profileId) },
+    } as never)
+    const profile = instance.create('Loja')
+    instance.grant('bia', profile.id)
+    await instance.sessionFor('bia', 'Loja')
+    return { service: instance, profileId: profile.id }
+  }
+
+  it('closing one profile says which; closing everything says each one', async () => {
+    const closed: string[] = []
+    const one = await service(closed)
+    await one.service.close(one.profileId)
+    expect(closed).toEqual([one.profileId])
+    const all: string[] = []
+    const many = await service(all)
+    await many.service.closeAll()
+    expect(all).toEqual([many.profileId])
   })
 })

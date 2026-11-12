@@ -1,5 +1,5 @@
 .hint {
   margin: 0 0 var(--persona-space-3);
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink-soft);
 }

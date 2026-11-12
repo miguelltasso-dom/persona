@@ -70,3 +70,25 @@ describe('who a run acts for, from where its Task really came', () => {
     expect(authorityOfRun(a, lookup([a, b]))).toBe('unattended')
   })
 })
+
+describe('Carbon P0-05a: every external trigger is unattended, and a campaign never forgets where it came from', () => {
+  it.each(['mail:m1', 'gh:4711', 'github:9', 'telegram:55', 'slack:C1:ts', 'discord:77', 'whatsapp:x1'])('%s: nobody is behind an external event (the Chrome of the owner is not theirs to click)', (id) => {
+    expect(authorityOfRun(task('t1', id), lookup([]))).toBe('unattended')
+  })
+
+  it('the mark is contagious from an external trigger too: a colleague\'s Task of a mail Task, and a split part of a webhook', () => {
+    const asker = task('t-asker', 'mail:m1')
+    expect(authorityOfRun(task('t-col', 'handoff:t-asker:c1'), lookup([asker]))).toBe('unattended')
+    expect(authorityOfRun(task('t-part', 'split:gh:4711:nina'), lookup([]))).toBe('unattended')
+  })
+
+  it('a campaign part with no recorded lineage is unattended; with a lineage it follows it (the plan the person approved)', () => {
+    const campaign = task('t1', 'campaign:plan1:0')
+    expect(authorityOfRun(campaign, lookup([]))).toBe('unattended')
+    expect(authorityOfRun(campaign, { ...lookup([]), campaign: () => ({ authority: 'person' }) })).toBe('person')
+    expect(authorityOfRun(campaign, { ...lookup([]), campaign: () => ({ authority: 'routine' }) })).toBe('routine')
+    expect(authorityOfRun(campaign, { ...lookup([]), campaign: () => undefined })).toBe('unattended')
+    // a later part reached by a handoff keeps it
+    expect(authorityOfRun(task('t2', 'handoff:t1:c1'), { ...lookup([campaign]), campaign: () => ({ authority: 'person' }) })).toBe('person')
+  })
+})

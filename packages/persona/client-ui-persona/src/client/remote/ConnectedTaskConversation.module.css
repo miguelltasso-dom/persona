@@ -44,7 +44,7 @@
   margin: 0;
   padding: var(--persona-space-6) var(--persona-space-4);
   text-align: center;
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink-muted);
 }
 
@@ -69,7 +69,7 @@
 
 .details dd {
   margin: 0;
-  font: 500 15px/22px var(--persona-font-text);
+  font: 400 15px/22px var(--persona-font-text);
   color: var(--persona-ink);
   overflow-wrap: anywhere;
 }

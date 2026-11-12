@@ -40,8 +40,12 @@ export interface ActionContentProps {
 }
 
 export function ActionContent({ t, verb, content }: ActionContentProps): ReactNode {
-  const shownItems = content.items.slice(0, ACTION_ITEMS_MAX)
-  const moreItems = Math.max(content.count, content.items.length) - shownItems.length
+  // P0-06b: "e mais N" abre: a pessoa vê TODOS os itens que o host mandou antes de aprovar (o que o host cortou acima do limite dele segue como texto, e a prévia cortada já não deixa enviar).
+  const [expanded, setExpanded] = useState(false)
+  const listId = useId()
+  const shownItems = expanded ? content.items : content.items.slice(0, ACTION_ITEMS_MAX)
+  const revealable = content.items.length - ACTION_ITEMS_MAX
+  const missing = Math.max(content.count - content.items.length, 0)
   return (
     <>
       {verb === 'email' && (
@@ -72,9 +76,16 @@ export function ActionContent({ t, verb, content }: ActionContentProps): ReactNo
         </dl>
       )}
       {verb === 'delete' && shownItems.length > 0 && (
-        <ul className={styles.items}>
+        <ul className={styles.items} id={listId}>
           {shownItems.map((item, index) => <li key={`${index}-${item}`}>{item}</li>)}
-          {moreItems > 0 && <li className={styles.moreItems}>{t('action.moreItems', { n: moreItems })}</li>}
+          {revealable > 0 && (
+            <li className={styles.moreItems}>
+              <button type="button" className={styles.link} aria-expanded={expanded} aria-controls={listId} onClick={() => { setExpanded(value => !value) }}>
+                {expanded ? t('action.seeLess') : t('action.moreItems', { n: revealable })}
+              </button>
+            </li>
+          )}
+          {missing > 0 && <li className={styles.moreItems}>{t('action.moreItems', { n: missing })}</li>}
         </ul>
       )}
     </>

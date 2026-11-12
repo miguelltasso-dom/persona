@@ -61,3 +61,6 @@ packages/persona/*/src/**/*.d.ts.map
 
 # Persona: local dev state (miniflare/wrangler) never goes to git
 .wrangler/
+# Local secrets of the edge (P2-03a): the example next to wrangler.toml documents them
+.dev.vars*
+!.dev.vars.example

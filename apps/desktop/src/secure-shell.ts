@@ -9,14 +9,23 @@ import type { HandlerDetails, PermissionRequest, Session, WebPreferences } from 
  * `/__persona-boot__/ready.js` rather than an inline tag. `blob:` stays only
  * for worker transports that already emit blob URLs. Loopback is the owned
  * Host. Theme `kind: 'style'` rows still need style `'unsafe-inline'`.
+ *
+ * D-114 / P1-05 (voz local, autorizado pelo Miguel em 12/11): o transcritor
+ * Vosk roda num Worker empacotado no app e compila WebAssembly. Por isso:
+ * `'wasm-unsafe-eval'` (só WASM, nunca `'unsafe-eval'`), `worker-src 'self' blob:`,
+ * `media-src` com `blob:` (tocar o áudio gravado) e `connect-src` com `blob:`
+ * (o modelo chega do host como blob). Nenhum host novo. O texto exato é travado
+ * em tests/secure-shell-p1-05.spec.ts.
  */
 export const PERSONA_CSP = [
   "default-src 'self' dsh-app:",
-  "script-src 'self' blob: dsh-app: http://127.0.0.1:*",
+  "script-src 'self' blob: dsh-app: http://127.0.0.1:* 'wasm-unsafe-eval'",
+  "worker-src 'self' blob:",
   "style-src 'self' 'unsafe-inline' dsh-app:",
   "img-src 'self' data: dsh-app:",
   "font-src 'self' data: dsh-app:",
-  "connect-src 'self' dsh-app: http://127.0.0.1:* ws://127.0.0.1:*",
+  "media-src 'self' blob: dsh-app:",
+  "connect-src 'self' dsh-app: http://127.0.0.1:* ws://127.0.0.1:* blob:",
   "object-src 'none'",
   "base-uri 'none'",
   "frame-src 'none'",

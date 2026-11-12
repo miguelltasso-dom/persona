@@ -18,7 +18,7 @@
 .muted {
   margin: 0;
   color: var(--dsw-alias-label-secondary);
-  font: 500 13px/19px var(--persona-font-text);
+  font: 400 13px/19px var(--persona-font-text);
 }
 
 .permissionList {
@@ -168,7 +168,7 @@
   margin: 0;
   max-width: 36rem;
   color: var(--dsw-alias-label-secondary);
-  font: 500 13px/19px var(--persona-font-text);
+  font: 400 13px/19px var(--persona-font-text);
 }
 
 .typeNav {
@@ -188,7 +188,7 @@
 .typeCount {
   margin-left: auto;
   color: var(--persona-ink-soft);
-  font: 500 13px/19px var(--persona-font-text);
+  font: 600 13px/19px var(--persona-font-text);
 }
 
 .pageLayout {
@@ -215,7 +215,7 @@
   border-radius: var(--persona-radius-m);
   background: var(--persona-paper);
   border: var(--persona-border-width) solid var(--persona-outline-soft);
-  font: 500 15px/22px var(--persona-font-text);
+  font: 400 15px/22px var(--persona-font-text);
   white-space: pre-wrap;
 }
 

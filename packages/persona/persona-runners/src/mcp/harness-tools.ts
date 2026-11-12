@@ -335,6 +335,7 @@ const DEFINITIONS: Readonly<Record<HarnessToolName, { description: string; input
       'additionalProperties': false,
       'required': [
         'reason',
+        'login',
       ],
       'properties': {
         'reason': {
@@ -343,7 +344,7 @@ const DEFINITIONS: Readonly<Record<HarnessToolName, { description: string; input
         },
         'login': {
           'type': 'string',
-          'description': 'The Cofre login the code is for, as the person named it (title, user or site). Needed to type the code later.',
+          'description': 'The Cofre login the code is for, as the person named it (title, user or site). Required: it is shown on the card and the code is typed later only into the page of that login.',
         },
       },
     },

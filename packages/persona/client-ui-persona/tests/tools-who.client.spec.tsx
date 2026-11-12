@@ -84,6 +84,13 @@ describe('o painel', () => {
     expect(screen.getByText(/ligue Mercado Pago de novo pelo botão Conectar/u)).toBeTruthy()
   })
 
+  it('com o host resolvendo por NOME (canGrantWithoutRef), até a 1ª pessoa de uma ferramenta que ninguém tem ainda pode ser marcada: os rostos viram botão e some o "ligue de novo"', () => {
+    mount({ grants: [], canGrantWithoutRef: true })
+    expect(screen.getAllByRole('checkbox')).toHaveLength(3)
+    expect(screen.queryByText(/ligue Mercado Pago de novo/u)).toBeNull()
+    expect(screen.getByText('Ninguém usa ainda. A equipe sempre pergunta antes.')).toBeTruthy() // continua desmarcado: nada vem marcado sem concessão
+  })
+
   it('marcar e desmarcar chamam o host com a linha certa; um de cada vez', async () => {
     const onToggle = vi.fn(() => Promise.resolve())
     mount({ onToggle })
@@ -193,6 +200,25 @@ describe('ligado ao host (ConnectedWho)', () => {
     await waitFor(() => { expect(screen.getByRole('checkbox', { name: /Nina/u }).getAttribute('aria-checked')).toBe('false') })
     await act(async () => { fireEvent.click(screen.getByRole('checkbox', { name: /Nina/u })) })
     await waitFor(() => { expect(host.grantConnector).toHaveBeenCalledWith({ ...scope, personaId: 'p-nina', connector: { cli: 'claude', id: 'mcp-mp', name: 'claude.ai Mercado Pago' }, access: 'read' }) })
+  })
+
+  it('sem NENHUMA concessão, o host resolve por nome: marcar chama grantConnectorByName com o nome do cartão (nunca um id) e nunca grantConnector', async () => {
+    const host = { ...fakeHost([]), grantConnectorByName: vi.fn(() => Promise.resolve(ok(grant('p-bento')))) }
+    show(host)
+    const bento = await screen.findByRole('checkbox', { name: /Bento/u })
+    expect(bento.getAttribute('aria-checked')).toBe('false')
+    await act(async () => { fireEvent.click(bento) })
+    await waitFor(() => { expect(host.grantConnectorByName).toHaveBeenCalledWith({ ...scope, personaId: 'p-bento', name: 'Mercado Pago', access: 'read' }) })
+    expect(host.grantConnector).not.toHaveBeenCalled()
+  })
+
+  it('o host recusa pelo nome (a conta não tem a ferramenta): a tela diz que não deu, sem fingir que marcou', async () => {
+    const host = { ...fakeHost([]), grantConnectorByName: vi.fn(() => Promise.resolve({ ok: false as const, error: { code: 'not-found', message: 'A conta ainda não tem Mercado Pago: ligue pelo botão Conectar.' } })) }
+    show(host)
+    const bento = await screen.findByRole('checkbox', { name: /Bento/u }) // fora do act: dentro dele o React segura a atualização
+    await act(async () => { fireEvent.click(bento) })
+    expect((await screen.findByRole('alert')).textContent).toBe('Não deu para mudar agora. Tente de novo.')
+    expect(screen.getByRole('checkbox', { name: /Bento/u }).getAttribute('aria-checked')).toBe('false')
   })
 
   it('um host sem as concessões mostra o erro honesto, nunca uma lista inventada', async () => {

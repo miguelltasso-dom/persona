@@ -44,7 +44,7 @@
 .resultTitle {
   margin: 0 0 var(--persona-space-1);
   color: var(--persona-ink-soft);
-  font: 800 13px/18px var(--persona-font-text);
+  font: 600 13px/18px var(--persona-font-text);
 }
 
 .error {

@@ -9,6 +9,8 @@ import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import {
   AccountRepos,
   BrainRepos,
+  CategoryRepos,
+  EquipeRepos,
   EventRepos,
   GestorRepos,
   OptRepos,
@@ -55,6 +57,7 @@ import { calibrationFromLedger, calibrationWindowStart } from './estimate-calibr
 import { ticketAttention } from './attention.ts'
 import { curateSettledReport, rememberReportAudience } from './report-curation.ts'
 import { captureOwnerMemory } from './owner-memory.ts'
+import { assertMemoryReachable, readableUsedRows } from './private-records.ts'
 import { forgetPlaybookNote, playbookViews } from './playbook-view.ts'
 import { accessLabelOf, accessMapOf } from './access-map.ts'
 import { RemoteTeamHost, type RemoteTeamVault } from './remote-team.ts'
@@ -82,7 +85,7 @@ import { ExternalPoller } from './external-poll.ts'
 import { ExternalSourcesHost } from './external-sources.ts'
 import { CofreSecretVault } from './cofre-secrets.ts'
 import { CofreHost } from './cofre.ts'
-import { CofreMigration, connectorSlot, GITHUB_WEBHOOK_FACT, type CofreMigrationResult } from './cofre-migrate.ts'
+import { CofreMigration, connectorSlot, GITHUB_WEBHOOK_FACT, SECRET_FACT_KEYS, type CofreMigrationResult } from './cofre-migrate.ts'
 import { VaultCodePorts } from './harness-vault.ts'
 import { detectProjectGit, validateProjectRoot } from './project-root.ts'
 import { engineChoiceOf, isEffortLevel, nextRunner } from './engine-menu.ts'
@@ -91,8 +94,10 @@ import { ConnectorAsks } from './connector-asks.ts'
 import { ActionBridge } from './action-bridge.ts'
 import { claudeConnectorBridge, type ConnectorBridge } from './connector-bridge.ts'
 import { flagsBootLine, resolveHostFlags, type HostFlagsView } from './flags.ts'
+import { FEATURE_OFF_REASON, FEATURE_OFF_TEXT, resolveSurfaces, surfaceRefuses, surfacesBootLine, type Surface, type SurfacesView } from './surface-gates.ts'
 import { CofreIdentityStore } from './e2ee-identity.ts'
 import { loadOrCreateIdentity, parseInviteLink } from '@deepseek-ai/dsh-persona-sync'
+import { PersonaSheets } from './persona-sheet-host.ts'
 import { resolveTurnClose } from './turn-close-host.ts'
 import { ExternalActions, type ExternalActionDoc } from './external-actions.ts'
 import { ActivityUndo, activityUndoDeps } from './activity-undo.ts'
@@ -111,6 +116,7 @@ import { githubWebhookHandler, WebhookReplayGuard } from './webhook-http.ts'
 import { ProactivityHost } from './proactivity.ts'
 import { offerContinueCard } from './continue-card.ts'
 import { directoryOverTeamChannels, type ChannelDirectory } from './channel-directory.ts'
+import { EquipeDesk, EquipeDeskError, FAULT_OF, type ArrangeChannelsRequest, type EquipeLayoutView } from './equipe-desk.ts'
 import { ChannelWire } from './channel-wire.ts'
 import { channelHeaderViewOf, channelLayoutViewOf, mentionOptionsOf, type ChannelHeaderView, type ChannelLayoutView, type MentionOptionsRequest, type MentionOptionView, type ViewPersona } from './channel-views.ts'
 import { createProactivityScheduler, postTeamRequest } from './proactivity-wire.ts'
@@ -150,8 +156,8 @@ import { collaboratorPrompt, countFanout, fanoutCalls, fanoutPrompt, planFanout,
 import { collaboratorViews, getCollaborators } from './ticket-collaborators.ts'
 import { WorkingControl } from './working-control.ts'
 import { ensureVoiceModelBytes, voiceModelStateOf } from './voice-model-host.ts'
-import { PRIVATE_DM_TASK_TITLE, ticketSeenByActor } from './dm-ticket-view.ts'
-import { mailHostAllowed } from './mail-host-guard.ts'
+import { maskDmApprovalCard, PRIVATE_DM_TASK_TITLE, ticketSeenByActor, withoutDmWords } from './dm-ticket-view.ts'
+import { resolveMailHost } from './mail-host-guard.ts'
 import type {
   GetAsideAskRequest,
   ListAsideAsksRequest,
@@ -183,7 +189,7 @@ import {
   routineViewOf,
   writeRoutineSpec,
 } from './routine-remotes.ts'
-import { EVENT_RRULE, type EventSource } from './routine-events.ts'
+import { EVENT_DOC_KIND, EVENT_RRULE, isEventRunId, type EventSource } from './routine-events.ts'
 import { RoutineEventIntake, SOURCE_CONNECT_LABEL, SOURCE_PROVIDER } from './routine-event-intake.ts'
 import type { SuggestFirstRequestsRequest, SuggestFirstRequestsView } from './types.ts'
 import { BoardsHost } from './boards.ts'
@@ -193,7 +199,7 @@ import { resolveBrowserServerPath } from './browser/turn-browser.ts'
 import { BrowserLoginPorts, loginLeakActivity } from './browser/login-port.ts'
 import { Station } from './station/station.ts'
 import { StationGate } from './station/station-gate.ts'
-import { loadStationState, saveStationState } from './station/station-store.ts'
+import { loadStationState, saveStationState, type StationState } from './station/station-store.ts'
 import { MediaHost, mediaHttpHandler } from './media.ts'
 import { VaultDocsHost } from './vault-docs.ts'
 import { BrainHost } from './brain.ts'
@@ -261,6 +267,7 @@ import {
   type SkillDirIo,
 } from '@deepseek-ai/dsh-persona-core'
 import { selectedBringWrites } from './bring-context-apply.ts'
+import { blockedReasonField } from './blocked-reason.ts'
 import { runErrorFromBody } from './run-error-wire.ts'
 import { tickInitiativeBatch, tickLibrarianBatch } from './opt-batch.ts'
 import { previewBringContextVaultFolder } from './bring-context-walk.ts'
@@ -354,6 +361,7 @@ import type {
   TaskConversationView,
   TicketCommandRequest,
   TurnContextView,
+  UsedContextRecord,
   UsedContextRequest,
   UsedContextView,
   VaultRecordView,
@@ -432,6 +440,7 @@ import type {
   ConnectorGrantCostView,
   ConnectorGrantView,
   EstimateConnectorGrantCostRequest,
+  GrantConnectorByNameRequest,
   GrantConnectorRequest,
   ListConnectorGrantsRequest,
   RevokeConnectorRequest,
@@ -452,6 +461,9 @@ import type {
   JoinRequestView,
   JoinStatus,
   JoinTeamRequest,
+  PersonaSheetRequest,
+  PersonaSheetStatus,
+  PresenceView,
   PreviewInviteRequest,
   ListPlaybookRequest,
   MemoryView,
@@ -719,6 +731,8 @@ export {
 export const SUBJECT_LIST_CACHE_MS = 750
 /** The most messages one `listMessages` page may ask for (the store's own bound): more is read by paging with `nextSeq`. */
 export const MAX_PAGE_LIMIT = 200
+/** Boot diet (lever 2 of the opening plan): how long after the constructor the background work (CLI/connector warmups, prewarm, scheduler, reports curation, the `gh` probe) waits so the first screen has the CPU. */
+export const BOOT_BACKGROUND_DELAY_MS = 1500
 export { ACL_EXCEPTIONS } from './auth.ts'
 export { OnboardingHost } from './onboarding.ts'
 export { HostScheduler } from './scheduler.ts'
@@ -741,6 +755,8 @@ export interface Config {
   readonly databasePath: string
   /** Poll connected projects; zero disables automatic polling. Default 2500 ms. */
   readonly remoteTeamPollMs?: number
+  /** F4: a live WebSocket per connected team (wake-up + presence). Default: on in the app, off under Vitest. */
+  readonly remoteTeamLive?: boolean
   /** Local edge request timeout. Default 20000 ms. */
   readonly remoteTeamTimeoutMs?: number
   /** Recheck retained messages; zero disables the retry timer. Default 15000 ms. */
@@ -765,6 +781,8 @@ export interface Config {
    * no Config and no env). Same as `PERSONA_HOST_FLAGS=production`. A switch named in Config, or `PERSONA_<FLAG>=0`, still wins.
    */
   readonly flagDefaults?: 'production'
+  /** D-113: the surfaces under construction (invite, station, channels, skillImport, sharedBrowser). OFF in the product, ON under Vitest; a name here wins over `PERSONA_SURFACE_<NAME>`. */
+  readonly surfaces?: Partial<Record<Surface, boolean>>
   /** Ordinary-folder draft size limit; defaults to the engine's configured default. */
   readonly historyMaxCopyBytes?: number
   /** Deadline for private-history git commands; defaults to the engine's default. */
@@ -899,11 +917,16 @@ export default class PersonaHost extends TypertRemoteService {
   readonly personaAsks: PersonaAsks
   /** Item 22: the directory of teams, sections and channels (the organogram's sectors are the equipes), read by the channel rules and the sidebar views. */
   readonly channelDirectory: ChannelDirectory
+  /** Item 22 (H22): the door that ARRANGES the equipes, the categories and where a channel sits (owner only). */
+  readonly equipeDesk: EquipeDesk
   /** Colheita item 11: the answers to end-of-turn choice cards (the card itself is read from the persona's message). */
   readonly personaChoices: PersonaChoices
   /** Colheita item 19a: "Seus números", the pinned numbers refreshed by a silent routine. */
   readonly indicators: Indicators
   private indicatorTimer: ReturnType<typeof setInterval> | undefined
+  /** Boot diet: the pending start of the background work, and whether it already started (or the host closed first). */
+  private backgroundTimer: ReturnType<typeof setTimeout> | undefined
+  private backgroundStarted = false
   /** EQUIPE-REAL: requests between personas (TEAM-2/3). Inert unless `Config.teamwork`. */
   readonly handoffs: Handoffs
   /** Item 18: the conversation of a Task, a thread of its stream (`topicId = task:<ticketId>`). */
@@ -919,6 +942,8 @@ export default class PersonaHost extends TypertRemoteService {
   readonly productToolsEnabled: boolean
   /** TEAM-15: the four v1.1 switches as they resolved at boot (diagnostics and the boot line show them). */
   readonly hostFlags: HostFlagsView
+  /** D-113: the five surfaces under construction as they resolved at boot (OFF in the product, ON under Vitest). Consume as `if (this.surfaces.station)`. */
+  readonly surfaces: SurfacesView
   /** TEAM-4: the `ask_team_opinion` tool in front of `opinions`: identity, rounds per Task, requests per day and the budget (Tally). Inert unless `Config.teamwork`. */
   readonly opinionTool: OpinionTool
   /** The team tools of a real persona (ask a colleague, pass the work on, a review's verdict) in front of `handoffs`. Inert unless `Config.teamwork`. */
@@ -930,6 +955,8 @@ export default class PersonaHost extends TypertRemoteService {
   readonly opt: OptRepos
   readonly ledger: TurnLedgerRepos
   readonly remoteTeam: RemoteTeamHost
+  /** F4 law 3: a persona of a connected team only acts on a sheet her owner signed. */
+  readonly personaSheets: PersonaSheets
   private readonly engineRetryPollMs: number
   private engineRetryTimer: ReturnType<typeof setInterval> | undefined
   private readonly externalPollMs: number
@@ -942,8 +969,8 @@ export default class PersonaHost extends TypertRemoteService {
   /** Short TTL for `listConversationSubjects` (boot storms hit the same stream). */
   private readonly subjectListCache = new Map<string, { at: number; value: ConversationSubjectsBundleView }>()
   sessionMemberId: string | undefined
-  /** Carbon P0-13b: whether the mailbox probe may connect to a host (a public name; never the machine or its network). Specs that probe a fake server on loopback replace it. */
-  mailHostCheck: (host: string) => Promise<boolean> = host => mailHostAllowed(host)
+  /** Carbon P0-13b / MH-1 / MH-2: the ONE vetted address a mail connection may use for a host (a public name resolved once, or a public literal), or undefined when it is refused (never the machine or its network; a failed resolution is a refusal). The probe, the poller and the sealing of a credential all ask it. Specs that probe a fake server on loopback replace it. */
+  mailTarget: (host: string) => Promise<string | undefined> = host => resolveMailHost(host)
   readonly lastErrors: string[] = []
   skillIo: SkillDirIo = defaultSkillDirIo()
 
@@ -995,6 +1022,7 @@ export default class PersonaHost extends TypertRemoteService {
     // and what any browser tool answers is masked before the model reads it.
     registerSecretWindow(() => this.browser.mask.live(Date.now()), text => this.browser.mask.redact(text, Date.now()))
     this.orchestration.browserOf = async (personaId, cli) => {
+      if (!this.surfaces.sharedBrowser) return undefined // D-113: OFF for real: no Chrome opened, no profile turn taken, no browser server in the turn
       const result = await this.browser.opener({ personaId, cli })
       return result.ok ? result.browser : undefined
     }
@@ -1002,12 +1030,17 @@ export default class PersonaHost extends TypertRemoteService {
     // filled by the runner pool when it exposes them (the station still refuses by RAM without them).
     // P1-10: what the machine remembered (paired, turned off) comes back on boot, and every turn now passes the station's gate (off holds on any machine; the RAM floor and the
     // awake request only on the paired station). A Task the gate stopped runs again by itself when the station is turned on or there is memory again.
+    // D-113: the station is still being built, so it is OFF for real in the product (`resolveSurfaces(config).station`; `this.surfaces` is assigned further down): no `station.json` read
+    // or written, no gate on the turns (no admission, no awake request, no "Desligada" holding a turn) and the four `@Remote` calls refuse at the ACL funnel.
+    const stationOn = resolveSurfaces(config).station
     this.station = new Station({
       freeBytes: () => freemem(),
-      initial: loadStationState(this.browserDataRoot),
-      persist: (state) => { saveStationState(this.browserDataRoot, state) },
+      // P1-08: the screen's counters are the real ones (the CLIs warm right now, and the Tasks the station stopped), not a fixed zero.
+      running: () => [...this.orchestration.warmRunners.keys()].map(id => ({ id, idleSince: 0 })),
+      queue: () => this.orchestration.stationGate?.waitingCount() ?? 0,
+      ...(stationOn ? { initial: loadStationState(this.browserDataRoot), persist: (state: StationState) => { saveStationState(this.browserDataRoot, state) } } : {}),
     })
-    this.orchestration.stationGate = new StationGate(this.station, { resume: () => this.orchestration.resumeStationWaiting() })
+    if (stationOn) this.orchestration.stationGate = new StationGate(this.station, { resume: () => this.orchestration.resumeStationWaiting() })
     this.proactivity = new ProactivityHost(
       this.product,
       this.routines,
@@ -1090,6 +1123,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.boards.teamworkOf = (projectId, ticketId) => this.boardTeamwork(projectId, ticketId)
     // TEAM-15: the v1.1 behaviors are ON in the real app; `Config` or `PERSONA_<FLAG>=0` turns one off (flags.ts, contracts/flags-defaults.md).
     this.hostFlags = resolveHostFlags(config)
+    this.surfaces = resolveSurfaces(config) // D-113: what is still being built is OFF in the product (surface-gates.ts)
     this.teamworkEnabled = this.hostFlags.teamwork
     this.productToolsEnabled = this.hostFlags.productTools
     this.hireDirect = new HireDirect(screenRepos)
@@ -1114,7 +1148,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.external = new ExternalSourcesHost(this.orchestration, new CofreSecretVault(this.vault, this.product, cofreSecrets))
     // Harvest 19b: the inbox rule is read at the origin, before any Trigger or model.
     this.external.emailFilter = projectId => this.screens.screens.get<EmailArrivalFilter>(projectId, 'external_email_filter', 'default')
-    this.external.emailReader = secret => readImapInboxFromSecret(secret)
+    this.external.emailReader = secret => readImapInboxFromSecret(secret, { resolveHost: host => this.mailTarget(host) }) // Carbon MH-1: the real poller connects only where the policy says
     // Item 26: a routine that listens to a source takes its events at the origin, before the engine sees them (one door: it queues a run the scheduler claims).
     const eventIntake = new RoutineEventIntake({
       routines: this.routines,
@@ -1154,6 +1188,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.orchestration.loggedCliOf = () => this.loggedCli()
     this.remoteGuard = new RemoteGuard({
       peerOf: () => this.sessionMemberId ?? 'local',
+      surfaceOff: method => surfaceRefuses(this.surfaces, method), // D-113: an OFF surface refuses its calls in the funnel
     })
     this.topics = new TopicRepos(this.store, () => this.orchestration.now())
     this.channelRepos = new ChannelRepos(this.store, () => this.orchestration.now())
@@ -1177,14 +1212,27 @@ export default class PersonaHost extends TypertRemoteService {
     })
     // Item 22: the channel rules read the directory over CV-6 (the organogram's sectors are the equipes); off with the team layer.
     const workspaceOf = (projectId: string): string | undefined => this.product.getProject(projectId)?.workspaceId
+    const equipeRepos = new EquipeRepos(this.store, () => this.orchestration.now())
+    const categoryRepos = new CategoryRepos(this.store, () => this.orchestration.now())
+    this.equipeDesk = new EquipeDesk({
+      equipes: equipeRepos,
+      categories: categoryRepos,
+      channels: this.channelRepos,
+      sectorNames: (projectId) => { const workspaceId = workspaceOf(projectId); return workspaceId === undefined ? [] : this.governance.gov.listSectors(workspaceId).map(sector => sector.name) },
+      hasPersona: (projectId, personaId) => this.product.getPersona(personaId)?.projectId === projectId,
+      newId: () => globalThis.crypto.randomUUID(),
+    })
     this.channelDirectory = directoryOverTeamChannels({
       teamChannels: this.teamChannels,
       channels: this.channelRepos,
+      equipes: projectId => equipeRepos.list(projectId),
+      categories: projectId => categoryRepos.list(projectId),
+      placements: projectId => new Map(categoryRepos.placements(projectId).map(place => [place.channelId, { categoryId: place.categoryId, position: place.position }])),
       sectors: (projectId) => { const workspaceId = workspaceOf(projectId); return workspaceId === undefined ? [] : this.governance.gov.listSectors(workspaceId) },
       sectorOf: (projectId) => { const workspaceId = workspaceOf(projectId); return new Map(workspaceId === undefined ? [] : this.cards.listCharges(workspaceId).flatMap(charge => (charge.sectorId === undefined ? [] : [[charge.personaId, charge.sectorId] as const]))) },
     })
     this.orchestration.channelWire = new ChannelWire({
-      directory: () => (this.teamworkEnabled ? this.channelDirectory : undefined),
+      directory: () => (this.surfaces.channels && this.teamworkEnabled ? this.channelDirectory : undefined), // D-113: the surface OFF = no fence, no @equipe by name (the layer reads nothing)
       personas: projectId => this.product.listPersonas(projectId),
       isPaused: (projectId, personaId) => this.orchestration.isPersonaPaused(projectId, personaId),
     })
@@ -1273,7 +1321,8 @@ export default class PersonaHost extends TypertRemoteService {
       events: this.events,
       answerer: {
         blocked: (projectId, personaId) => this.orchestration.asideBlocked(projectId, personaId),
-        answer: (projectId, personaId, askId, question) => this.orchestration.answerAside(projectId, personaId, askId, question),
+        // P0-07b: the numbers' quiet turn has a runner of its own (never the one `/lado` captures its text on).
+        answer: (projectId, personaId, askId, question) => this.orchestration.answerIndicator(projectId, personaId, askId, question),
       },
       now: () => this.orchestration.now(),
       projects: () => this.product.listWorkspaces().flatMap(workspace => this.product.listProjects(workspace.id).map(project => project.id)),
@@ -1355,6 +1404,12 @@ export default class PersonaHost extends TypertRemoteService {
     }
     this.orchestration.handoffWait = (projectId, ticketId, delivered) => this.handoffs.waitingLine(projectId, ticketId, delivered)
     this.orchestration.handoffPending = (projectId, ticketId) => this.handoffs.waitingOnColleague(projectId, ticketId)
+    // Carbon P1-02: a Task whose persona asked the owner for a six-digit code waits for it (the card is the ask); filling the card wakes it.
+    this.orchestration.vaultCodeWait = (projectId, ticketId) => {
+      const open = this.cofre.codes.pendingFor(projectId, ticketId)
+      const site = open.find(request => request.site !== undefined)?.site
+      return open.length === 0 ? undefined : `Esperando você: o código de 6 dígitos${site === undefined ? '' : ` do ${site}`}`
+    }
     // Item 18: the conversation of a Task is a thread of its stream; who answers it, what the persona reads about the Task, and what the card carries.
     this.taskThreads = new TaskThreads({ product: this.product, screens: this.screens.screens, events: this.events, orchestration: this.orchestration })
     this.orchestration.threadResponderOf = event => this.taskThreads.responderOf(event)
@@ -1404,7 +1459,8 @@ export default class PersonaHost extends TypertRemoteService {
       routines: this.routines,
       tasks: projectId => this.morningTasks(projectId),
       needsYou: projectId => this.needsYouCount(projectId),
-      requestOf: (projectId, taskId) => this.teamCards.requestOfLine(projectId, taskId),
+      // Carbon P0-13: a Task born in a DM has no request line in the shared card (it is made from the DM's words).
+      requestOf: (projectId, taskId) => (this.orchestration.conversationOfTicket(projectId, taskId)?.streamKind === 'dm' ? undefined : this.teamCards.requestOfLine(projectId, taskId)),
       timeZone: () => Intl.DateTimeFormat().resolvedOptions().timeZone,
     })
     this.personWaiting = new PersonWaiting({
@@ -1519,7 +1575,10 @@ export default class PersonaHost extends TypertRemoteService {
       vaultCode: new VaultCodePorts({ codes: this.cofre.codes, sealable: () => canSealCofre }),
       // COLHEITA 15b: the Cofre password goes into the page of its own site; the answer never carries the value.
       browserLogin: new BrowserLoginPorts({
-        liveSessionOf: personaId => this.browser.service.liveSessionOf(personaId),
+        liveSessionOf: (personaId) => {
+          const live = this.browser.service.liveSessionOf(personaId)
+          return live === undefined ? undefined : { port: live.port, profileId: live.profile.id }
+        },
         loginsOf: projectId => this.cofre.entries.list(projectId)
           .filter(entry => entry.kind === 'login')
           .map(entry => ({ id: entry.id, title: entry.title, site: entry.fields.site ?? '', username: entry.fields.username ?? '' })),
@@ -1743,6 +1802,8 @@ export default class PersonaHost extends TypertRemoteService {
     this.remoteTeam = new RemoteTeamHost({
       store: this.store, screens: screenRepos, events: this.events,
       pollMs: config.remoteTeamPollMs ?? 2500, timeoutMs: config.remoteTeamTimeoutMs ?? 20000,
+      live: config.remoteTeamLive ?? false, // D-113: the live link is part of the invite surface, which ships OFF
+      enabled: () => this.surfaces.invite, // D-113: OFF = inert (no resume at boot, no poll, no socket, no network)
       topicOf: (projectId, channelId) => this.activeSubjectId(projectId, 'channel', channelId),
       identity: () => loadOrCreateIdentity(new CofreIdentityStore(this.cofreSecrets)), // H23: the device identity lives in the Cofre's sealed slot
       vault: () => {
@@ -1755,12 +1816,10 @@ export default class PersonaHost extends TypertRemoteService {
     })
     if (this.store.recoveryMessage !== undefined) this.lastErrors.push(this.store.recoveryMessage)
     if (process.env.VITEST !== 'true') {
-      process.stderr.write(`${flagsBootLine(this.hostFlags)}\n`) // a verifier reads the app's log: the four switches as they resolved, no env needed
-      this.connections.warm()
+      process.stderr.write(`${flagsBootLine(this.hostFlags)}\n${surfacesBootLine(this.surfaces)}\n`) // a verifier reads the app's log: the four switches as they resolved, no env needed
       this.connectorBridge ??= claudeConnectorBridge(cli => this.connections.list().find(card => card.kind === cli)?.version) // the installed version decides what isolation can be called proven
-      void this.connectorBridge.refresh() // background, control requests only: the account's connectors become available when it answers
-      this.orchestration.prewarmAll()
-      this.proactivityScheduler.start()
+      // Boot diet (lever 2): the warmups, the scheduler, the reports curation and the `gh` probe are NOT the first screen: they start after a short delay (`startBackground`), once.
+      this.scheduleBackground(Number(process.env.PERSONA_BOOT_BACKGROUND_MS ?? BOOT_BACKGROUND_DELAY_MS))
     }
     this.mountGithubWebhook(ctx)
     this.mountMedia(ctx)
@@ -1773,10 +1832,6 @@ export default class PersonaHost extends TypertRemoteService {
           this.teamChannels.reconcile(project.id) // heals a base that already had teams: their channels are born here
           this.scheduler.arm(project.id)
           this.remoteTeam.resume({ workspaceId: workspace.id, projectId: project.id })
-          if (!allowsScriptedReplies()) {
-            this.orchestration.runtime(project.id)
-            this.curateProjectReports(project.id)
-          }
         } catch (error: unknown) {
           this.orchestration.softFailure('boot-project', error)
         }
@@ -1784,6 +1839,8 @@ export default class PersonaHost extends TypertRemoteService {
     }
     ctx.effect(() => async () => {
       this.engineReadinessDisposed = true
+      this.backgroundStarted = true // a host that closes before the delay never starts the background work
+      if (this.backgroundTimer !== undefined) { clearTimeout(this.backgroundTimer); this.backgroundTimer = undefined }
       this.proactivityScheduler.dispose()
       if (this.indicatorTimer !== undefined) clearInterval(this.indicatorTimer)
       if (this.engineRetryTimer !== undefined) clearInterval(this.engineRetryTimer)
@@ -1808,7 +1865,43 @@ export default class PersonaHost extends TypertRemoteService {
         }
       }
     })
+    this.personaSheets = new PersonaSheets({
+      screens: screenRepos,
+      identity: () => this.remoteTeam.deviceIdentity(),
+      team: (workspaceId, projectId) => {
+        try {
+          if (!this.remoteTeam.isEnabled()) return undefined // D-113: with the invite surface off there is no team to defend
+          const state = this.remoteTeam.state({ workspaceId, projectId })
+          return state?.role === 'owner' && state.status !== 'revoked' ? { actorId: state.actorId } : undefined
+        } catch (error) {
+          void error // a state of another workspace: not a team of this project
+          return undefined
+        }
+      },
+    })
+    this.wrapPersonaWrites()
+    this.orchestration.sheetGate = persona => this.personaSheets.gate(persona)
     installRemoteGuard(this, this.remoteGuard)
+  }
+
+  /**
+   * F4 law 3: every persona this host writes goes through the product repos, so this is the one place the owner's own writes are signed (a write made inside
+   * `personaSheets.bypass`, or by anything that is not this host's code, is not: that is what the guard exists to catch).
+   */
+  private wrapPersonaWrites(): void {
+    const product = this.product
+    const update = product.updatePersona.bind(product)
+    const create = product.createPersona.bind(product)
+    product.updatePersona = (persona, projectId) => {
+      const written = update(persona, projectId)
+      this.personaSheets.signLater(written)
+      return written
+    }
+    product.createPersona = (persona, projectId) => {
+      const created = create(persona, projectId)
+      this.personaSheets.signLater(created)
+      return created
+    }
   }
 
   /**
@@ -1979,7 +2072,8 @@ export default class PersonaHost extends TypertRemoteService {
           : card.column === 'doing' ? (card.chip === 'waiting' ? 'waiting' : 'running') : undefined
       if (state === undefined) continue
       out.push({
-        taskId: ticket.id, personaId, title: ticket.title, state, updatedAt: ticket.updatedAt,
+        // Carbon P0-13: the morning card is a message of #geral, read by every member: a Task born in a DM enters it with the neutral title.
+        taskId: ticket.id, personaId, title: this.orchestration.conversationOfTicket(projectId, ticket.id)?.streamKind === 'dm' ? PRIVATE_DM_TASK_TITLE : ticket.title, state, updatedAt: ticket.updatedAt,
         ...(state === 'done' && ticket.ended !== undefined ? { endedAt: ticket.ended.at } : {}),
       })
     }
@@ -2014,7 +2108,9 @@ export default class PersonaHost extends TypertRemoteService {
 
   /** TEAM-7: what waits for the person: the Tasks of {@link waitingOnPerson} and the approvals still pending. */
   private needsYouCount(projectId: string): number {
+    // Carbon P1-02: a six-digit request the persona opened waits for the owner like any other card.
     return this.waitingOnPerson(projectId).size + this.screens.listApprovals(projectId).filter(item => item.status === 'pending' && item.kind !== 'attention').length
+      + this.cofre.codes.list(projectId).filter(request => request.state === 'pending').length
   }
 
   /** D-096: the sentence that says the engine ran this Task differently from what was set (kept by the usage meter), when there is one. */
@@ -2392,7 +2488,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   getOrgChart(request: GetOrgChartRequest): OrgChartView {
     this.requireWorkspace(request)
-    return this.governance.orgChartView(request)
+    return this.maskOrgChart(request.workspaceId, this.governance.orgChartView(request))
   }
 
   /**
@@ -2697,7 +2793,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   enqueueWorkingMessage(request: EnqueueWorkingMessageRequest): QueuedMessageView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.workingControl.enqueue(request)
   }
 
@@ -2716,7 +2812,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   editQueuedMessage(request: EditQueuedMessageRequest): QueuedMessageView[] {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.workingSend.edit(request)
   }
 
@@ -2726,7 +2822,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   dropQueuedMessage(request: EditQueuedMessageRequest): QueuedMessageView[] {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.workingControl.drop(request)
   }
 
@@ -2781,7 +2877,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   openAsideAsk(request: OpenAsideAskRequest): AsideAskView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     if (request.question.trim() === '') throw new HostRemoteFault('invalid-payload', 'Escreva a pergunta de lado.')
     return this.asides.open(request)
   }
@@ -2848,7 +2944,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   recordTurnActivity(request: RecordTurnActivityRequest): TurnActivityView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.workingSend.recordActivity(request)
   }
 
@@ -2971,13 +3067,24 @@ export default class PersonaHost extends TypertRemoteService {
       ? { host: request.host, user: request.user, password: request.password, port: request.port, secure: request.secure }
       : undefined
     const stored = typed === undefined ? await this.storedEmailCredential(request.projectId) : undefined
-    const credential = typed ?? stored
+    // Carbon P1-08: with no NEW password the stored one is used, but only for the SAME server: another host needs its own password (the stored one never goes to a server the form changed),
+    // and the fields the form edited on the same server (user, port, security) are merged with it. It used to test the OLD stored server silently and say it connected.
+    if (stored !== undefined && request.host !== undefined && request.host !== stored.host) return { ok: false, error: 'no-credential' }
+    const merged = stored === undefined ? undefined : {
+      ...stored,
+      ...(request.user !== undefined && request.user !== '' ? { user: request.user } : {}),
+      ...(request.port !== undefined ? { port: request.port } : {}),
+      ...(request.secure !== undefined ? { secure: request.secure } : {}),
+    }
+    const credential = typed ?? merged
     if (credential === undefined) return { ok: false, error: 'no-credential' }
     // Carbon P0-13b (SSRF): a mail host is a public name; an address of the machine or its network is never probed (it reads as a network failure, the honest category).
-    if (!(await this.mailHostCheck(credential.host))) return { ok: false, error: 'network' }
+    const address = await this.mailTarget(credential.host)
+    if (address === undefined) return { ok: false, error: 'network' }
     try {
       const { messages } = await probeImap({
         host: credential.host,
+        connectTo: address, // Carbon MH-2: the address that was vetted, not a second resolution of the name
         user: credential.user,
         password: credential.password,
         port: credential.port ?? 993,
@@ -3069,7 +3176,36 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     return channelLayoutViewOf(this.channelDirectory, request.projectId, this.viewRoster(request.projectId), {
       humanCount: this.product.listMembers(request.workspaceId).filter(member => member.role !== 'guest').length,
+      // A category the person made shows at once, even empty (else it would vanish the moment it is created); the automatic sections need a channel anyway.
+      showEmptySections: true,
     })
+  }
+
+  /**
+   * Item 22 (H22): the equipes the person assembled (a sector's mirror included) and the categories, in screen order. Read-only.
+   * @param request - Project.
+   */
+  @Remote
+  getEquipeLayout(request: ProjectScopeRequest): EquipeLayoutView {
+    this.requireProject(request)
+    return this.equipeDesk.layout(request.projectId)
+  }
+
+  /**
+   * Item 22 (H22): ARRANGE — create or change an equipe, make or order categories, move a channel into one, put a persona on a channel the person made.
+   * Owner only; the fence does not change (who answers in a channel is still its members). Answers the new layout; a refusal is a typed fault with the sentence the screen shows.
+   * @param request - Project and ONE action.
+   */
+  @Remote
+  updateChannelLayout(request: ArrangeChannelsRequest): EquipeLayoutView {
+    this.requireProject(request)
+    this.requireGovOwner(request.workspaceId)
+    try {
+      return this.equipeDesk.arrange(request)
+    } catch (error: unknown) {
+      if (error instanceof EquipeDeskError) throw new HostRemoteFault(FAULT_OF[error.code], error.message)
+      throw error
+    }
   }
 
   /**
@@ -3149,7 +3285,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   setChannelPinned(request: SetChannelPinnedRequest): ChannelView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     const channel = this.ownChannel(request)
     const me = this.actorOf(request.workspaceId)?.id
     if (me === undefined) throw new HostRemoteFault('forbidden', 'Entre para fixar um canal.')
@@ -3209,6 +3345,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listTasks(request: ProjectScopeRequest): TaskView[] {
     this.requireProject(request)
+    const seenBy = this.ticketSeenFor(request.workspaceId) // Carbon P0-13 + perf: the session's actor is resolved ONCE per call (it re-reads the members: 0.4 ms a card, 100 cards a project)
     return this.orchestration.kanban(request.projectId).map((card) => {
       const subjectLink = this.screens.screens.get<{ subjectId: string }>(
         request.projectId,
@@ -3220,20 +3357,22 @@ export default class PersonaHost extends TypertRemoteService {
       // IV-10: while the Task has an open question, the card knows where it was asked and what it says.
       const asking = this.orchestration.runtime(request.projectId).repo.tickets.get(card.ticketId)?.attention
       const where = asking === undefined ? undefined : this.orchestration.conversationOfTicket(request.projectId, card.ticketId)
-      const seen = this.ticketSeenBy(request.workspaceId, request.projectId, card.ticketId) // Carbon P0-13: a Task born in a DM is read by the DM's participants only
+      const seen = seenBy(request.projectId, card.ticketId) // Carbon P0-13: a Task born in a DM is read by the DM's participants only
       return {
         id: card.ticketId,
         projectId: request.projectId,
         title: seen ? card.title : PRIVATE_DM_TASK_TITLE,
         stage: card.column,
         stageAction: card.chip === 'waiting' ? 'waiting' : card.stageAction,
-        ...teamwork,
+        ...(seen ? teamwork : withoutDmWords(teamwork)), // Carbon P1-DM-2: the note and the path carry the DM's words
         ...this.engineNoteField(request.projectId, card.ticketId),
         ...(asking === undefined || where === undefined || !seen ? {} : { questionStreamId: `${where.streamKind}:${where.ownerId}`, question: shortQuestion(asking.question) }),
         ...(subjectLink === undefined || subjectLink.subjectId === ''
           ? {}
           : { topicId: subjectLink.subjectId, conversationSubjectId: subjectLink.subjectId }),
         ...(collaborators.length === 0 ? {} : { collaborators }),
+        // Keel 12/11: a stopped card says WHY in one plain line, from what the host already keeps (the worker's report, the code of a failed run); never for a private DM Task.
+        ...(card.column !== 'blocked' || !seen ? {} : blockedReasonField(this.orchestration.runtime(request.projectId).repo.tickets.get(card.ticketId), card.stageAction, this.events)),
       }
     })
   }
@@ -3274,7 +3413,8 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     const board = this.boards.getProjectBoard(request.projectId)
     // Carbon P0-13: a Task born in a DM shows its title only to the DM's participants.
-    return { ...board, cards: board.cards.map(card => (this.ticketSeenBy(request.workspaceId, request.projectId, card.ticketId) ? card : { ...card, title: PRIVATE_DM_TASK_TITLE })) }
+    const seenBy = this.ticketSeenFor(request.workspaceId)
+    return { ...board, cards: board.cards.map(card => (seenBy(request.projectId, card.ticketId) ? card : { ...card, title: PRIVATE_DM_TASK_TITLE })) }
   }
 
   /**
@@ -3284,7 +3424,9 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listBoards(request: ProjectScopeRequest): BoardSummaryView[] {
     this.requireWorkspace(request)
-    return this.boards.listBoards(request.workspaceId)
+    // Carbon P0-13: the boards of the projects the asker may read (the owner: all; a guest: none); no actor = a workspace with nobody in it, already limited to the machine owner.
+    const actor = this.actorOf(request.workspaceId)
+    return this.boards.listBoards(request.workspaceId).filter(row => actor === undefined || sessionCan(actor, 'read', { type: 'project', workspaceId: request.workspaceId, projectId: row.projectId }))
   }
 
   /**
@@ -3436,7 +3578,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   proposeWorkflow(request: ProposeWorkflowRequest): WorkflowProposalView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.boards.proposeWorkflow(request)
   }
 
@@ -3477,7 +3619,10 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   getOverviewNow(request: ProjectScopeRequest): OverviewNowView {
     this.requireProject(request)
-    return this.proactivity.overviewNow(request.projectId)
+    const view = this.proactivity.overviewNow(request.projectId)
+    // Carbon R2-05: `currentTask` is the Task's title; for a Task born in a DM only its participants read it.
+    const seenBy = this.ticketSeenFor(request.workspaceId)
+    return { ...view, personas: view.personas.map(row => (row.currentTaskId !== '' && !seenBy(request.projectId, row.currentTaskId) ? { ...row, currentTask: PRIVATE_DM_TASK_TITLE } : row)) }
   }
 
   /**
@@ -3499,7 +3644,8 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     return connectorCatalog({
       granted: this.connectorGrants.list(request.workspaceId).map(grant => grant.name),
-      account: (this.connectorPorts.availableConnectors?.('claude') ?? []).map(ref => ref.name),
+      account: (this.portsNow().availableConnectors?.('claude') ?? []).map(ref => ref.name), // P1-07: the live list (the bridge), not the empty `connectorPorts`
+      tokens: TOKEN_PROVIDERS.filter(token => this.cofre.hasSecret(request.projectId, connectorSlot(token.provider))).map(token => token.provider),
     })
   }
 
@@ -3513,7 +3659,7 @@ export default class PersonaHost extends TypertRemoteService {
     const clis = ['claude', 'codex', 'cursor', 'opencode']
     return connectorHealth({
       grants: this.connectorGrants.list(request.workspaceId).map(grant => ({ personaId: grant.personaId, cli: grant.cli, name: grant.name })),
-      available: clis.flatMap(cli => (this.connectorPorts.availableConnectors?.(cli) ?? []).map(ref => ({ cli, name: ref.name }))),
+      available: clis.flatMap(cli => (this.portsNow().availableConnectors?.(cli) ?? []).map(ref => ({ cli, name: ref.name }))), // P1-07: the live list
       connections: this.connections.list().map(item => ({ id: item.id, available: item.available, loggedIn: item.loggedIn, phase: item.phase })),
       tokens: TOKEN_PROVIDERS.map(token => ({ ...token, hasSecret: this.cofre.hasSecret(request.projectId, connectorSlot(token.provider)) })),
       personaNameOf: personaId => this.product.getPersona(personaId)?.name,
@@ -3540,6 +3686,18 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     this.requireGovOwner(request.workspaceId)
     return this.connectorGrants.grant(request, this.requireActor(request.workspaceId).id)
+  }
+
+  /**
+   * Item 26: give ONE persona a tool of the catalog by its NAME (contracts/connector-grant-by-name.md). The host resolves the connector on her own CLI, so its id never
+   * reaches the screen. Only the workspace owner; after the resolution it is `grantConnector`: same refusals, same audit, nothing waived.
+   * @param request - Persona, tool name and level (default: read).
+   */
+  @Remote
+  grantConnectorByName(request: GrantConnectorByNameRequest): ConnectorGrantView {
+    this.requireProject(request)
+    this.requireGovOwner(request.workspaceId)
+    return this.connectorGrants.grantByName(request, this.requireActor(request.workspaceId).id)
   }
 
   /**
@@ -3592,7 +3750,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   postDailyBriefNow(request: DailyBriefNowRequest): DailyBriefNowView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     if (request.requestId !== undefined && !/^[A-Za-z0-9_-]{1,64}$/u.test(request.requestId)) {
       throw new HostRemoteFault('invalid-payload', 'requestId deve ter de 1 a 64 letras, números, "-" ou "_".')
     }
@@ -3610,7 +3768,7 @@ export default class PersonaHost extends TypertRemoteService {
   getWhileAway(request: ProjectScopeRequest): WhileAwayView {
     this.requireProject(request)
     this.morningBrief.check(request.projectId, 'app-open') // TEAM-7: the first opening of the day after 6:00 brings the card
-    return this.proactivity.whileAway(request.projectId)
+    return this.maskWhileAway(request, this.proactivity.whileAway(request.projectId)) // Carbon P1-DM-2: the window is read by the SESSION
   }
 
   /**
@@ -3651,7 +3809,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   setAutonomy(request: AutonomyConfig): AutonomyConfig {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return toAutonomyView(request.workspaceId, this.proactivity.setAutonomy({
       projectId: request.projectId,
       personaId: request.personaId,
@@ -3670,7 +3828,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   ensureInitiativeRoutines(request: ProjectScopeRequest): number {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.proactivity.ensureAllInitiativeRoutines(request.projectId)
   }
 
@@ -3680,7 +3838,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   fireProactiveEvent(request: FireProactiveEventRequest): string[] {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.proactivity.fireEvent(request.projectId, request.title, request.subjectId)
   }
 
@@ -3690,7 +3848,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   tickProactivity(request: TickProactivityRequest): ProactivityTickView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.proactivity.tick(request.projectId, request.leaseUntil, request.stallAfterMs)
   }
 
@@ -3700,7 +3858,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   tickLibrarianBatch(request: ProjectScopeRequest): LibrarianBatchView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     this.curateProjectReports(request.projectId)
     return tickLibrarianBatch(
       this.brain.brain,
@@ -3716,7 +3874,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   tickInitiativeBatch(request: TickProactivityRequest): ProactivityTickView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return tickInitiativeBatch(
       this.proactivity,
       this.events,
@@ -3750,6 +3908,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   putProviderLimitReports(request: PutProviderLimitReportsRequest): ProviderLimitPoolView[] {
     this.requireProject(request)
+    this.requireOwnerOrEmpty(request.workspaceId) // Carbon P0-13: the rules of the house are the owner's (a workspace with nobody in it: the machine owner already passed)
     const now = Date.parse(this.orchestration.now())
     const pools = poolProviderLimits(dedupeLimitAccounts(request.reports), Number.isFinite(now) ? now : 0)
     for (const pool of pools) this.opt.putPool(request.projectId, pool.provider, pool)
@@ -3773,9 +3932,11 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   async issueInvite(request: IssueInviteRequest): Promise<InviteView> {
     this.requireProject(request)
+    this.requireGovOwner(request.workspaceId) // Carbon P0-13: who is in the team is the owner's
     if (!allowsScriptedReplies()) this.remoteTeam.requireVault()
     const remote = this.remoteTeam.state(request)
     if (remote !== undefined) {
+      this.requireSurface('invite') // D-113: the REMOTE branch belongs to the invite surface (the local invite stays)
       const actor = this.actorOf(request.workspaceId)
       if (actor?.workspaceRole !== 'owner' || actor.id !== remote.actorId) throw new Error('forbidden')
       return this.remoteTeam.issue(request)
@@ -3790,7 +3951,11 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listInvites(request: ProjectScopeRequest): InviteView[] {
     this.requireWorkspace(request)
-    if (this.remoteTeam.state(request) !== undefined) return this.remoteTeam.invites(request)
+    this.requireGovOwner(request.workspaceId) // Carbon P0-13: who is in the team is the owner's
+    if (this.remoteTeam.state(request) !== undefined) {
+      this.requireSurface('invite') // D-113: the REMOTE branch belongs to the invite surface (the local list stays)
+      return this.remoteTeam.invites(request)
+    }
     return this.screens.listInvites(request.workspaceId)
   }
 
@@ -3805,7 +3970,39 @@ export default class PersonaHost extends TypertRemoteService {
       if (channel === undefined || channel.projectId !== request.projectId) throw new Error('channel-not-found')
     }
     const displayName = this.product.listMembers(request.workspaceId).find(row => row.id === actor.id)?.displayName ?? actor.id
-    return this.remoteTeam.connect(request, actor, displayName)
+    const connected = await this.remoteTeam.connect(request, actor, displayName)
+    // F4 law 3: connecting the team is the owner's consent: every persona the project has is signed as she is now (a later change signs itself).
+    await this.personaSheets.signAll(this.product.listPersonas(request.projectId))
+    return connected
+  }
+
+  /**
+   * F4 law 3: does this persona's sheet carry her owner's signature? (`solo` for a project that is not a connected team.) The screen says it in words and offers the owner the
+   * review.
+   * @param request - Persona.
+   */
+  @Remote
+  async getPersonaSheetStatus(request: PersonaSheetRequest): Promise<PersonaSheetStatus> {
+    this.requireProject(request)
+    const persona = this.product.getPersona(request.personaId)
+    if (persona === undefined) throw new Error('persona-not-found')
+    return this.personaSheets.verdict({ ...persona, projectId: request.projectId })
+  }
+
+  /**
+   * F4 law 3: the owner reviewed what she may do and signs the sheet as it is now. Only the owner of the connected team.
+   * @param request - Persona.
+   */
+  @Remote
+  async reviewPersonaSheet(request: PersonaSheetRequest): Promise<PersonaSheetStatus> {
+    this.requireWrite(request)
+    const actor = this.actorOf(request.workspaceId)
+    if (actor?.workspaceRole !== 'owner') throw new Error('forbidden')
+    const persona = this.product.getPersona(request.personaId)
+    if (persona === undefined) throw new Error('persona-not-found')
+    const stored = { ...persona, projectId: request.projectId }
+    await this.personaSheets.sign(stored)
+    return this.personaSheets.verdict(stored)
   }
 
   /**
@@ -3814,6 +4011,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   async createInviteLink(request: IssueInviteRequest): Promise<InviteLinkView> {
+    this.requireGovOwner(request.workspaceId) // Carbon P0-13: the link is the owner's (asked here, not only through `issueInvite`)
     if (this.remoteTeam.state(request) === undefined) throw new Error('remote-team-not-connected') // a link needs the hub: a local invite has nowhere to point
     const invite = await this.issueInvite(request)
     return this.remoteTeam.linkOf(request, invite)
@@ -3825,6 +4023,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   async previewInvite(request: PreviewInviteRequest): Promise<InvitePreview> {
+    this.requireMachineOwnerLocal() // Carbon P0-13: no tenant yet (a link opened on a fresh install), but never a guest or a stranger
     return this.remoteTeam.preview(request.link, request.edgeUrl)
   }
 
@@ -3842,6 +4041,16 @@ export default class PersonaHost extends TypertRemoteService {
     if (actor === undefined) throw new Error('forbidden')
     const displayName = this.product.listMembers(request.workspaceId).find(row => row.id === actor.id)?.displayName ?? actor.id
     return this.remoteTeam.accept({ workspaceId: request.workspaceId, projectId: request.projectId, token: parsed.token, edgeUrl: request.edgeUrl }, actor, displayName)
+  }
+
+  /**
+   * F4: who is here right now (the rail's presence dots): online, ausente or fora, with the machine name when the device says it.
+   * @param request - A connected project.
+   */
+  @Remote
+  async getPresence(request: ProjectScopeRequest): Promise<PresenceView[]> {
+    this.requireProject(request)
+    return this.remoteTeam.presence(request)
   }
 
   /**
@@ -4188,7 +4397,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   async confirmAccountSwap(request: ConfirmAccountSwapRequest): Promise<AccountSwapResultView> {
-    this.requireWrite(request)
+    this.requireMachineOwner(request) // Carbon P0-13: which account a stopped Task resumes on is the owner's (the accounts are the machine's)
     if (this.actorOf(request.workspaceId)?.kind !== 'user') throw new Error('forbidden')
     return this.accountSwap.confirm(request.projectId, request.ticketId, request.toAccountId)
   }
@@ -4200,7 +4409,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   declineAccountSwap(request: DeclineAccountSwapRequest): boolean {
-    this.requireWrite(request)
+    this.requireMachineOwner(request) // Carbon P0-13: which account a stopped Task resumes on is the owner's (the accounts are the machine's)
     if (this.actorOf(request.workspaceId)?.kind !== 'user') throw new Error('forbidden')
     return this.accountSwap.decline(request.projectId, request.ticketId)
   }
@@ -4212,7 +4421,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   undoAccountSwap(request: UndoAccountSwapRequest): UndoAccountSwapResultView {
-    this.requireWrite(request)
+    this.requireMachineOwner(request) // Carbon P0-13: which account a stopped Task resumes on is the owner's (the accounts are the machine's)
     if (this.actorOf(request.workspaceId)?.kind !== 'user') throw new Error('forbidden')
     return this.accountSwap.undo(request.projectId, request.swapId)
   }
@@ -4404,6 +4613,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   redeemInvite(request: RedeemInviteRequest): InviteView {
     this.requireWorkspace(request)
+    this.requireGovOwner(request.workspaceId) // Carbon P0-13: it creates a member with the role of the invite: the owner's
     return this.screens.redeem(request)
   }
 
@@ -4414,6 +4624,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   revokeInvite(request: InviteIdRequest): InviteView {
     this.requireWorkspace(request)
+    this.requireGovOwner(request.workspaceId) // Carbon P0-13: who is in the team is the owner's
     return this.screens.revoke(request.workspaceId, request.inviteId)
   }
 
@@ -4433,7 +4644,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   confirmImport(request: ConfirmImportRequest): ImportBatchView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.screens.confirm(request)
   }
 
@@ -4453,7 +4664,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   rollbackImport(request: ImportBatchRequest): ImportBatchView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.screens.rollback(request.batchId)
   }
 
@@ -4473,7 +4684,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   putTriageRule(request: PutTriageRuleRequest): TriageRuleView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.screens.putRule(request)
   }
 
@@ -4483,7 +4694,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   deleteTriageRule(request: ScreenDocRequest): boolean {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.screens.deleteRule(request.projectId, request.id)
   }
 
@@ -4494,7 +4705,12 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listTriageLog(request: ProjectScopeRequest): TriageLogView[] {
     this.requireProject(request)
-    return this.screens.listLog(request.projectId)
+    // Carbon P0-13: a line of a DM the asker is not in is not theirs (the log keeps the first words of the message and the id of its stream).
+    const actor = this.actorOf(request.workspaceId)
+    return this.screens.listLog(request.projectId).filter((line) => {
+      const dm = this.product.getDm(line.threadId)
+      return dm === undefined || (actor !== undefined && sessionCan(actor, 'read', { type: 'dm', workspaceId: request.workspaceId, dmId: dm.id, memberIds: [dm.participantA, dm.participantB] }))
+    })
   }
 
   /**
@@ -4514,7 +4730,10 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listCanvas(request: ProjectScopeRequest): CanvasGraphView {
     this.requireProject(request)
-    return this.screens.listCanvas(request.projectId)
+    const view = this.screens.listCanvas(request.projectId)
+    // Carbon R2-05: a node of a Task born in a DM carries the person's words as its label; the others read the neutral title (the rule of `listTasks`).
+    const seenBy = this.ticketSeenFor(request.workspaceId)
+    return { ...view, nodes: view.nodes.map(node => (node.kind === 'task' && !seenBy(request.projectId, node.id.slice('task:'.length)) ? { ...node, label: PRIVATE_DM_TASK_TITLE } : node)) }
   }
 
   /**
@@ -4542,6 +4761,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   setProjectRoot(request: SetProjectRootRequest): ProjectRootView {
     this.requireProject(request)
+    this.requireOwnerOrEmpty(request.workspaceId) // Carbon P0-13: the rules of the house are the owner's (a workspace with nobody in it: the machine owner already passed)
     const current = this.product.getProject(request.projectId)
     if (current === undefined) throw new Error('project-not-found')
     if (request.rootPath === '') {
@@ -4643,7 +4863,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   putQuietWindow(request: PutQuietWindowRequest): QuietWindowView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.screens.putQuiet(request)
   }
 
@@ -4654,7 +4874,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   deleteQuietWindow(request: ScreenDocRequest): boolean {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.screens.deleteQuiet(request.projectId, request.id)
   }
 
@@ -4686,6 +4906,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   setProjectLimits(request: ProjectLimitsView): ProjectLimitsView {
     this.requireProject(request)
+    this.requireOwnerOrEmpty(request.workspaceId) // Carbon P0-13: the rules of the house are the owner's (a workspace with nobody in it: the machine owner already passed)
     return this.screens.setLimits(request)
   }
 
@@ -4696,7 +4917,10 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listApprovals(request: ProjectScopeRequest): ApprovalView[] {
     this.requireProject(request)
-    return this.screens.listApprovals(request.projectId).map((card) => {
+    // Carbon R2-05: the card of an open question is the Task's title; for a Task born in a DM only its participants read it.
+    const seenBy = this.ticketSeenFor(request.workspaceId)
+    return this.screens.listApprovals(request.projectId).map((listed) => {
+      const card = maskDmApprovalCard(listed, ticketId => seenBy(request.projectId, ticketId))
       const audit = this.screens.screens.get<{ grantId: string; explanation: string }>(
         request.projectId, 'remembered_approval', `${card.kind}:${card.id}`)
       return { ...this.governance.approval(request.workspaceId, card),
@@ -4710,7 +4934,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   proposeHire(request: ProposeHireRequest): ApprovalView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.screens.proposeHire(request)
   }
 
@@ -4720,7 +4944,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   proposeVault(request: ProposeVaultRequest): ApprovalView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.applyRememberedApproval(request, this.screens.proposeVault(request))
   }
 
@@ -4730,7 +4954,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   proposeSkill(request: ProposeSkillRequest): ApprovalView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.applyRememberedApproval(request, this.screens.proposeSkill(request))
   }
 
@@ -4813,7 +5037,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   proposeMemory(request: MemoryWriteRequest): MemoryView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.screens.proposeMemory(request)
   }
 
@@ -4823,7 +5047,8 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   approveMemory(request: MemoryWriteRequest): MemoryView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
+    this.guardMemoryById(request)
     return this.screens.approveMemory(request)
   }
 
@@ -4833,7 +5058,8 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   editMemory(request: MemoryWriteRequest): MemoryView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
+    this.guardMemoryById(request)
     return this.screens.editMemory(request)
   }
 
@@ -4843,8 +5069,14 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   forgetMemory(request: ScreenDocRequest): MemoryView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
+    this.guardMemoryById(request)
     return this.screens.forgetMemory(request.projectId, request.id)
+  }
+
+  /** R2-04: a memory is reachable BY ID only for who may read it (a private DM memory, another project's or workspace's record: answered as "not found"). */
+  private guardMemoryById(request: { readonly workspaceId: string; readonly projectId: string; readonly id: string }): void {
+    assertMemoryReachable({ vault: this.vault, screens: this.screens.screens }, request, this.actorOf(request.workspaceId)?.id ?? '')
   }
 
   /**
@@ -4883,7 +5115,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   putSkill(request: PutSkillRequest): SkillView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.screens.putSkill(request)
   }
 
@@ -4893,7 +5125,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   reviseSkill(request: ReviseSkillRequest): SkillView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.screens.reviseSkill(request)
   }
 
@@ -4903,7 +5135,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   rollbackSkill(request: ScreenDocRequest): SkillView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.screens.rollbackSkill(request.projectId, request.id)
   }
 
@@ -4913,7 +5145,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   async previewSkillImport(request: PreviewSkillImportRequest): Promise<SkillImportPreview> {
-    this.requireProject(request)
+    this.requireMachineOwner(request) // Carbon P0-03: the host opens a connection to the address the person typed: the machine's OWNER only
     try {
       return await this.skillImport.preview(request.url)
     } catch (error) {
@@ -4927,7 +5159,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   async importSkills(request: ImportSkillsRequest): Promise<SkillView[]> {
-    this.requireWrite(request)
+    this.requireMachineOwner(request) // Carbon P0-03: it downloads from the address the person typed, then writes
     try {
       return await this.skillImport.import(request.projectId, request.url, request.names, request.sharedWithTeam)
     } catch (error) {
@@ -4941,7 +5173,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   async refreshSkill(request: RefreshSkillRequest): Promise<SkillRefreshView> {
-    this.requireWrite(request)
+    this.requireMachineOwner(request) // Carbon P0-03: it downloads again from the stored address
     try {
       return await this.skillImport.refresh(request.projectId, request.id)
     } catch (error) {
@@ -5010,7 +5242,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   postGithubComment(request: PostGithubCommentRequest): boolean {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     this.github.comment(request.repository, request.number, request.body)
     return true
   }
@@ -5074,6 +5306,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   updateProject(request: UpdateProjectRequest): ProjectView {
     this.requireProject(request)
+    this.requireOwnerOrEmpty(request.workspaceId) // Carbon P0-13: the rules of the house are the owner's (a workspace with nobody in it: the machine owner already passed)
     const project = this.product.updateProject(request.projectId, {
       name: request.name,
       description: request.description,
@@ -5096,6 +5329,8 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   createMember(request: CreateMemberRequest): MemberView {
     this.requireProject(request)
+    // Carbon P0-13: who is in the team, and as what, is the owner's; the FIRST member of a workspace (nobody to ask yet) is the onboarding's, already limited to the machine owner by `requireProject`.
+    if (this.product.listMembers(request.workspaceId).length > 0) this.requireGovOwner(request.workspaceId)
     const member = this.product.createMember({
       id: request.id,
       workspaceId: request.workspaceId,
@@ -5113,7 +5348,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   createPersona(request: CreatePersonaRequest): PersonaView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.store.tx(() => {
       const now = new Date().toISOString()
       const stored = this.product.createPersona({
@@ -5171,7 +5406,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   removeParticipation(request: ParticipationRequest): boolean {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     this.product.removeParticipation(request.personaId, request.kind, request.targetId)
     return true
   }
@@ -5183,7 +5418,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   createChannel(request: CreateChannelRequest): ChannelView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     // A channel called "geral" is the automatic #geral (the migration says the same for the ones that already exist): never renamed or archived.
     const channel = this.channelRepos.create({
       id: request.id,
@@ -5207,7 +5442,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   createDm(request: CreateDmRequest): DmView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     const actor = this.actorOf(request.workspaceId)
     if (actor !== undefined) {
       this.assertCanAddress(request.workspaceId, request.participantA, actor.id)
@@ -5473,14 +5708,7 @@ export default class PersonaHost extends TypertRemoteService {
     }
     const actor = this.actorOf(request.workspaceId)
     if (actor === undefined) return { events: [], nextSeq: request.afterSeq }
-    if (request.streamKind === 'dm') {
-      const dm = this.product.getDm(request.ownerId)
-      if (dm === undefined || !sessionCan(actor, 'read', {
-        type: 'dm', workspaceId: request.workspaceId, dmId: dm.id, memberIds: [dm.participantA, dm.participantB],
-      })) {
-        return { events: [], nextSeq: request.afterSeq }
-      }
-    }
+    if (!this.mayReadConversation(request, actor)) return { events: [], nextSeq: request.afterSeq } // R2-01/02/03: bound to the request's project; a DM only to its participants
     this.teamCards.sync(request.projectId) // the plan and delivery cards reflect the Tasks as they are now
     const streamId = `${request.streamKind}:${request.ownerId}`
     try {
@@ -5522,12 +5750,15 @@ export default class PersonaHost extends TypertRemoteService {
     try {
       this.teamCards.sync(request.projectId)
       const actor = this.actorOf(request.workspaceId)
+      if (actor !== undefined && !this.mayReadConversation(request, actor)) throw new Error('forbidden') // R2-02/03: the open, judged by the conversation itself
+      const followerId = actor?.id // sec. 11 #5: THIS member is the one the stream keeps asking about, whoever the host's session is later
       const page = onlyThread
         ? this.events.listTopic(streamId, { id: actor?.id ?? '' }, request.topicId ?? '', request.afterSeq, request.limit)
         : this.events.list(streamId, { id: actor?.id ?? '' }, request.afterSeq, request.limit)
       const events = page.events.filter(event => this.shownInThread(event) && wanted(event)).map(event => this.viewMessage(event))
       const seen = new Set(events.map(item => item.id))
       yield { kind: 'baseline', events, order: events.map(item => item.id) }
+      let checkedAt = Date.now()
       while (!signal.aborted) {
         const head = queue.shift()
         if (head !== undefined) {
@@ -5536,8 +5767,13 @@ export default class PersonaHost extends TypertRemoteService {
           if (head.changed && queue.some(item => item.changed && item.view.id === next.id)) continue
           if (!head.changed && seen.has(next.id)) continue
           seen.add(next.id)
+          this.reconfirmFollower(request, followerId, request) // sec. 11 #5 + R2: access gone, or the conversation no longer his => 'forbidden', no frame
           yield { kind: 'upsert', events: [next], order: [next.id] }
           continue
+        }
+        if (Date.now() - checkedAt >= 1_000) { // quiet: a member cut while nothing is said is cut too
+          checkedAt = Date.now()
+          this.reconfirmFollower(request, followerId, request)
         }
         await sleep(25, signal)
       }
@@ -5662,6 +5898,8 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listPinned(request: ListMessagesRequest): MessageView[] {
     this.requireProject(request)
+    const reader = this.actorOf(request.workspaceId)
+    if (reader === undefined || !this.mayReadConversation(request, reader)) return [] // R2-01/03: a DM only to its participants, a channel only through its own project
     const streamId = `${request.streamKind}:${request.ownerId}`
     return this.events.listPins(streamId)
       .map(id => this.events.get(id))
@@ -6221,7 +6459,8 @@ export default class PersonaHost extends TypertRemoteService {
 
   private visibleVaultRecords(request: ProjectScopeRequest): ReturnType<VaultRepos['listRecords']> {
     const actor = this.actorOf(request.workspaceId)
-    return actor === undefined ? [] : this.vault.listRecords(request.projectId).filter(record => canReadVault(actor, record))
+    // P1-NOVO: the owner reads a FORGOTTEN record of the team, never one that was somebody else's private one: a revoked record is read only if it could be read while active.
+    return actor === undefined ? [] : this.vault.listRecords(request.projectId).filter(record => canReadVault(actor, record) && (record.status !== 'revoked' || canReadVault(actor, { ...record, status: 'active' })))
   }
 
   /**
@@ -6231,7 +6470,10 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   createVaultRecord(request: CreateVaultRecordRequest): VaultRecordView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
+    // Carbon P0-13: the house rules (constraint, decision) enter EVERY turn of the team: the owner or the Coordenação writes them, a member writes memories (the vault's own `can()`).
+    const writer = this.actorOf(request.workspaceId)
+    if (writer !== undefined && !sessionCan(writer, 'write', { type: 'vault', workspaceId: request.workspaceId, projectId: request.projectId, visibility: { kind: 'workspace' }, status: 'active', kind: request.kind })) throw new Error('forbidden')
     const record = this.vault.createRecord({
       id: request.id,
       workspaceId: request.workspaceId,
@@ -6430,6 +6672,8 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   async saveConnectorSecret(request: SaveConnectorSecretRequest): Promise<ConnectorSecretStateView> {
     this.requireMachineOwner(request) // Carbon P0-13: the machine and the Cofre are the OWNER's
+    this.requireConnectorProvider(request.provider)
+    await this.requireMailHostOfSecret(request.provider, request.secret)
     await this.cofre.putSecret(request.projectId, connectorSlot(request.provider), request.secret)
     return { hasSecret: true }
   }
@@ -6441,6 +6685,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   connectorSecretState(request: ConnectorSecretRequest): ConnectorSecretStateView {
     this.requireProject(request)
+    this.requireConnectorProvider(request.provider)
     return { hasSecret: this.cofre.hasSecret(request.projectId, connectorSlot(request.provider)) }
   }
 
@@ -7398,7 +7643,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   addConnectionAccount(request: AddConnectionAccountRequest): ConnectionAccountsBundleView {
-    this.requireWrite(request)
+    this.requireMachineOwner(request) // Carbon P0-13: the accounts the machine signs in with are the owner's
     const labelKey = request.label.normalize('NFD').replace(/\p{M}/gu, '').trim().toLowerCase()
       .replace(/[^a-z0-9]+/gu, '-').replace(/^-+|-+$/gu, '')
     if (labelKey === '') throw new Error('invalid-label')
@@ -7420,7 +7665,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   removeConnectionAccount(request: RemoveConnectionAccountRequest): boolean {
-    this.requireWrite(request)
+    this.requireMachineOwner(request) // Carbon P0-13: the accounts the machine signs in with are the owner's
     if (this.accounts.get(request.accountId)?.workspaceId !== request.workspaceId) throw new Error('not-found')
     this.accounts.delete(request.accountId)
     return true
@@ -7431,7 +7676,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   updateConnectionAccount(request: UpdateConnectionAccountRequest): boolean {
-    this.requireWrite(request)
+    this.requireMachineOwner(request) // Carbon P0-13: the accounts the machine signs in with are the owner's
     if (this.accounts.get(request.accountId)?.workspaceId !== request.workspaceId) throw new Error('not-found')
     this.accounts.update(request.accountId, { label: request.label })
     return true
@@ -7640,7 +7885,8 @@ export default class PersonaHost extends TypertRemoteService {
     const stored = this.screens.getSkillRecord(request.projectId, request.skillId)
     if (stored === undefined) throw new Error('skill-not-found')
     try {
-      const next = disableTaughtSkill(stored)
+      // P1-11: a skill the Playbook offered (`learned`) goes back to candidate the same way, version moved on; any other origin keeps the engine's refusal.
+      const next = stored.origin === 'learned' ? { ...stored, enabled: false, version: stored.version + 1 } : disableTaughtSkill(stored)
       return this.screens.saveSkillRecord(request.projectId, next)
     } catch (error) {
       return rethrowShare(error)
@@ -7965,6 +8211,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   putAttentionPolicy(request: PutAttentionPolicyRequest): AttentionPolicyView {
     this.requireProject(request)
+    this.requireOwnerOrEmpty(request.workspaceId) // Carbon P0-13: the rules of the house are the owner's (a workspace with nobody in it: the machine owner already passed)
     const row: AttentionPolicyView = {
       workspaceId: request.workspaceId,
       projectId: request.projectId,
@@ -7984,7 +8231,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   ackAttention(request: AckAttentionRequest): boolean {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     const current = this.screens.screens.get<string[]>(request.projectId, 'attention_ack', 'ids') ?? []
     this.screens.screens.put(request.projectId, 'attention_ack', 'ids', [
       ...new Set([...current, ...request.eventIds]),
@@ -8000,12 +8247,14 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote({ mode: 'stream' })
   async *attentionEvents(request: ProjectScopeRequest, signal: AbortSignal): AsyncIterable<AttentionStreamFrame> {
     this.requireProject(request)
+    const followerId = this.actorOf(request.workspaceId)?.id // sec. 11 #5: the member who opened the stream
     const snapshot = (): AttentionEventView[] => this.collectAttention(request)
     const initial = snapshot()
     yield { kind: 'baseline', events: initial }
     let previous = new Set(initial.map(item => item.id))
     while (!signal.aborted) {
       await sleep(1_000, signal)
+      this.reconfirmFollower(request, followerId) // sec. 11 #5: re-asked on every tick
       const next = snapshot()
       const fresh = next.filter(item => !previous.has(item.id))
       const current = new Set(next.map(item => item.id))
@@ -8031,6 +8280,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   putRetentionPolicy(request: PutRetentionPolicyRequest): RetentionPolicyView {
     this.requireProject(request)
+    this.requireOwnerOrEmpty(request.workspaceId) // Carbon P0-13: the rules of the house are the owner's (a workspace with nobody in it: the machine owner already passed)
     return this.scheduler.putPolicy(request.projectId, {
       archiveOnly: request.archiveOnly,
       quietStart: request.quietStart,
@@ -8044,7 +8294,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   tickRetention(request: ProjectScopeRequest): RetentionLogView[] {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.scheduler.tickRetention(request.projectId, true)
   }
 
@@ -8076,8 +8326,13 @@ export default class PersonaHost extends TypertRemoteService {
       ticketId: ticket.id,
       triggerIds: seen ? [...new Set([ticket.origin.triggerId, ...ticket.origin.triggerIds, ...extra])] : [],
       title: seen ? ticket.title : PRIVATE_DM_TASK_TITLE,
-      records: seen ? this.orchestration.usedContext.get(ticket.id) ?? [] : [],
+      records: seen ? this.readableUsed(request, this.orchestration.usedContext.get(ticket.id) ?? []) : [],
     }
+  }
+
+  /** R2-04: the rows of a "contexto usado" this reader may see: the id of a record private to somebody else never travels (it is the key to the by-id paths). */
+  private readableUsed<T extends { readonly id: string }>(request: { readonly workspaceId: string; readonly projectId: string }, rows: readonly T[]): T[] {
+    return readableUsedRows({ vault: this.vault, screens: this.screens.screens }, request.projectId, rows, this.actorOf(request.workspaceId)?.id ?? '')
   }
 
   /**
@@ -8088,9 +8343,17 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listUsedContext(request: UsedContextRequest): UsedContextView {
     this.requireProject(request)
+    // R2-04 (Gauge): the rows are kept BY EVENT ID. The event must be one of THIS project's and, when it is a line of a DM, of a DM the session takes part in; an id from anywhere else gets nothing.
+    let rows: readonly UsedContextRecord[] = []
+    try {
+      this.requireOwnableMessage(request)
+      rows = this.orchestration.usedContext.get(request.eventId) ?? []
+    } catch {
+      rows = []
+    }
     return {
       eventId: request.eventId,
-      records: this.orchestration.usedContext.get(request.eventId) ?? [],
+      records: this.readableUsed(request, rows),
     }
   }
 
@@ -8266,6 +8529,7 @@ export default class PersonaHost extends TypertRemoteService {
     if (current.id.startsWith(INITIATIVE_ROUTINE_PREFIX) || current.id.startsWith(MORNING_ROUTINE_PREFIX)) {
       throw new HostRemoteFault('invalid-payload', 'Esta rotina é da própria equipe e não pode ser apagada. Pause-a se não quiser que rode.')
     }
+    for (const run of this.routines.listRuns(current.id)) if (isEventRunId(run.id)) this.screens.screens.delete(request.projectId, EVENT_DOC_KIND, run.id) // P1-07: the text of its waiting events goes with it
     this.routines.delete(current.id)
     this.screens.screens.delete(request.projectId, ROUTINE_SPEC_KIND, current.id)
     this.governance.gov.deleteRoutineCharge(request.workspaceId, current.id)
@@ -8356,6 +8620,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   pauseTeam(request: ProjectScopeRequest): boolean {
     this.requireProject(request)
+    this.requireOwnerOrEmpty(request.workspaceId) // Carbon P0-13: the rules of the house are the owner's (a workspace with nobody in it: the machine owner already passed)
     this.teamState.pause(request.projectId)
     void this.orchestration.disposeRunners()
     return true
@@ -8369,6 +8634,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   resumeTeam(request: ProjectScopeRequest): TeamStateView {
     this.requireWrite(request)
+    this.requireOwnerOrEmpty(request.workspaceId) // Carbon P0-13: the rules of the house are the owner's (a workspace with nobody in it: the machine owner already passed)
     return this.teamState.resume(request.projectId)
   }
 
@@ -8413,7 +8679,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   scheduleRoutine(request: ScheduleRoutineRequest): RoutineRunView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return toRunView(this.routines.schedule({
       id: request.runId, routineId: request.id, scheduledFor: request.scheduledFor,
     }))
@@ -8426,7 +8692,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   claimRoutines(request: ClaimRoutinesRequest): RoutineRunView[] {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return this.routines.claimDue(request.projectId, request.leaseUntil).map(toRunView)
   }
 
@@ -8437,7 +8703,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   retryRoutine(request: RoutineRunRequest): RoutineRunView {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return toRunView(this.routines.retry(request.runId))
   }
 
@@ -8448,7 +8714,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   async draftPersona(request: DraftPersonaRequest): Promise<PersonaDraft> {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return draftPersonaWithDriver(request.description)
   }
 
@@ -8459,7 +8725,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   async draftTeam(request: DraftTeamRequest): Promise<PersonaDraft[]> {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     return draftTeamWithDriver(request.description)
   }
 
@@ -8469,7 +8735,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   cancelReply(request: CancelReplyRequest): boolean {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     this.orchestration.cancelReply(request.eventId)
     return true
   }
@@ -8590,7 +8856,7 @@ export default class PersonaHost extends TypertRemoteService {
    */
   @Remote
   retryDeadLetter(request: ScreenDocRequest): boolean {
-    this.requireProject(request)
+    this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     const found = this.deadLetters.discard(request.projectId, request.id)
     if (found) this.orchestration.retryOutbox(request.projectId)
     return found
@@ -8613,6 +8879,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   exportWorkspace(request: ExportRequest): ExportArchiveView {
     this.requireWorkspace(request)
+    this.requireGovOwner(request.workspaceId) // Carbon P0-13: the whole workspace (every project, every record, the governance audit) leaves only with its owner
     return toExportView(exportMarkdown(this.product, this.events, this.vault, {
       workspaceId: request.workspaceId,
       includeDmIds: request.includeDmIds,
@@ -8626,11 +8893,18 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   exportProject(request: ExportRequest): ExportArchiveView {
     this.requireProject(request)
+    // Carbon P0-13: the owner takes everything; anybody else gets the project without the governance audit and only the Cofre records they may read.
+    const actor = this.actorOf(request.workspaceId)
+    const owner = actor?.workspaceRole === 'owner'
     return toExportView(exportMarkdown(this.product, this.events, this.vault, {
       workspaceId: request.workspaceId,
       projectId: request.projectId,
       includeDmIds: request.includeDmIds,
-    }, this.actorOf(request.workspaceId)?.id ?? '', this.boards.board, this.governance.gov))
+    }, actor?.id ?? '', this.boards.board, owner ? this.governance.gov : undefined, owner ? undefined : {
+      canReadRecord: record => actor !== undefined && sessionCan(actor, 'read', {
+        type: 'vault', workspaceId: request.workspaceId, projectId: request.projectId, visibility: record.visibility, status: record.status, kind: record.kind,
+      }),
+    }))
   }
 
   /**
@@ -8780,6 +9054,38 @@ export default class PersonaHost extends TypertRemoteService {
     }
   }
 
+  /**
+   * Carbon section 11 #5: a stream checks access when it opens and then lives as long as the tab does, so it asks again — before every frame it pushes and about once a second while it is
+   * quiet — for the SAME member who opened it (never for whoever the host's session is at that instant). A member who was demoted, revoked or removed stops receiving: the stream ends
+   * with `forbidden`.
+   * @param request - The stream's scope.
+   * @param memberId - The member the stream was opened for (`undefined`: nobody to ask in a fresh workspace, as when it opened).
+   * @throws Error `forbidden` when that member may no longer read the project.
+   */
+  private reconfirmFollower(request: { workspaceId: string; projectId: string }, memberId: string | undefined, conversation?: ListMessagesRequest): void {
+    if (memberId === undefined) return
+    const actor = resolveSessionActor(this.product, request.workspaceId, memberId)
+    if (actor === undefined || !sessionCan(actor, 'read', { type: 'project', workspaceId: request.workspaceId, projectId: request.projectId })) throw new Error('forbidden')
+    if (conversation !== undefined && !this.mayReadConversation(conversation, actor)) throw new Error('forbidden') // R2-02/03: the conversation too (a DM opens only to its participants)
+  }
+
+  /**
+   * R2-01/02/03: whether `actor` may read the conversation a request names. It is judged by the conversation itself and BOUND to the project of the request (`EventRepos` lets any
+   * workspace member read any channel stream, so a request for project A that names the channel of project B is a bypass), and a DM opens only to its two participants — also while it is
+   * still empty (no stream row yet means no ACL below). A conversation that does not exist yet is allowed: nothing to read, and a stream that waits for it asks again before every frame.
+   * @param request - The conversation (stream kind and owner) and the project it is asked through.
+   * @param actor - Who asks.
+   */
+  private mayReadConversation(request: ListMessagesRequest, actor: NonNullable<ReturnType<typeof resolveSessionActor>>): boolean {
+    if (request.streamKind === 'dm') {
+      const dm = this.product.getDm(request.ownerId)
+      if (dm === undefined) return false
+      return dm.projectId === request.projectId && sessionCan(actor, 'read', { type: 'dm', workspaceId: request.workspaceId, dmId: dm.id, memberIds: [dm.participantA, dm.participantB] })
+    }
+    const projectOfStream = this.events.streamProjectOf(`channel:${request.ownerId}`) ?? this.product.getChannel(request.ownerId)?.projectId
+    return projectOfStream === undefined || projectOfStream === request.projectId
+  }
+
   private requireProject(request: { workspaceId: string; projectId: string }): void {
     this.requireWorkspace(request)
     const project = this.product.getProject(request.projectId)
@@ -8858,6 +9164,71 @@ export default class PersonaHost extends TypertRemoteService {
     if (!allowed) throw new Error('forbidden')
   }
 
+  /**
+   * D-113: the code path of a surface under construction asks first; an OFF surface refuses with the stable reason `feature-off` (the funnel refuses the whole Remote; this is for a BRANCH inside one).
+   * @param name - Which surface.
+   */
+  private requireSurface(name: Surface): void {
+    if (!this.surfaces[name]) throw new HostRemoteFault('forbidden', FEATURE_OFF_TEXT, { reason: FEATURE_OFF_REASON })
+  }
+
+  /**
+   * Carbon P2-03b: a connector secret has a sealed slot only for a KNOWN provider (`SECRET_FACT_KEYS`): a made-up name, a slot prefix or a code id is not a provider.
+   * @param provider - The provider named by the request.
+   */
+  private requireConnectorProvider(provider: string): void {
+    if (!SECRET_FACT_KEYS.includes(provider)) throw new HostRemoteFault('invalid-payload', 'invalid-provider')
+  }
+
+  /**
+   * Carbon P0-13: the org chart of the workspace carries the personas of EVERY project; whoever is not the owner reads only the ones of the projects they may read.
+   * @param workspaceId - Tenant.
+   * @param view - The chart as the governance host built it.
+   */
+  private maskOrgChart(workspaceId: string, view: OrgChartView): OrgChartView {
+    const actor = this.actorOf(workspaceId)
+    if (actor === undefined || actor.workspaceRole === 'owner') return view
+    const mine = (personaId: string): boolean => {
+      const projectId = this.product.getPersona(personaId)?.projectId
+      return projectId !== undefined && sessionCan(actor, 'read', { type: 'project', workspaceId, projectId })
+    }
+    const groups = view.groups.map(group => ({ ...group, members: group.members.filter(member => mine(member.id)) })).filter(group => group.members.length > 0 || group.kind === 'person')
+    const { rightHand, rightHandCaption, ...rest } = view
+    const showHand = rightHand !== undefined && mine(rightHand.id)
+    return {
+      ...rest,
+      ...(showHand ? { rightHand, ...(rightHandCaption === undefined ? {} : { rightHandCaption }) } : {}),
+      groups,
+      personaCount: groups.reduce((sum, group) => sum + group.members.length, 0),
+    }
+  }
+
+  /**
+   * Carbon P0-13: an admin operation is the owner's; a workspace with NOBODY in it (a fresh install, before the onboarding) has no owner to ask, and the machine owner it already passed through
+   * `requireProject` goes on.
+   * @param workspaceId - Tenant.
+   */
+  private requireOwnerOrEmpty(workspaceId: string): void {
+    if (this.product.listMembers(workspaceId).length === 0) return
+    this.requireGovOwner(workspaceId)
+  }
+
+  /**
+   * Carbon MH-1: a mail credential (`imap`, `smtp`) names a host the machine will connect to: it is sealed only when the policy vets that host (the same as "Testar conexão").
+   * @param provider - The connector provider.
+   * @param secret - The JSON credential about to be sealed.
+   */
+  private async requireMailHostOfSecret(provider: string, secret: string): Promise<void> {
+    if (provider !== 'imap' && provider !== 'smtp') return
+    let host: unknown
+    try {
+      host = (JSON.parse(secret) as { host?: unknown }).host
+    } catch {
+      return // not a JSON credential: nothing names a host
+    }
+    if (typeof host === 'string' && host !== '' && (await this.mailTarget(host)) === undefined) throw new HostRemoteFault('invalid-payload', 'mail-host-refused')
+  }
+
   private requireGovAvailability(workspaceId: string, humanId: string): void {
     this.requireWorkspace({ workspaceId })
     const actor = this.actorOf(workspaceId)
@@ -8901,6 +9272,42 @@ export default class PersonaHost extends TypertRemoteService {
       return { ...decided, permissionAction: action, permissionTarget: target,
         permissionGrantId: hit.grantId, permissionAudit: hit.audit }
     })
+  }
+
+  /**
+   * Boot diet (lever 2): start the background work after `delayMs`, once. The installed app calls it at the end of the constructor; a host that closes before the delay never starts it.
+   * @param delayMs - Wait before the start.
+   */
+  scheduleBackground(delayMs: number): void {
+    if (this.backgroundTimer !== undefined || this.backgroundStarted) return
+    this.backgroundTimer = setTimeout(() => { this.backgroundTimer = undefined; this.startBackground() }, Math.max(0, delayMs))
+    this.backgroundTimer.unref()
+  }
+
+  /**
+   * Boot diet (lever 2): what is NOT the first screen. The CLI and connector warmups, the prewarm of the runners, the proactivity scheduler, the `gh` probe and the per-project runtime + reports curation.
+   * Idempotent: the second call (or a timer that fires after a start) changes nothing.
+   */
+  startBackground(): void {
+    if (this.backgroundStarted) return
+    this.backgroundStarted = true
+    if (this.backgroundTimer !== undefined) { clearTimeout(this.backgroundTimer); this.backgroundTimer = undefined }
+    this.connections.warm()
+    void this.connectorBridge?.refresh() // background, control requests only: the account's connectors become available when it answers
+    this.orchestration.prewarmAll()
+    this.proactivityScheduler.start()
+    void this.github.cli.available // the one synchronous spawn of `gh --version`, off the first screen and remembered
+    if (allowsScriptedReplies()) return
+    for (const workspace of this.product.listWorkspaces()) {
+      for (const project of this.product.listProjects(workspace.id)) {
+        try {
+          this.orchestration.runtime(project.id)
+          this.curateProjectReports(project.id)
+        } catch (error: unknown) {
+          this.orchestration.softFailure('boot-project', error) // fail-soft per project, as the boot loop always was
+        }
+      }
+    }
   }
 
   private curateProjectReports(projectId: string): void {
@@ -9081,6 +9488,14 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     const event = this.events.get(request.eventId)
     if (event === undefined || event.projectId !== request.projectId) throw new Error('not-found')
+    // R2-04: a line of a DM is for the DM's participants BY ID as it is in the list (react, pin, edit, delete and the audit all come through here): anybody else is answered "not found".
+    if (event.streamId.startsWith('dm:')) {
+      const actor = this.actorOf(request.workspaceId)
+      const dm = this.product.getDm(event.streamId.slice(3))
+      if (actor === undefined || dm === undefined || !sessionCan(actor, 'read', {
+        type: 'dm', workspaceId: request.workspaceId, dmId: dm.id, memberIds: [dm.participantA, dm.participantB],
+      })) throw new Error('not-found')
+    }
     return event
   }
 
@@ -9254,14 +9669,41 @@ export default class PersonaHost extends TypertRemoteService {
    * @param ticketId - The Task.
    */
   private ticketSeenBy(workspaceId: string, projectId: string, ticketId: string): boolean {
-    return ticketSeenByActor(
-      {
-        conversationOf: (project, ticket) => this.orchestration.conversationOfTicket(project, ticket),
-        dmOf: dmId => this.product.getDm(dmId),
-      },
-      this.actorOf(workspaceId),
-      { workspaceId, projectId, ticketId },
-    )
+    return this.ticketSeenFor(workspaceId)(projectId, ticketId)
+  }
+
+  /**
+   * The same rule as {@link ticketSeenBy} for a LOOP over many Tasks: the session's actor is resolved once (`actorOf` re-reads the workspace's members every time), then each Task is only a conversation
+   * and a DM lookup. Same actor, same rule: only computed once.
+   * @param workspaceId - Tenant.
+   * @returns Whether the session may see inside a Task of a project of that workspace.
+   */
+  private ticketSeenFor(workspaceId: string): (projectId: string, ticketId: string) => boolean {
+    const actor = this.actorOf(workspaceId)
+    const deps = {
+      conversationOf: (project: string, ticket: string) => this.orchestration.conversationOfTicket(project, ticket),
+      dmOf: (dmId: string) => this.product.getDm(dmId),
+    }
+    return (projectId, ticketId) => ticketSeenByActor(deps, actor, { workspaceId, projectId, ticketId })
+  }
+
+  /**
+   * Carbon P1-DM-2 (Probe 08:20): "Enquanto você estava fora" is read by the session, so what it says of a Task born in a private DM (the delivery, the question that waits, the initiative, the
+   * watchdog's alert) reaches those outside the DM by the neutral title only. The owner of the DM reads the same window whole.
+   * @param scope - Tenant.
+   * @param view - The window as the proactivity host built it (for the person who owns the DM).
+   */
+  private maskWhileAway(scope: ProjectScopeRequest, view: WhileAwayView): WhileAwayView {
+    const seenBy = this.ticketSeenFor(scope.workspaceId)
+    const hidden = (taskId: string): boolean => taskId !== '' && !seenBy(scope.projectId, taskId)
+    return {
+      ...view,
+      events: view.events.map(event => (hidden(event.taskId) ? { ...event, body: PRIVATE_DM_TASK_TITLE, taskTitle: PRIVATE_DM_TASK_TITLE } : event)),
+      ...(view.waiting === undefined ? {} : { waiting: view.waiting.map(item => (hidden(item.taskId) ? { ...item, title: PRIVATE_DM_TASK_TITLE } : item)) }),
+      ...(view.byPersona === undefined ? {} : {
+        byPersona: view.byPersona.map(row => ({ ...row, tasks: row.tasks.map(task => (hidden(task.taskId) ? { ...task, taskTitle: PRIVATE_DM_TASK_TITLE } : task)) })),
+      }),
+    }
   }
 
   private assertStreamWrite(request: { workspaceId: string; streamKind: 'channel' | 'dm'; ownerId: string }): void {

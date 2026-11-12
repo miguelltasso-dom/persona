@@ -184,7 +184,7 @@
 .sourceLegend {
   padding: 0;
   margin-bottom: var(--persona-space-2);
-  font: 800 13px/18px var(--persona-font-text);
+  font: 600 13px/18px var(--persona-font-text);
   color: var(--persona-ink-soft);
 }
 
@@ -277,7 +277,7 @@
 }
 
 .switchLabel {
-  font: 800 14px/20px var(--persona-font-text);
+  font: 600 14px/20px var(--persona-font-text);
 }
 
 /* The layer covers the whole window. Two columns (steps + the save card) need ~1100px for the step cards to breathe. */

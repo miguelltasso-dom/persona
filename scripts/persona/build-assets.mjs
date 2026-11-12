@@ -289,6 +289,12 @@ async function main() {
       { from: `illustrations/categorias/categoria-${name}.png`, to: `illustrations/categoria-${name}.webp`, width: 512, quality: 86 },
       { from: `illustrations/categorias/categoria-${name}-96.png`, to: `illustrations/categoria-${name}-96.webp`, width: 96, quality: 88 },
     ])),
+    // Casa da equipe: lamp, empty attendance, first opening, and creation category.
+    ...[['acordando-luminaria', 320], ['quem-aqui-vazio', 400], ['acordando-primeira-vez', 480]].map(([name, width]) => (
+      { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width, quality: 86 }
+    )),
+    { from: 'illustrations/categorias/categoria-criacao.png', to: 'illustrations/categoria-criacao.webp', width: 512, quality: 86 },
+    { from: 'illustrations/categorias/categoria-criacao-96.png', to: 'illustrations/categoria-criacao-96.webp', width: 96, quality: 88 },
     // Muse (DESIGN-01 momento uau 1): "Primeira entrega pronta" stamp, shown at 96 px → 192 (2×). No text in the art.
     { from: 'illustrations/stamp-primeira-entrega.png', to: 'illustrations/stamp-primeira-entrega.webp', width: 192, quality: 88 },
     // Muse (BR-P4 P1): team scene icons for channels (96 → 48).

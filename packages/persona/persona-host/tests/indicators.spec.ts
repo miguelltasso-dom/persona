@@ -21,15 +21,13 @@ function setup(): Ctx {
   const ctx: Ctx = { h, asked: [], answers: [], clock: { now: CLOCK } }
   h.orchestration.now = () => ctx.clock.now
   // The quiet turn is the host's `answerAside`: a scripted answerer here (0 AI), and a record of what it was asked.
-  Object.assign(h.orchestration, {
-    asideBlocked: () => undefined,
-    answerAside: (_projectId: string, _personaId: string, _askId: string, question: string): Promise<string> => {
-      ctx.asked.push(question)
-      const next = ctx.answers.shift()
-      if (next === undefined) return Promise.reject(new Error('sem resposta combinada'))
-      return next instanceof Error ? Promise.reject(next) : Promise.resolve(next)
-    },
-  })
+  const scripted = (_projectId: string, _personaId: string, _askId: string, question: string): Promise<string> => {
+    ctx.asked.push(question)
+    const next = ctx.answers.shift()
+    if (next === undefined) return Promise.reject(new Error('sem resposta combinada'))
+    return next instanceof Error ? Promise.reject(next) : Promise.resolve(next)
+  }
+  Object.assign(h.orchestration, { asideBlocked: () => undefined, answerAside: scripted, answerIndicator: scripted }) // the numbers run on `answerIndicator` (P0-07b)
   const put = (id: string, actorId: string, body: string): void => {
     h.events.append({ id, workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral', type: 'message', body, actorId, subjectId: '', occurredAt: CLOCK })
   }
@@ -303,4 +301,23 @@ it('"Já vi" takes the notice off the list; the card keeps its alert as seen; th
   await ctx.h.refreshIndicator({ ...SCOPE, id: view.id })
   expect(ctx.h.dismissIndicatorAlert({ ...SCOPE, id: view.id }).alert).toBeUndefined()
   expect((await fault(() => ctx.h.dismissIndicatorAlert({ ...SCOPE, id: 'does-not-exist' }))).message).toContain('não está mais')
+})
+
+// P0-07b (Carbon, colheita S1 fix): every `answerOnce` of a persona shared ONE runner (`pp:<persona>:talk:answer-only`) and its single capture of the text, so a number
+// refreshing at the same instant the owner asked `/lado` could mix the two answers or empty one. The numbers' quiet turn runs on a runner of ITS OWN.
+it('the quiet turn of a number never shares a runner with `/lado` (the text capture of one cannot leak into the other)', async () => {
+  const h = openJourney(CLOCK)
+  seedJourney(h, [
+    { id: 'guia', name: 'Guia', title: 'Coordenação', coordination: true },
+    { id: 'nina', name: 'Nina', title: 'Vendas' },
+  ])
+  h.events.append({ id: 'm-num', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral', type: 'message', body: marker(SALES), actorId: 'nina', subjectId: '', occurredAt: CLOCK })
+  const answerOnly = (): string[] => [...h.orchestration.warmRunners.keys()].filter(key => key.startsWith('pp:nina:talk') && key.endsWith(':answer-only'))
+
+  await h.orchestration.answerAside('pp', 'nina', 'lado-1', 'Quanto é 2 + 2?') // the owner's `/lado`
+  expect(answerOnly()).toHaveLength(1)
+  await h.testIndicator({ ...SCOPE, messageId: 'm-num' }).catch(() => undefined) // the numbers' quiet turn through the real wiring (the scripted answer is not a number: only the runner matters)
+  const keys = answerOnly()
+  expect(keys, `one runner for both: ${JSON.stringify(keys)}`).toHaveLength(2)
+  expect(new Set(keys).size).toBe(2)
 })

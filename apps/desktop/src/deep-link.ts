@@ -65,3 +65,32 @@ export function personaTaskHref(ticketId: string, view?: PersonaLinkView): strin
   const base = `${PERSONA_TASK_SCHEME}://task/${ticketId}`
   return view === undefined || view === 'thread' ? base : `${base}?v=${view}`
 }
+
+/** An invitation from outside: `persona://entrar/<time>/<token>`. It names a team and carries a one-time token; it never joins anyone by itself. */
+export interface PersonaInviteDeepLink {
+  readonly kind: 'invite'
+  readonly teamId: string
+  readonly token: string
+}
+
+const INVITE_PREFIX = `${PERSONA_TASK_SCHEME}://entrar/`
+/** The longest link that is read at all (the longest legal pieces make 146). */
+const INVITE_LINK_MAX = 160
+const INVITE_TEAM_ID = /^[a-z0-9](?:[a-z0-9-]{0,62}[a-z0-9])?$/u
+const INVITE_TOKEN = /^[A-Za-z0-9_-]{22,64}$/u
+
+/**
+ * Parse EXACTLY `persona://entrar/<time>/<token>` and refuse everything else (a query, a fragment, a port, user info, an escape, a dot-segment, a space, a control
+ * character, a look-alike letter, another case, another length). A link from outside opens the app, so this is a door: it is strict, pure
+ * (no `URL` object) and it never "cleans" a link and tries again. The same rules live in `persona-sync/src/invite-link.ts`
+ * (the host reads the link again before it asks to join); a parity spec keeps the two identical (the desktop does not depend on it).
+ * @param url - Whatever arrived (a protocol launch, a second launch's arguments).
+ */
+export function parsePersonaInviteLink(url: unknown): PersonaInviteDeepLink | undefined {
+  if (typeof url !== 'string' || url.length > INVITE_LINK_MAX || !url.startsWith(INVITE_PREFIX)) return undefined
+  const parts = url.slice(INVITE_PREFIX.length).split('/')
+  if (parts.length !== 2) return undefined
+  const [teamId, token] = parts
+  if (teamId === undefined || token === undefined || !INVITE_TEAM_ID.test(teamId) || !INVITE_TOKEN.test(token)) return undefined
+  return { kind: 'invite', teamId, token }
+}

@@ -112,6 +112,14 @@ export class EventRepos {
   }
 
   /**
+   * Which project a conversation belongs to (`undefined` when the stream does not exist yet).
+   * @param streamId - `<kind>:<ownerId>`.
+   */
+  streamProjectOf(streamId: string): string | undefined {
+    return this.getStream(streamId)?.projectId
+  }
+
+  /**
    * Whether an event id is already stored (idempotent channel posts).
    * @param id - Event id.
    */

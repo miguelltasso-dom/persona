@@ -32,12 +32,17 @@ export interface GithubIngestResult {
 export function detectGh(
   run: (args: readonly string[]) => { status: number | null; stdout: string; stderr: string } = spawnGh,
 ): GithubCli {
-  const probe = run(['--version'])
-  const available = probe.status === 0
+  // Boot diet (lever 2 of the opening plan): `gh --version` is a SYNCHRONOUS spawn (160-240 ms, peaks of 3.5 s) that nobody needs to open the app. It is probed the first time somebody
+  // asks (or by the host's background start) and the answer is remembered.
+  let probed: boolean | undefined
+  const probe = (): boolean => {
+    probed ??= run(['--version']).status === 0
+    return probed
+  }
   return {
-    available,
+    get available(): boolean { return probe() },
     exec(args: readonly string[]): string {
-      if (!available) throw new Error('gh-unavailable')
+      if (!probe()) throw new Error('gh-unavailable')
       const result = run(args)
       if (result.status !== 0) throw new Error(result.stderr === '' ? 'gh-failed' : result.stderr)
       return result.stdout

@@ -53,6 +53,15 @@ it('refuses, and opens nothing, when the sealed store cannot keep the digits', a
   expect(codes.list('pp')).toEqual([])
 })
 
+it('Carbon P1-02: a request with no login is refused in words and opens nothing (the code could never be typed into the right page)', async () => {
+  const { port: vaultCode, codes } = await port(true)
+  for (const login of [undefined, '', '   ']) {
+    const result = vaultCode.open(who, { reason: 'O banco mandou um código.', ticketId: 't1', ...(login === undefined ? {} : { login }) })
+    expect(result).toMatchObject({ ok: false, code: 'invalid', message: expect.stringMatching(/login/iu) as unknown as string })
+  }
+  expect(codes.list('pp')).toEqual([])
+})
+
 it('P2-01: the refusal the model relays speaks to the owner in the second person, never of "a pessoa"', async () => {
   const { port: vaultCode } = await port(false)
   const result = vaultCode.open(who, { reason: 'O banco mandou um código.' })

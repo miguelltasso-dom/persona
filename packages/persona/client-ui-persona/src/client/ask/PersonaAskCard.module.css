@@ -20,7 +20,7 @@
 .who {
   margin-bottom: var(--persona-space-1);
   color: var(--persona-ink);
-  font: 800 13px/18px var(--persona-font-text);
+  font: 600 13px/18px var(--persona-font-text);
 }
 
 .time {
@@ -53,7 +53,7 @@
 
 .eyebrow {
   color: var(--persona-brand);
-  font: 800 13px/18px var(--persona-font-text);
+  font: 600 13px/18px var(--persona-font-text);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -148,7 +148,7 @@
   background: var(--persona-accent);
   color: var(--persona-accent-ink);
   box-shadow: var(--persona-shadow-press);
-  font: 800 14px/18px var(--persona-font-text);
+  font: 600 14px/18px var(--persona-font-text);
   cursor: pointer;
 }
 

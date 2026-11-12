@@ -60,3 +60,24 @@ describe('cameByEmail', () => {
     expect(cameByEmail(chain[39]!, world(chain, []))).toBe(true) // too deep to read: the safe answer
   })
 })
+
+describe('Carbon P0-05a: an unreadable history is never "not from an e-mail" (fail closed)', () => {
+  it('a colleague\'s Task whose asker Task is gone is marked', () => {
+    expect(cameByEmail(ticket('t2', 'handoff:t-gone:c1'), world([], ['mail:m1']))).toBe(true)
+  })
+
+  it('a campaign part (`campaign:<plan>:<n>`) whose lineage nobody recorded is marked; one whose lineage says it is not from an e-mail is not', () => {
+    const base = world([], ['mail:m1'])
+    expect(cameByEmail(ticket('t1', 'campaign:plan1:0'), base)).toBe(true)
+    expect(cameByEmail(ticket('t1', 'campaign:plan1:0'), { ...base, campaign: () => ({ viaEmail: false }) })).toBe(false)
+    expect(cameByEmail(ticket('t1', 'campaign:plan1:0'), { ...base, campaign: () => ({ viaEmail: true }) })).toBe(true)
+    expect(cameByEmail(ticket('t1', 'campaign:plan1:0'), { ...base, campaign: () => undefined })).toBe(true) // the plan is gone: unknown is not "no"
+  })
+
+  it('a later part of the campaign (handoff from the part before) carries the same lineage', () => {
+    const first = ticket('t1', 'campaign:plan1:0')
+    const next = ticket('t2', 'handoff:t1:c1')
+    expect(cameByEmail(next, { ...world([first], []), campaign: () => ({ viaEmail: true }) })).toBe(true)
+    expect(cameByEmail(next, { ...world([first], []), campaign: () => ({ viaEmail: false }) })).toBe(false)
+  })
+})

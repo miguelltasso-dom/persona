@@ -54,7 +54,7 @@
 
 .role {
   margin: 0;
-  font: 500 13px/19px var(--persona-font-text);
+  font: 400 13px/19px var(--persona-font-text);
   color: var(--persona-ink-soft);
   overflow-wrap: anywhere;
 }
@@ -179,7 +179,7 @@
   flex: none;
   margin-left: auto;
   color: var(--persona-ink-soft);
-  font: 500 13px/18px var(--persona-font-text);
+  font: 400 13px/18px var(--persona-font-text);
   white-space: nowrap;
 }
 
@@ -310,14 +310,14 @@
 
 .costHint {
   margin: 0;
-  font: 500 13px/19px var(--persona-font-text);
+  font: 400 13px/19px var(--persona-font-text);
   color: var(--persona-ink-soft);
 }
 
 /* v1.1 (Muse 15:00): a frase da revisão sempre ligada — texto em ink, 14 px, sem nada que pareça clicável; a dica de custo (acima) vai embaixo. */
 .reviewNote {
   margin: 0;
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink);
 }
 

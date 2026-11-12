@@ -20,6 +20,8 @@ import { isEventRunId } from './routine-events.ts'
 export interface RunAuthorityLookup {
   /** A Task by id. */
   readonly ticket: (id: string) => Ticket | undefined
+  /** Carbon P0-05a: who the Gestor's plan said it acts for (`campaign:<plan>:<n>` opens its Tasks). Absent or `undefined` = unknown = nobody is behind it. */
+  readonly campaign?: (planId: string) => { readonly authority?: AuthorityKind } | undefined
 }
 
 /** The longest chain of Tasks it walks; beyond it the answer is `unattended`. */
@@ -28,10 +30,15 @@ const MAX_DEPTH = 16
 const RANK: Readonly<Record<AuthorityKind, number>> = { person: 0, routine: 1, unattended: 2 }
 const stricter = (a: AuthorityKind, b: AuthorityKind): AuthorityKind => (RANK[a] >= RANK[b] ? a : b)
 
+/** Triggers a THIRD PARTY (a sender, a webhook, a chat) produced: nobody is behind them (Carbon P0-05a: they used to read as a person, with the owner's logged-in Chrome at their disposal). */
+const EXTERNAL_TRIGGER = /^(?:mail|gh|github|telegram|slack|discord|whatsapp|webhook):/u
+
 /** What one trigger id says about who started it. */
-function kindOfId(id: string): AuthorityKind {
+function kindOfId(id: string, lookup: RunAuthorityLookup): AuthorityKind {
   if (id.startsWith('routine-run:')) return isEventRunId(id) ? 'unattended' : 'routine'
-  if (id.startsWith('initiative:') || id.startsWith('plan:')) return 'unattended'
+  if (id.startsWith('initiative:') || id.startsWith('plan:') || EXTERNAL_TRIGGER.test(id)) return 'unattended'
+  const campaign = /^campaign:(.+):\d+$/u.exec(id)?.[1]
+  if (campaign !== undefined) return lookup.campaign?.(campaign)?.authority ?? 'unattended' // the lineage of the plan, or nobody
   return 'person'
 }
 
@@ -52,10 +59,10 @@ export function authorityOfRun(ticket: Ticket, lookup: RunAuthorityLookup): Auth
     let result: AuthorityKind = 'person'
     const ids = [row.origin.triggerId, ...row.origin.triggerIds, ...row.inputs.flatMap(input => (input.kind === 'trigger' ? [input.triggerId] : []))]
     for (const id of ids) {
-      result = stricter(result, kindOfId(id))
+      result = stricter(result, kindOfId(id, lookup))
       // A part of a split request is made from the message it was split from.
       const message = /^split:(.+):[^:]+$/u.exec(id)?.[1]
-      if (message !== undefined) result = stricter(result, kindOfId(message))
+      if (message !== undefined) result = stricter(result, kindOfId(message, lookup))
       // A colleague's Task is born from the Task that asked for it.
       const asker = /^handoff:([^:]+):/u.exec(id)?.[1]
       if (asker !== undefined) {

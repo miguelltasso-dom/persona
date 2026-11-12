@@ -39,9 +39,9 @@
 
 .text { display: grid; gap: 4px; min-width: 0; align-content: start; }
 
-.name { margin: 0; color: var(--persona-ink-soft); font: 800 13px/18px var(--persona-font-text); }
+.name { margin: 0; color: var(--persona-ink-soft); font: 600 13px/18px var(--persona-font-text); }
 .title { margin: 0; font: 700 16px/22px var(--persona-font-display); }
-.body { margin: 0; color: var(--persona-ink-soft); font: 500 15px/22px var(--persona-font-text); }
+.body { margin: 0; color: var(--persona-ink-soft); font: 400 15px/22px var(--persona-font-text); }
 
 .command {
   display: flex;

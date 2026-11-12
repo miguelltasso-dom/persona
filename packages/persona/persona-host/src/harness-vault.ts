@@ -39,12 +39,15 @@ export class VaultCodePorts implements VaultCodePort {
     }
     const reason = input.reason.trim()
     if (reason === '') return { ok: false, code: 'invalid', message: 'Diga em uma frase para que serve o código.' }
+    // Carbon P1-02: the card shows the site and the code is typed later only into the page of THIS login; a request with no login could be filled and never used.
+    const login = input.login?.trim() ?? ''
+    if (login === '') return { ok: false, code: 'invalid', message: 'Diga qual login do Cofre é este (o título, o usuário ou o site): o código só será digitado na página desse login.' }
     try {
       const request = this.deps.codes.open({
         projectId: who.projectId,
         personaId: who.personaId,
         reason,
-        ...(input.login === undefined ? {} : { site: input.login }),
+        site: login,
         ...(input.ticketId === undefined ? {} : { ticketId: input.ticketId }),
       })
       return { ok: true, requestId: request.id, expiresAt: request.expiresAt }

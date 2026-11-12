@@ -1,7 +1,7 @@
 .lead {
   margin: 0 0 var(--persona-space-3);
   color: var(--persona-ink-soft);
-  font: 500 14px/1.45 var(--persona-font-text);
+  font: 400 14px/1.45 var(--persona-font-text);
 }
 
 .field {

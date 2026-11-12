@@ -110,9 +110,15 @@ const NEVER_NAMES: ReadonlySet<string> = new Set([
 ])
 
 /** Variables a command line must not set before a command: they change what runs or where it connects. */
-const DANGEROUS_ENV = /^(path|pathext|comspec|shell|ld_[a-z_]+|dyld_[a-z_]+|git_(ssh|ssh_command|external_diff|pager|askpass|exec_path|config[a-z_]*|proxy_command)|pager|editor|visual|node_options|node_path|pythonpath|pythonstartup|bash_env|env|ifs|http_proxy|https_proxy|all_proxy|no_proxy)$/iu
+const DANGEROUS_ENV = /^(path|pathext|comspec|shell|ld_[a-z_]+|dyld_[a-z_]+|git_[a-z0-9_]+|home|userprofile|homedrive|homepath|appdata|localappdata|programdata|xdg_[a-z_]+|ripgrep_config_path|rg_[a-z_]+|pager|editor|visual|node_options|node_path|pythonpath|pythonstartup|bash_env|env|ifs|http_proxy|https_proxy|all_proxy|no_proxy)$/iu
 
 const SHELL_NAMES: ReadonlySet<string> = new Set(['bash', 'sh', 'zsh', 'dash', 'ksh', 'fish', 'powershell', 'pwsh'])
+/** A UNC path as written (`\\host\share\...` or `//host/share/...`): a share separator after the host, so a pattern such as `//TODO` is not one. */
+const UNC_PATH = /^(?:\\\\|\/\/)[^\\/\s]+[\\/]/u
+/** Programs that read a whole tree when they are given a folder (the ones that need a flag are checked with it). */
+const RECURSIVE_READERS: ReadonlySet<string> = new Set(['rg', 'grep', 'egrep', 'fgrep', 'find', 'get-childitem', 'gci', 'ls', 'dir', 'tree', 'select-string', 'sls'])
+/** Shell options that take the NEXT word as their value (so that word is not "the script file"). */
+const SHELL_VALUE_OPTIONS: ReadonlySet<string> = new Set(['-executionpolicy', '-ep', '-windowstyle', '-w', '-workingdirectory', '-wd', '-inputformat', '-if', '-outputformat', '-of', '-version', '-configurationname', '-o', '--rcfile', '--init-file'])
 const WRAPPER_NAMES: ReadonlySet<string> = new Set(['command', 'builtin', 'nohup', 'time', 'nice', 'exec', 'env', 'timeout', 'stdbuf'])
 
 const READ_NAMES: ReadonlySet<string> = new Set([
@@ -198,6 +204,8 @@ function parse(command: string): Parsed {
     redirects = []
     piped = nextPiped
   }
+  // Carbon CP-2: PowerShell takes the typographic quotes as quotes, inside a string too (a "paste from a document" carries them); this parser sees letters. Anywhere in the line: never `read`.
+  if (/[“”‘’]/u.test(command)) flag('curly-quote')
   const length = command.length
   for (let i = 0; i < length; i++) {
     const ch = command.charAt(i)
@@ -216,7 +224,10 @@ function parse(command: string): Parsed {
       for (i = i + 1; i < length; i++) {
         const inner = command.charAt(i)
         if (inner === '"') { closed = true; break }
-        if (inner === '\\' && (command.charAt(i + 1) === '"' || command.charAt(i + 1) === '$' || command.charAt(i + 1) === '`')) { current += command.charAt(i + 1); i++; continue }
+        // Carbon CP-1: the quote state must be the shell's. `\\` is ONE backslash (so `"a\\"` closes at the second quote, in bash AND PowerShell). `\"`, `\$` and a backslash-backtick read differently
+        // in bash (escaped) and in PowerShell (the backslash is a letter and the quote closes / the variable expands): two readings of where the string ends is never judged `read`.
+        if (inner === '\\' && command.charAt(i + 1) === '\\') { current += '\\'; i++; continue }
+        if (inner === '\\' && (command.charAt(i + 1) === '"' || command.charAt(i + 1) === '$' || command.charAt(i + 1) === '`')) { flag('escape-ambiguous'); current += command.charAt(i + 1); i++; continue }
         if (inner === '`' || (inner === '$' && command.charAt(i + 1) === '(')) flag('substitution')
         if (inner === '$' && /[A-Za-z_{]/u.test(command.charAt(i + 1))) expands = true
         if (inner === '%' && /^%[A-Za-z_][A-Za-z0-9_]*%/u.test(command.slice(i))) expands = true
@@ -226,8 +237,14 @@ function parse(command: string): Parsed {
       continue
     }
     if (ch === '\\') {
-      if (next === '\n') { i++; continue }
-      if (next !== '' && ';&|<>()$`\'" '.includes(next)) { current += next; started = true; i++; continue }
+      if (next === '\n' || (next === '\r' && command.charAt(i + 2) === '\n')) { flag('line-continuation'); i += next === '\n' ? 1 : 2; continue } // bash joins the lines; PowerShell ends the statement
+      if (next !== '' && ';&|<>()$`\'" '.includes(next)) {
+        if (next !== ' ') flag('escape-ambiguous') // Carbon CP-2: `\;` `\|` `\>` `\$` `\"` are letters in bash and operators/quotes/variables in PowerShell
+        current += next
+        started = true
+        i++
+        continue
+      }
       current += ch
       started = true
       continue
@@ -242,8 +259,8 @@ function parse(command: string): Parsed {
     }
     if (ch === '%' && /^%[A-Za-z_][A-Za-z0-9_]*%/u.test(command.slice(i))) { expands = true; current += ch; started = true; continue }
     if (ch === '~' && !started) { expands = true; current += ch; started = true; continue }
-    if (ch === ' ' || ch === '\t' || ch === '\r') { endWord(); continue }
-    if (ch === '\n' || ch === ';') { endSimple(false); continue }
+    if (ch === ' ' || ch === '\t') { endWord(); continue }
+    if (ch === '\n' || ch === '\r' || ch === ';') { endSimple(false); continue } // Carbon CP-2: PowerShell ends a statement at a lone CR as well; an empty simple is dropped, so CRLF costs nothing
     if (ch === '&') {
       if (next === '&') { endSimple(false); i++; continue }
       if (next === '>') { endWord(); pendingRedirect = '&>'; i++; if (command.charAt(i + 1) === '>') i++; continue }
@@ -275,6 +292,8 @@ function parse(command: string): Parsed {
       continue
     }
     if (ch === '(' || ch === ')' || ch === '{' || ch === '}') { flag('grouping'); current += ch; started = true; continue }
+    // Carbon CP-1: a `#` that starts a word is a comment in bash and PowerShell, and it hides a quote from the shell that this parser would still open. Not followed: never `read`.
+    if (ch === '#' && !started) flag('comment')
     current += ch
     started = true
   }
@@ -306,14 +325,14 @@ function withOptionValues(args: readonly Word[]): Word[] {
 }
 
 /** A wildcard the shell (or a PowerShell cmdlet, quoted or not) expands to file names that cannot be read from the text. */
-const GLOB_CHARS = /[*?]|\[[^\]]+\]/u
+const GLOB_CHARS = /[*?]/u
 
 /**
  * A glob that can reach beyond the draft or a hidden or secret name: absolute, home-relative, UNC, with a `..` segment, or in a path with a hidden segment
  * (`.ss?/id_ed25519`, `.e*`, `.config/*`). A plain relative glob (`*.md`, `src/*.ts`) stays what it was.
  */
 function isRiskyGlob(text: string): boolean {
-  if (!GLOB_CHARS.test(text)) return false
+  if (!GLOB_CHARS.test(text) && !hasBracketClass(text)) return false
   if (/^(~|\/|\\|[A-Za-z]:)/u.test(text)) return true
   const segments = text.replace(/\\/gu, '/').split('/')
   return segments.includes('..') || segments.some(segment => segment.startsWith('.') && segment !== '.')
@@ -326,7 +345,38 @@ function markRiskyGlob(word: Word): Word {
 /** The segments of a path as Windows reads them: lower case, `/`-separated, a trailing dot or space of a segment ignored (`.ssh.` IS `.ssh`). */
 function pathSegments(path: string): string[] {
   return path.trim().replace(/\\/gu, '/').replace(/\/{2,}/gu, '/').toLowerCase().split('/')
-    .map(segment => (segment === '.' || segment === '..' ? segment : segment.replace(/[. ]+$/u, '')))
+    // Carbon P0-05b: NTFS opens `.env::$DATA`, `.env:stream`, `.ssh::$INDEX_ALLOCATION` as the SAME file or folder: the stream after the first colon is not part of the name (a bare drive `c:` is).
+    .map(segment => (segment === '.' || segment === '..' ? segment : trimEnd(/^[a-z]:$/u.test(segment) ? segment : beforeColon(segment), '. ')))
+}
+
+/**
+ * Carbon CP-11: LINEAR trims. `/[. ]+$/`, `/\/+$/` and `/:.*$/` re-scan a long run from every start position when the run is not at the end, so a 60,000-character `file_path` froze the host for
+ * ~6 s per call (measured) and a 1 MiB one for far longer: the model chooses that path.
+ * @param text - Any text.
+ * @param chars - The characters to cut off the END.
+ */
+function trimEnd(text: string, chars: string): string {
+  let end = text.length
+  while (end > 0 && chars.includes(text.charAt(end - 1))) end--
+  return end === text.length ? text : text.slice(0, end)
+}
+
+/** The text before the first colon (the NTFS stream marker); all of it when there is none. */
+function beforeColon(text: string): string {
+  const colon = text.indexOf(':')
+  return colon < 0 ? text : text.slice(0, colon)
+}
+
+/** Whether a word holds a `[class]` of a glob (`[` + at least one character + `]`), without re-scanning from every `[`. */
+function hasBracketClass(text: string): boolean {
+  let open = text.indexOf('[')
+  while (open >= 0) {
+    const close = text.indexOf(']', open + 1)
+    if (close < 0) return false
+    if (close > open + 1) return true
+    open = text.indexOf('[', open + 1)
+  }
+  return false
 }
 
 /** Carbon P0-04: a path strictly INSIDE a `.git` directory (a hook, the config...): a raw write there is code that runs later; git itself manages those files. */
@@ -334,6 +384,27 @@ function isGitInternalPath(path: string): boolean {
   const segments = pathSegments(path)
   const at = segments.lastIndexOf('.git')
   return at >= 0 && at < segments.length - 1
+}
+
+/** Commands whose `-t` takes a DIRECTORY (the destination), so it can be written glued to other short options or to the directory itself. */
+const TARGET_OPTION_COMMANDS: ReadonlySet<string> = new Set(['cp', 'mv', 'install', 'ln'])
+
+/**
+ * Carbon P0-05b: `-t` takes a directory, and getopt reads `-rt DIR`, `-tDIR` and `-rtDIR` the same way (what follows the `t` in the word is its value). Split them so the directory is judged
+ * as the operand it is: `cp -rt C:/Users/x/Desktop a` writes OUTSIDE the draft, whatever the last word is.
+ */
+function splitTargetOptions(args: readonly Word[]): Word[] {
+  const out: Word[] = []
+  for (const arg of args) {
+    const match = arg.text.startsWith('--') ? null : /^-([A-Za-z]*)t(.*)$/su.exec(arg.text)
+    if (match === null) { out.push(arg); continue }
+    const before = match[1] ?? ''
+    const value = match[2] ?? ''
+    if (before !== '') out.push({ text: `-${before}`, expands: false })
+    out.push({ text: '-t', expands: false })
+    if (value !== '') out.push({ text: value, expands: arg.expands })
+  }
+  return out
 }
 
 /** Options of git whose NEXT word is a value that is not a path (a message, an author, a date...). */
@@ -362,7 +433,7 @@ function isSink(text: string): boolean {
 
 /** A target so broad that deleting it is never a task: a drive or filesystem root, the home folder, the Windows directory. */
 function isBroadTarget(path: string): boolean {
-  const flat = path.trim().replace(/\\/gu, '/').replace(/\/+$/u, '').toLowerCase()
+  const flat = trimEnd(path.trim().replace(/\\/gu, '/'), '/').toLowerCase()
   if (flat === '' || flat === '/' || flat === '~' || flat === '*' || /^[a-z]:$/u.test(flat) || flat === '$home' || flat === '%userprofile%' || flat === '$env:userprofile') return true
   if (/^[a-z]:\/(users|program files( \(x86\))?|programdata)$/u.test(flat) || /^[a-z]:\/windows(\/.*)?$/u.test(flat)) return true
   return flat === homedir().replace(/\\/gu, '/').toLowerCase()
@@ -378,7 +449,7 @@ export function isBroadReadRoot(path: string, cwd?: string): boolean {
   const written = path.trim()
   if (written === '') return false
   if (isBroadTarget(written)) return true
-  const flat = (value: string): string => value.replace(/\\/gu, '/').replace(/\/+$/u, '').toLowerCase()
+  const flat = (value: string): string => trimEnd(value.replace(/\\/gu, '/'), '/').toLowerCase()
   const absolute = isAbsolute(shellPath(written)) || cwd === undefined ? resolve(shellPath(written)) : resolve(cwd, shellPath(written))
   const target = flat(absolute)
   const home = flat(homedir())
@@ -426,6 +497,11 @@ class Judge {
 
   private secretOperands(verb: string, operands: readonly Word[]): void {
     for (const operand of operands) {
+      // Carbon CP-8: a UNC path (`\\host\share\x`, `//host/share/x`) is a connection to another machine (and hands over the owner's NTLM hash), not a read.
+      if (UNC_PATH.test(operand.text)) { this.add('send', verb, 'unc-network'); continue }
+      // Carbon CP-12: a git object path `REV:path` (`git show HEAD:.env`) names a file after the colon; the secret-name check strips what follows a colon as an NTFS stream, so it read only `HEAD`.
+      const colon = operand.text.indexOf(':')
+      if (colon > 1 && isSecretPath(operand.text.slice(colon + 1))) { this.add('secret', verb, 'secret-object-path'); continue }
       if (isSecretPath(operand.text) || /^env:/iu.test(operand.text) || (operand.expands && SECRET_VARIABLE.test(operand.text))) this.add('secret', verb, 'secret-operand')
     }
   }
@@ -490,10 +566,13 @@ class Judge {
    * A change confined to the draft. `cp` reads its sources, so only its destination (the last operand) has to be inside; every other command, and `cp` with an explicit
    * target option, must have EVERY operand inside (a PowerShell `-Destination` can come before or after the source).
    */
-  private changeOf(name: string, args: readonly Word[]): void {
+  private changeOf(name: string, rawArgs: readonly Word[]): void {
+    const args = TARGET_OPTION_COMMANDS.has(name) ? splitTargetOptions(rawArgs) : rawArgs
     const operands = args.filter(arg => !isFlag(arg.text))
     const targetOption = args.some(arg => ['-t', '-T', '--target-directory', '--no-target-directory'].includes(arg.text))
-    if (name === 'cp' && !targetOption && operands.length >= 2) {
+    // Carbon CP-7: `cp -l` / `-s` (and `--link`, `--symbolic-link`) make the destination a LINK to the source, so the source is written through later: every operand must lie inside the draft.
+    const linking = args.some(arg => arg.text === '--link' || arg.text === '--symbolic-link' || /^-[A-Za-z]*[ls][A-Za-z]*$/u.test(arg.text))
+    if (name === 'cp' && !targetOption && !linking && operands.length >= 2) {
       this.secretOperands(name, operands.slice(0, -1))
       this.operandsKind(name, operands.slice(-1), 'draft-change', 'outside-change')
       return
@@ -504,10 +583,19 @@ class Judge {
   private read(name: string, args: readonly Word[]): void {
     const texts = args.map(arg => arg.text.toLowerCase())
     if (name === 'find' && texts.some(text => ['-exec', '-execdir', '-ok', '-okdir', '-delete', '-fprint', '-fprint0', '-fprintf', '-fls'].includes(text))) { this.add('unknown', name, 'runs-or-deletes'); return }
-    if (name === 'sort' && texts.some(text => text === '-o' || text.startsWith('--output'))) { this.add('unknown', name, 'writes-file'); return }
+    if (name === 'sort' && texts.some(text => text === '-o' || text.startsWith('--output') || /^-[a-z]*o./u.test(text))) { this.add('unknown', name, 'writes-file'); return } // Carbon P0-05b: `-oFILE`, `-rnoFILE` write too
+    if (name === 'sort' && texts.some(text => text.startsWith('--compress-program'))) { this.add('unknown', name, 'runs-program'); return } // Carbon CP-12: the temp-file compressor is a program
+    if (name === 'tree' && texts.some(text => text === '-o' || text.startsWith('--output'))) { this.add('unknown', name, 'writes-file'); return } // Carbon CP-12
+    // Carbon CP-6: `uniq INPUT OUTPUT` writes the second operand: every path operand must lie inside the draft, as for any change.
+    if (name === 'uniq' && args.filter(arg => !isFlag(arg.text)).length >= 2) { this.changeOf(name, args); return }
     if ((name === 'grep' || name === 'rg' || name === 'egrep' || name === 'fgrep') && texts.some(text => text.startsWith('--pre'))) { this.add('unknown', name, 'runs-program'); return }
     if (name === 'date' && texts.some(text => text === '-s' || text.startsWith('--set'))) { this.add('never', name, 'sets-clock'); return }
     if (name === 'printenv' && (args.length === 0 || texts.some(text => SECRET_VARIABLE.test(text)))) { this.add('secret', name, 'dumps-environment'); return }
+    // Carbon CP-9: a jq program that names `env` / `$ENV` dumps the environment, like `printenv` (a `.env` KEY of the file read is not the environment).
+    if (name === 'jq' && texts.some(text => /(^|[^a-z0-9_.])\$?env(?![a-z0-9_])/u.test(text))) { this.add('secret', name, 'dumps-environment'); return }
+    // Carbon CP-10: the native Grep/Glob refuse to START a recursive read at the home folder, a drive or `C:\Users`; the shell version of the same sweep was a plain `read`.
+    if (RECURSIVE_READERS.has(name) && (['rg', 'find', 'tree'].includes(name) || texts.some(text => text === '--recursive' || text === '-recurse' || /^-[a-z]*r[a-z]*$/u.test(text)))
+      && args.some(arg => !isFlag(arg.text) && isBroadReadRoot(arg.text, this.cwd))) { this.add('secret', name, 'broad-recursive-read'); return }
     this.secretOperands(name, args)
     // A path built from a variable or a `~` cannot be checked: a program that reads files must wait. Programs that only print their operands (`echo $HOME`) are not held.
     if (!PRINTS_OPERANDS.has(name) && args.some(arg => arg.expands && !isFlag(arg.text))) this.add('unknown', name, 'operand-expands')
@@ -566,9 +654,18 @@ class Judge {
 
   private shell(name: string, args: readonly Word[], depth: number): void {
     const texts = args.map(arg => arg.text.toLowerCase())
-    if (texts.some(text => ['-encodedcommand', '-enc', '-ec', '-e', '-encoded'].includes(text))) { this.add('never', name, 'encoded-command'); return }
+    // Carbon CP-12: PowerShell takes any prefix of `-EncodedCommand` (`-en`, `-enco`, `-encodedc`), not only the spellings the list had.
+    if (texts.some(text => text === '-ec' || (text.length >= 2 && '-encodedcommand'.startsWith(text)))) { this.add('never', name, 'encoded-command'); return }
     if (texts.some(text => text === '-file' || text === '-f' || text === '-i' || text === '-s' || text === '--login' || text === '-l')) { this.add('unknown', name, 'script-file'); return }
-    const at = texts.findIndex(text => text === '-c' || text === '-command' || text === '--command' || text === '-lc' || text === '-ic' || text === '-ec')
+    // Carbon CP-3: `-c` / `-Command` counts only BEFORE the first word that is not an option: `bash evil.sh -c echo` runs the file `evil.sh` (the `-c` is its argument), and judging only the text after it
+    // made a script file `read`. An option that takes a value (`-ExecutionPolicy Bypass`) is skipped with its value.
+    let at = -1
+    for (let k = 0; k < texts.length; k++) {
+      const text = texts[k] ?? ''
+      if (text === '-c' || text === '-command' || text === '--command' || text === '-lc' || text === '-ic') { at = k; break }
+      if (!isFlag(text)) break
+      if (SHELL_VALUE_OPTIONS.has(text)) k++
+    }
     if (at < 0) { this.add('unknown', name, args.length === 0 ? 'interactive-shell' : 'shell-script'); return }
     const script = args.slice(at + 1).map(arg => arg.text).join(' ')
     if (script.trim() === '') { this.add('unknown', name, 'empty-script'); return }
@@ -609,6 +706,8 @@ class Judge {
     const flags = new Set(texts.filter(text => text.startsWith('-')))
     const verb = `git ${subName}`
     if (texts.some(text => text.startsWith('--output') || text.startsWith('--exec') || text === '--upload-pack' || text.startsWith('--upload-pack=') || text.startsWith('--receive-pack'))) { this.add('unknown', verb, 'git-runs-or-writes'); return }
+    // Carbon CP-4: `git grep -O<cmd>` / `--open-files-in-pager=<cmd>` run a program on the matches (case matters: `-o` is `--only-matching`, so the ORIGINAL text is read).
+    if (subName === 'grep' && (texts.some(text => text.startsWith('--open-files-in-pager')) || operands.some(arg => /^-[A-Za-z0-9]*O/u.test(arg.text)))) { this.add('unknown', verb, 'git-runs-pager'); return }
     if (GIT_NEVER.has(subName)) { this.add('never', verb, 'git-credential'); return }
     if (subName === 'push') {
       const forced = texts.some(text => ['--force', '-f', '--force-with-lease', '--mirror', '--delete', '-d', '--all', '--prune', '--tags'].includes(text) || text.startsWith('--force-with-lease=') || text.startsWith('+') || text.startsWith(':'))
@@ -636,6 +735,7 @@ class Judge {
     }
     if (subName === 'config') {
       const reads = texts.some(text => ['--get', '--get-all', '--get-regexp', '--list', '-l', '--show-origin', '--show-scope'].includes(text))
+      this.secretOperands(verb, operands) // Carbon P0-05b: `-f <file>` / `--file=<file>` READS that file: a secret operand is a secret read
       this.add(reads ? 'read' : 'unknown', verb, reads ? 'git-config-read' : 'git-config-write')
       return
     }

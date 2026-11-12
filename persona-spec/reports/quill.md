@@ -1,5 +1,9 @@
 # Quill — relatos de implementação UI (mais recente no topo)
 
+## 2026-11-12 08:29 — §23 no src + regras de peso (sem force no baseline)
+
+- **Em uma linha:** §23 no src (fonte C, balão v5, rosto R2 40 px, já no HEAD); pesos 800→600 em 114 blocos de texto (Geist), 500→400 em 87 blocos de texto, rótulos 500→600 em 8; as 82 linhas `texto-pequeno` re-chaveadas voltam ao peso antigo (800/500) e check-css-hygiene PASSOU com 0 novo e 345 de dívida; o peso novo dessas linhas entra junto quando o tamanho passar de 13 px. Bundle não refeito (pendente da trava de build).
+
 ## 2026-11-11 16:46 — AJUSTES do Carbon (quill-final) · bundle 12 · pré-aceite do delta pedido ao Ember
 
 - **Pedido do Keel (16:25:57):** quatro itens do `persona-spec/carbon/lotes/quill-final.md`.

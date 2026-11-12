@@ -23,6 +23,8 @@ export interface WhoPanelProps {
   readonly grants: readonly ToolGrant[]
   /** The connector to hand the host when ticking a face. Defaults to the one an existing grant of this tool points at; the host-bound panel remembers it so that unticking the LAST face does not strand the list. */
   readonly connectorRef?: ToolRef | undefined
+  /** The host can find the connector by the card's NAME (`grantConnectorByName`): a face can be ticked even when nobody holds the tool yet. */
+  readonly canGrantWithoutRef?: boolean | undefined
   readonly state?: WhoSurfaceState
   /** Ticks (grant) or unticks (revoke) one face at the host. Absent = the list is read-only (no button). Must throw when the host refuses. */
   readonly onToggle?: ((row: WhoRow, next: boolean) => Promise<void>) | undefined
@@ -30,7 +32,7 @@ export interface WhoPanelProps {
   readonly onClose: () => void
 }
 
-export function WhoPanel({ dict = defaultDict, card, faces, grants, connectorRef, state = 'ready', onToggle, onRetry, onClose }: WhoPanelProps): ReactNode {
+export function WhoPanel({ dict = defaultDict, card, faces, grants, connectorRef, canGrantWithoutRef = false, state = 'ready', onToggle, onRetry, onClose }: WhoPanelProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const titleId = useId()
   const firstRef = useRef<HTMLElement | null>(null)
@@ -43,12 +45,13 @@ export function WhoPanel({ dict = defaultDict, card, faces, grants, connectorRef
   const mine = grantsOfTool(card, grants)
   // A face can be ticked only with a connector to hand the host: the one an existing grant of this tool already points at (or the one remembered from this session).
   const ref = connectorRef ?? refOfTool(card, grants)
+  const canTick = ref !== undefined || canGrantWithoutRef // ...or the host resolves it by name
   const permits = permitsOf(mine)
   const anyAlways = mine.some(grant => grant.loadedAlways)
 
   const toggle = async (row: WhoRow): Promise<void> => {
     if (onToggle === undefined || busy !== undefined) return
-    if (!row.on && ref === undefined) return
+    if (!row.on && !canTick) return
     setBusy(row.face.id)
     setFailed(false)
     try {
@@ -73,7 +76,7 @@ export function WhoPanel({ dict = defaultDict, card, faces, grants, connectorRef
       </>
     )
     // Without the host call (or without a connector to hand it) the row only SAYS who can use it: no button that does nothing.
-    const interactive = onToggle !== undefined && (row.on || ref !== undefined)
+    const interactive = onToggle !== undefined && (row.on || canTick)
     return (
       <li key={row.face.id} className={styles.faceItem} data-persona={row.face.id} data-on={row.on ? 'true' : 'false'}>
         {interactive
@@ -122,7 +125,7 @@ export function WhoPanel({ dict = defaultDict, card, faces, grants, connectorRef
                 <section aria-label={t('who.faces')} className={styles.section}>
                   <ul className={styles.faces}>{rows.map(face)}</ul>
                   {rows.every(row => !row.on) && <p className={styles.note}>{t('who.nobody')}</p>}
-                  {onToggle !== undefined && ref === undefined && <p className={styles.note}>{t('who.noRef', { name: card.name })}</p>}
+                  {onToggle !== undefined && !canTick && <p className={styles.note}>{t('who.noRef', { name: card.name })}</p>}
                   {onToggle === undefined && <p className={styles.note}>{t('who.readOnly')}</p>}
                 </section>
               )}

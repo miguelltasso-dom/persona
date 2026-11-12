@@ -1,6 +1,6 @@
 .subtitle {
   margin: 0 0 var(--persona-space-3);
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink-soft);
 }
 
@@ -31,7 +31,7 @@
 .statusBody {
   flex: 1 1 100%;
   margin: 0;
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink);
 }
 
@@ -75,7 +75,7 @@
 
 .blockTitle {
   margin: 0;
-  font: 800 13px/18px var(--persona-font-text);
+  font: 600 13px/18px var(--persona-font-text);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--persona-ink-soft);
@@ -83,7 +83,7 @@
 
 .muted {
   margin: 0;
-  font: 500 13px/19px var(--persona-font-text);
+  font: 400 13px/19px var(--persona-font-text);
   color: var(--persona-ink-soft);
 }
 

@@ -107,7 +107,11 @@ describe.skipIf(!runPersonaE2e)('first delivery — UI with fake CLI (V1-P0)', (
       // delivered card must be counted as done on the user's board.
       const fixtures = await page.getByText(/Contratação — Designer|Site da agência/u).count()
       expect(fixtures, 'Quadros shows demo fixtures instead of the real project').toBe(0)
-      await page.getByText(/(^|\s)1 conclu[ií]d[oa]/iu).first().waitFor({ state: 'visible', timeout: 30_000 })
+      // The old header "1 concluída" is gone (the board now shows the columns "A fazer · Fazendo · Feito" with their counts): the delivered, accepted card carries the "Aprovado" stamp, which only a card
+      // in the "Feito" column shows, and it is the ONE done card of this clean home.
+      const done = page.locator('[data-persona-kanban-card]').filter({ has: page.locator('[data-card-approved]') })
+      await done.first().waitFor({ state: 'visible', timeout: 30_000 })
+      expect(await done.count(), 'exactly one delivered card is done on the board').toBe(1)
     }, 120_000)
 
     it('step 3 lists the engine the host can actually run (cards agree with the engine that delivered)', () => {

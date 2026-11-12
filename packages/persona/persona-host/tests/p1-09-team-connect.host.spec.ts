@@ -104,3 +104,38 @@ it('the host reads the seat of each persona (active_account) and answers her fac
   expect(fact('logged_out', 'bia')).toBe('without')
   expect(fact('logged_in', 'teo'), 'no seat bound: no fact of her own').toBeUndefined()
 })
+
+/* ---- Carbon P1-08 (round 2): bindAccount and applyEngine keep the warm session and the seat honest ---- */
+
+const portsOf = (h: PersonaHost) => teamConnectPorts({
+  product: h.product, accounts: h.accounts, usage: h.usage, screens: h.screens.screens, orchestration: h.orchestration,
+  connections: () => h.connections.list(), recheck: () => h.connections.retry(), loginStatus: () => 'logged_in',
+})
+
+it('P1-08: binding a seat DROPS her warm session (it still holds the old account) when the seat changes, and only then', () => {
+  const h = host()
+  team(h, [['bia', 'Bia', 'claude']])
+  h.accounts.create({ id: 'claude:pessoal', workspaceId: 'ws', provider: 'claude', label: 'Pessoal' })
+  h.accounts.create({ id: 'claude:trabalho', workspaceId: 'ws', provider: 'claude', label: 'Trabalho' })
+  const evict = vi.spyOn(h.orchestration, 'evictWarmRunners')
+  const ports = portsOf(h)
+  ports.bindAccount?.('pp', 'bia', 'claude:pessoal')
+  expect(bound(h, 'bia')).toEqual({ accountId: 'claude:pessoal' })
+  expect(evict, 'first binding: her session was opened on the default home').toHaveBeenCalledWith('pp', 'bia')
+  evict.mockClear()
+  ports.bindAccount?.('pp', 'bia', 'claude:pessoal')
+  expect(evict, 'the same seat again: nothing changed, her session stays').not.toHaveBeenCalled()
+  ports.bindAccount?.('pp', 'bia', 'claude:trabalho')
+  expect(bound(h, 'bia')).toEqual({ accountId: 'claude:trabalho' })
+  expect(evict, 'another seat of the same engine: her session still holds the old account').toHaveBeenCalledWith('pp', 'bia')
+})
+
+it('P1-08: moving a persona to ANOTHER engine forgets the seat she had of the old one (it would be her active account for an engine she no longer runs on)', () => {
+  const h = host()
+  team(h, [['bia', 'Bia', 'claude']])
+  h.accounts.create({ id: 'claude:trabalho', workspaceId: 'ws', provider: 'claude', label: 'Trabalho' })
+  h.screens.screens.put('pp', 'active_account', 'bia', { accountId: 'claude:trabalho' })
+  portsOf(h).applyEngine('pp', 'bia', 'codex')
+  expect(h.product.getPersona('bia')?.runner).toMatchObject({ kind: 'cli', cli: 'codex' })
+  expect(bound(h, 'bia'), 'a Claude seat is not the active account of a persona on Codex').toBeUndefined()
+})

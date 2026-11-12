@@ -7,8 +7,11 @@ export interface SkillRecord {
   readonly rating?: number
   readonly sharedWithTeam: boolean
   readonly proposer?: string
-  /** Born from "Ensinar a persona" (the host id starts with `taught-`): the only skills with activate / back-to-candidate / share here. */
-  readonly origin?: 'taught'
+  /**
+   * How it was made. `taught` (id `taught-…`, from "Ensinar a persona"): activate / back-to-candidate / share here. `learned` (id `learned-…`, offered by the Playbook
+   * as "Virar skill?"): decided in Aprovações, then back-to-candidate / share here (P1-11).
+   */
+  readonly origin?: 'taught' | 'learned'
 }
 
 export const MOCK_SKILLS: readonly SkillRecord[] = [

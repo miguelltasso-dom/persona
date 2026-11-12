@@ -6,7 +6,8 @@ import { SCOPE, geralChannelId, it, openJourney, say, sayOn, seedJourney, seedPr
  * SEÇÃO 11 da arquitetura ("Testes de integração obrigatórios"), versão que prova o PRODUTO (host real, SQLite em memória, sem mock de ACL).
  * Os 13 testes de `persona-core/tests/mandatory/` provam FUNÇÕES PURAS do core que o host não chama (`compileContext`, `purgeSource`, `peerCanRead`, `revokeGrant`: 0 usos em persona-host/src).
  * Modelo de acesso do host (auth.ts): dono = todos os projetos; MEMBRO = só projetos `kind === 'shared'` (o 'pp' do seedJourney é o PESSOAL do dono); CONVIDADO (guest) = nenhum.
- * Cobertos aqui: #13 exclusão de fonte, #6 obrigatório (lado verde; o RED está em mandatory-required-context.red.ts), #3+#4 DM e o que sai dela, #1 projeto pessoal, convidado.
+ * Cobertos aqui: #13 exclusão de fonte, #6 obrigatório (lado verde; o RED está em mandatory-required-context.red.ts), #3+#4 DM e o que sai dela, #1 projeto pessoal, convidado, #12 duas pessoas movendo o mesmo cartão.
+ * Fora daqui: #8 mudança de modelo (RED em staging, dono Flint); #5 revogação (conector e navegador: connector-grants e browser-warm-runner; membro com stream aberto: precisa do hub remoto).
  */
 const TEAM = [
   { id: 'lia', name: 'Lia', title: 'Coordenação', coordination: true },
@@ -155,4 +156,34 @@ it('#3 amigo sem acesso: um CONVIDADO (guest) não lê nada, nem do projeto comp
     'listVaultDocuments': () => h.listVaultDocuments(SP),
     'getBrainHome': () => h.getBrainHome(SP),
   }, 'reunião sobre o orçamento')).toEqual([])
+})
+
+// ------------------------------------------------------------------------------------------------------------------------------------ #12
+
+it('#12 alteração simultânea de tarefa: duas pessoas movem o MESMO cartão uma logo depois da outra, de sessões diferentes: vale o último, o cartão nunca duplica nem some e as contagens do quadro fecham', async () => {
+  const h = rigShared()
+  h.createMember({ id: 'bob', ...SP, displayName: 'Bob', handle: 'bob', role: 'member' })
+  script(h, ['Texto da home pronto.'])
+  sayOn(h, 'sp', 't1', '@Bia escreva o texto da home da padaria')
+  await settle(h, 'sp')
+  const board = () => h.getProjectBoard(SP)
+  const columns = (board().workflow as unknown as { columns: Array<{ id: string; category: string }> }).columns
+  const todo = columns.find(column => column.category === 'todo')?.id ?? ''
+  const done = columns.find(column => column.category === 'done')?.id ?? ''
+  expect(todo !== '' && done !== '' && todo !== done, 'controle: o fluxo tem A fazer e Feito').toBe(true)
+  const ticketId = board().cards[0]?.ticketId ?? ''
+  expect(ticketId, 'controle: a tarefa da Bia virou um cartão').not.toBe('')
+  const where = () => board().cards.filter(card => card.ticketId === ticketId)
+  // a Ana manda para "A fazer"; logo em seguida o Bob (que ainda via o cartão onde estava) manda para "Feito"; a Ana, sem ver o do Bob, manda de novo para "A fazer"
+  const sequence: ReadonlyArray<readonly [string, string]> = [['ana', todo], ['bob', done], ['ana', todo], ['bob', done]]
+  for (const [who, target] of sequence) {
+    as(h, who)
+    expect(h.moveTicket({ ...SP, ticketId, columnId: target }).card.ticketId).toBe(ticketId)
+    expect(where().map(card => card.columnId), `depois do movimento de ${who}`).toEqual([target]) // um cartão só, onde o último pediu
+  }
+  // o quadro continua consistente: as contagens por categoria somam os cartões e nenhum cartão é de outra tarefa por engano
+  const final = board()
+  const counts = final.counts as unknown as Record<string, number>
+  expect(Object.values(counts).filter(value => typeof value === 'number').reduce((sum, value) => sum + value, 0), 'as contagens somam os cartões').toBeGreaterThanOrEqual(final.cards.length)
+  expect(new Set(final.cards.map(card => card.ticketId)).size, 'nenhum cartão duplicado').toBe(final.cards.length)
 })

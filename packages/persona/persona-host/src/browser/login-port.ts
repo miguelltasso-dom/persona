@@ -36,7 +36,7 @@ export interface FilledCodes {
 /** What the port needs from the host. */
 export interface BrowserLoginPortsDeps {
   /** The profile a persona is driving right now (no side effect: never opens a Chrome). */
-  readonly liveSessionOf: (personaId: string) => { readonly port: number } | undefined
+  readonly liveSessionOf: (personaId: string) => { readonly port: number; readonly profileId?: string } | undefined
   /** The Cofre Logins of a project (metadata only). */
   readonly loginsOf: (projectId: string) => readonly CofreLoginEntry[]
   /** The sealed password of one entry (host-only). */
@@ -97,11 +97,11 @@ export class BrowserLoginPorts implements BrowserLoginPort {
     if (live === undefined) return { ok: false, code: 'unavailable', message: 'este turno não está com o navegador aberto; nada foi digitado' }
     const entry = resolveLoginEntry(this.deps.loginsOf(who.projectId), input.login)
     if (entry === undefined) return { ok: false, code: 'not-found', message: LOGIN_UNKNOWN }
-    if (input.code === true) return this.openCode(who, { ticketId: input.ticketId }, entry, live.port)
+    if (input.code === true) return this.openCode(who, { ticketId: input.ticketId }, entry, live)
     const password = await this.deps.secretOf(who.projectId, entry.id)
     if (password === undefined) return { ok: false, code: 'not-found', message: 'esse login do Cofre não tem senha guardada' }
     const now = this.deps.now ?? Date.now
-    this.deps.mask.add(password, now())
+    this.pin(password, live.profileId, now())
     let typed = false
     let line = LOGIN_FAILED
     try {
@@ -124,7 +124,13 @@ export class BrowserLoginPorts implements BrowserLoginPort {
    * Carbon P1-04: the six digits the owner filled in the card go into the page of the login, never through the model. The request must be THIS persona's, for THIS Task, and for THIS login (the owner saw
    * the site on the card): a code filled for the bank is never typed into the shop. The digits are read without spending them, typed, and only then spent: a page that had no field for them does not burn them.
    */
-  private async openCode(who: HarnessIdentity, input: { readonly ticketId: string }, entry: CofreLoginEntry, port: number):
+  /** Carbon P0-05a: a typed secret is masked for as long as the Chrome it was typed in lives (the profile), or ten minutes when the session names no profile. */
+  private pin(secret: string, profileId: string | undefined, now: number): void {
+    if (profileId === undefined) this.deps.mask.add(secret, now)
+    else this.deps.mask.pin(secret, `profile:${profileId}`)
+  }
+
+  private async openCode(who: HarnessIdentity, input: { readonly ticketId: string }, entry: CofreLoginEntry, live: { readonly port: number; readonly profileId?: string }):
   Promise<{ readonly ok: true; readonly typed: boolean; readonly message: string } | { readonly ok: false; readonly code: string; readonly message: string }> {
     const { codes } = this.deps
     if (codes === undefined) return { ok: false, code: 'unavailable', message: CODE_UNAVAILABLE }
@@ -135,11 +141,11 @@ export class BrowserLoginPorts implements BrowserLoginPort {
     const digits = await codes.peek(who.projectId, request.id)
     if (digits === undefined) return { ok: false, code: 'not-found', message: CODE_NOT_FILLED }
     const now = this.deps.now ?? Date.now
-    this.deps.mask.add(digits, now())
+    this.pin(digits, live.profileId, now())
     let typed = false
     let line = LOGIN_FAILED
     try {
-      const result = await (this.deps.typeCode ?? blindCode)({ entry, code: digits, port, now })
+      const result = await (this.deps.typeCode ?? blindCode)({ entry, code: digits, port: live.port, now })
       typed = result.typed
       if (!typed && KNOWN_FAILURES.has(result.line)) line = result.line
       void result.watch?.then((outcome) => {

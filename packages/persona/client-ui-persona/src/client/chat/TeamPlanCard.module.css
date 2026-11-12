@@ -86,14 +86,14 @@
 
 .reasonPart {
   margin: 0 0 var(--persona-space-2);
-  font: 800 14px/20px var(--persona-font-text);
+  font: 600 14px/20px var(--persona-font-text);
   color: var(--persona-ink);
   overflow-wrap: anywhere;
 }
 
 .reasonText {
   margin: 0;
-  font: 500 14px/21px var(--persona-font-text);
+  font: 400 14px/21px var(--persona-font-text);
   color: var(--persona-ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;

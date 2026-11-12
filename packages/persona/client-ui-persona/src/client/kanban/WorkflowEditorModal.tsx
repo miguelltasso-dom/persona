@@ -248,8 +248,7 @@ export function WorkflowEditorModal({
                       onClick={() => {
                         setDraft(prev => prev.map((row, i) => {
                           if (i !== index) return row
-                          const { color, ...rest } = row
-                          return rest
+                          return Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'color')) as typeof row
                         }))
                       }}
                     >
@@ -277,8 +276,7 @@ export function WorkflowEditorModal({
                       if (raw === '') {
                         setDraft(prev => prev.map((row, i) => {
                           if (i !== index) return row
-                          const { wip, ...rest } = row
-                          return rest
+                          return Object.fromEntries(Object.entries(row).filter(([key]) => key !== 'wip')) as typeof row
                         }))
                       } else {
                         updateColumn(index, { wip: Number(raw) })

@@ -13,8 +13,10 @@ import {
   createFakeRunner,
   createOarSessionRunner,
   effectiveToolLevel,
+  redactText,
   resolveRunner,
   RunnerResolveError,
+  takeRunnerRefusals,
   toolNameFromEvent,
   type AuthorityKind,
   type PermissionGate,
@@ -275,7 +277,7 @@ export async function resolveHostRunner(
   const home = request.home === undefined || request.home === '' ? undefined : request.home
   const tools = request.tools
   const accountConnectors = request.spec.kind === 'cli' && request.spec.cli === 'claude' ? (request.connectors ?? []).filter(item => item.cli === 'claude').map(item => item.id) : []
-  const turn = tapTurn(await resolve({
+  const resolvedRunner = await resolve({
     spec: request.spec,
     permissionMode: request.permissionMode,
     autonomy: request.autonomy,
@@ -293,7 +295,8 @@ export async function resolveHostRunner(
     // COLHEITA 17: a runner that carries the browser server needs the product's own gate even without a file/shell grant,
     // or its clicks and typing would run with no card (Lumen's native gate reads this).
     ...(request.extraMcpServers === undefined ? {} : { carriesBrowser: true }),
-  }), capture)
+  })
+  const turn = tapTurn(resolvedRunner, capture)
   // Item 2a: one live CLI process per conversation, reopened with `--resume` when the process is gone. A talk facade is one
   // channel; a task facade serves one ticket per session.
   // P0-07: a talk runner that serves ONE conversation (`request.thread`: its stream, and the subject when it has one) is stamped with it, so its CLI session is that conversation's own. Any other
@@ -318,6 +321,7 @@ export async function resolveHostRunner(
   capture.onPartial = (text) => { partialSinks.get(session)?.(text) }
   capture.onTool = (tool) => { toolSinks.get(session)?.(tool) }
   captures.set(session, capture)
+  refusalReaders.set(session, () => takeRunnerRefusals(resolvedRunner)) // Carbon P1-04: what the gate this runner opened by itself refused
   return session
 }
 
@@ -355,11 +359,28 @@ export interface TextCapture {
   tools?: string[]
   /** Colheita §6: the instant of each call, parallel to {@link tools} (the conversation turn's step summary counts the time with them). */
   toolTimes?: string[]
+  /** P0-07b: the state of each turn this runner played, by the ticket id of its handle (= the session of the facade). Set by {@link tapTurn}; absent on a seeded or fake capture. */
+  turns?: Map<string, TextCapture>
+  /** P0-07b: the key of the turn that STARTED last: what a reader that names no session reads. */
+  turn?: string
 }
+
+/** How many turns a runner remembers (the oldest is forgotten first): the readers ask right after a turn, so the tail is all that matters. */
+const MAX_TURNS_KEPT = 64
 
 const captures = new WeakMap<Runner, TextCapture>()
 const partialSinks = new WeakMap<Runner, (text: string) => void>()
 const toolSinks = new WeakMap<Runner, (tool: string) => void>()
+const refusalReaders = new WeakMap<Runner, () => string[]>()
+
+/**
+ * Carbon P1-04: the tools the gate a runner opened ON ITS OWN refused in the turn that just ended (a Task without connectors has no host gate). Drained: ask once per turn.
+ * @param runner - Session runner from {@link resolveHostRunner}.
+ * @returns Tool names; empty for a runner with no gate of its own.
+ */
+export function takeRunnerRefusedTools(runner: Runner): string[] {
+  return refusalReaders.get(runner)?.() ?? []
+}
 
 /**
  * Per-turn receiver of the text a runner is writing (cumulative). A cached warm runner serves many turns, so the sink is
@@ -397,16 +418,28 @@ export function emitRunnerPartial(runner: Runner, text: string): void {
  * @param runner - Session runner from {@link resolveHostRunner}.
  * @returns Trimmed model text, or empty when the runner did not stream.
  */
-export function lastRunnerText(runner: Runner): string {
-  return captures.get(runner)?.last.trim() ?? ''
+export function lastRunnerText(runner: Runner, session?: string): string {
+  return captureOf(runner, session)?.last.trim() ?? ''
+}
+
+/**
+ * P0-07b: what a reader sees of a runner. Without a session: the turn that started last (the runner's own capture mirrors it). With a session: THAT session's turn, and nothing at all when the
+ * runner never ran it: a reader never gets the state of another session. A runner that kept no turns (a seeded capture) answers with its own.
+ * @param runner - Session runner from {@link resolveHostRunner}.
+ * @param session - The facade's session id (a task session is `worker-<ticket>`; its handle carries the ticket).
+ */
+function captureOf(runner: Runner, session?: string): TextCapture | undefined {
+  const base = captures.get(runner)
+  if (session === undefined || base?.turns === undefined) return base
+  return base.turns.get(session.replace(/^worker-/u, ''))
 }
 
 /**
  * @param runner - Session runner from {@link resolveHostRunner}.
  * @returns Whether the latest turn wrote text between tools and nothing after the last one (the text is empty but she did speak).
  */
-export function lastRunnerNarrated(runner: Runner): boolean {
-  const capture = captures.get(runner)
+export function lastRunnerNarrated(runner: Runner, session?: string): boolean {
+  const capture = captureOf(runner, session)
   return capture?.narrated === true && capture.last.trim() === ''
 }
 
@@ -414,16 +447,16 @@ export function lastRunnerNarrated(runner: Runner): boolean {
  * @param runner - Session runner from {@link resolveHostRunner}.
  * @returns `ended.report.question` when the CLI asked a person.
  */
-export function lastRunnerQuestion(runner: Runner): string | undefined {
-  return captures.get(runner)?.question
+export function lastRunnerQuestion(runner: Runner, session?: string): string | undefined {
+  return captureOf(runner, session)?.question
 }
 
 /**
  * @param runner - Session runner from {@link resolveHostRunner}.
  * @returns The structured question (chips, a sequence) the persona wrote in the latest turn, exactly as written (untrusted).
  */
-export function lastRunnerAsk(runner: Runner): unknown {
-  return captures.get(runner)?.ask
+export function lastRunnerAsk(runner: Runner, session?: string): unknown {
+  return captureOf(runner, session)?.ask
 }
 
 /**
@@ -431,13 +464,13 @@ export function lastRunnerAsk(runner: Runner): unknown {
  * @param runner - Session runner returned by resolveHostRunner.
  * @returns The report from the most recent turn, or undefined before a report arrives.
  */
-export function lastRunnerReport(runner: Runner): NormalizedReport | undefined {
-  return captures.get(runner)?.report
+export function lastRunnerReport(runner: Runner, session?: string): NormalizedReport | undefined {
+  return captureOf(runner, session)?.report
 }
 
 /** @param runner - Session runner with a captured report. @returns Source timestamp of its latest report event. */
-export function lastRunnerReportAt(runner: Runner): string | undefined {
-  return captures.get(runner)?.reportAt
+export function lastRunnerReportAt(runner: Runner, session?: string): string | undefined {
+  return captureOf(runner, session)?.reportAt
 }
 
 /**
@@ -445,8 +478,8 @@ export function lastRunnerReportAt(runner: Runner): string | undefined {
  * @param runner - Session runner from {@link resolveHostRunner}.
  * @returns The tool and when it started, or undefined before the turn called any.
  */
-export function lastRunnerStep(runner: Runner): { readonly tool: string; readonly at: string } | undefined {
-  return captures.get(runner)?.step
+export function lastRunnerStep(runner: Runner, session?: string): { readonly tool: string; readonly at: string } | undefined {
+  return captureOf(runner, session)?.step
 }
 
 /**
@@ -454,8 +487,8 @@ export function lastRunnerStep(runner: Runner): { readonly tool: string; readonl
  * @param runner - Session runner from {@link resolveHostRunner}.
  * @returns Their names as the stream reported them (empty when the turn called none, or on a runner that does not stream).
  */
-export function lastRunnerTools(runner: Runner): readonly string[] {
-  return captures.get(runner)?.tools ?? []
+export function lastRunnerTools(runner: Runner, session?: string): readonly string[] {
+  return captureOf(runner, session)?.tools ?? []
 }
 
 /**
@@ -463,8 +496,8 @@ export function lastRunnerTools(runner: Runner): readonly string[] {
  * @param runner - Session runner from {@link resolveHostRunner}.
  * @returns One entry per call, in order; empty when the turn called none.
  */
-export function lastRunnerToolSteps(runner: Runner): readonly { readonly tool: string; readonly at: string }[] {
-  const capture = captures.get(runner)
+export function lastRunnerToolSteps(runner: Runner, session?: string): readonly { readonly tool: string; readonly at: string }[] {
+  const capture = captureOf(runner, session)
   const tools = capture?.tools ?? []
   const times = capture?.toolTimes ?? []
   return tools.map((tool, index) => ({ tool, at: times[index] ?? '' }))
@@ -491,67 +524,94 @@ export function emitRunnerStep(runner: Runner, tool: string, at: string): void {
  * @param capture - Accumulator.
  */
 export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
-  const take = (event: RunEvent): void => {
-    if (event.type === 'started') {
-      capture.last = ''
-      delete capture.firstAt
-      delete capture.question
-      delete capture.ask
-      delete capture.report
-      delete capture.reportAt
-      delete capture.narrated
-      delete capture.step
-      delete capture.tools
-      delete capture.toolTimes
+  // P0-07b: several turns can be open on ONE runner (the answer-only runner of a persona serves /lado, the opinion, the fan-out and the indicator refresh at once), so the state of a turn is kept
+  // PER TURN — by the ticket id of its handle, which is the facade's session — and the runner's own capture only MIRRORS the turn that started last (what a reader that names no session reads).
+  const turns = new Map<string, TextCapture>()
+  capture.turns = turns
+  const take = (event: RunEvent, key: string): void => {
+    let own = turns.get(key)
+    if (event.type === 'started' || own === undefined) {
+      own = { last: '' } // a turn starts clean: nothing of an earlier turn (this session's or another's) is in it
+      turns.set(key, own)
+      if (turns.size > MAX_TURNS_KEPT) {
+        const oldest = turns.keys().next()
+        if (oldest.done !== true) turns.delete(oldest.value)
+      }
     }
+    if (event.type === 'started' || capture.turn === undefined) capture.turn = key
     if (isToolCallEvent(event)) {
       // P0-2: a tool closes the piece of text before it (thinking aloud: "Vou verificar…"). What a persona says is the LAST text after the LAST tool:
       // the thread, the bilhete, the review and the opinion never carry the monologue between tools.
-      if (capture.last.trim() !== '') capture.narrated = true
-      capture.last = ''
+      if (own.last.trim() !== '') own.narrated = true
+      own.last = ''
       // Item 7: the tool in hand is the "step now" the host says, in plain words, when the owner asks how it is going.
       const tool = toolNameFromEvent(event)
       if (tool !== undefined) {
-        capture.step = { tool, at: event.at }
-        capture.tools = [...(capture.tools ?? []), tool]
-        capture.toolTimes = [...(capture.toolTimes ?? []), event.at]
+        own.step = { tool, at: event.at }
+        own.tools = [...(own.tools ?? []), tool]
+        own.toolTimes = [...(own.toolTimes ?? []), event.at]
         capture.onTool?.(tool)
       }
     }
     if (event.type === 'delta') {
-      const first = capture.last === ''
-      capture.last += event.text
-      if (first && capture.last.trim() !== '') {
-        capture.firstAt = Date.now()
-        capture.onFirst?.(capture.last)
+      const first = own.last === ''
+      own.last = redactText(own.last + event.text) // Carbon P0-05a: the accumulated text, so a secret split between two deltas is masked too
+      if (first && own.last.trim() !== '') {
+        own.firstAt = Date.now()
+        capture.onFirst?.(own.last)
       }
-      capture.onPartial?.(capture.last)
+      capture.onPartial?.(own.last)
     }
     if (event.type === 'partial' && event.text.trim() !== '') {
-      capture.last = event.text
-      if (capture.firstAt === undefined) {
-        capture.firstAt = Date.now()
-        capture.onFirst?.(event.text)
+      own.last = redactText(event.text)
+      if (own.firstAt === undefined) {
+        own.firstAt = Date.now()
+        capture.onFirst?.(own.last)
       }
-      capture.onPartial?.(event.text)
+      capture.onPartial?.(own.last)
     }
     if (event.type === 'ended' || event.type === 'report') {
-      capture.report = event.report
-      capture.reportAt = event.at
-      const question = event.report.question
-      if (typeof question === 'string' && question !== '') capture.question = question
-      if (event.report.ask !== undefined) capture.ask = event.report.ask
+      // Carbon P0-05a: what the report says is masked like the words (a typed secret never reaches the thread, a card or a screen through the model's mouth).
+      own.report = { ...event.report, summary: redactText(event.report.summary), ...(typeof event.report.question === 'string' ? { question: redactText(event.report.question) } : {}) }
+      own.reportAt = event.at
+      const question = own.report.question
+      if (typeof question === 'string' && question !== '') own.question = question
+      if (event.report.ask !== undefined) own.ask = event.report.ask
       // The adapter's placeholder ("turn ended") is not words: a turn with nothing to say stays empty (the host then has its own sentence).
-      if (event.type === 'ended' && capture.last.trim() === '' && event.report.summary !== '' && event.report.summary !== 'turn ended') {
-        capture.last = event.report.summary
+      if (event.type === 'ended' && own.last.trim() === '' && event.report.summary !== '' && event.report.summary !== 'turn ended') {
+        own.last = own.report.summary
       }
     }
+    if (capture.turn === key) mirrorTurn(own, capture)
   }
   return {
     ...turn,
-    stream: handle => mapEvents(turn.stream(handle), take),
-    events: handle => mapEvents(turn.events(handle), take),
+    stream: handle => mapEvents(turn.stream(handle), (event) => { take(event, handle.ticketId) }),
+    events: handle => mapEvents(turn.events(handle), (event) => { take(event, handle.ticketId) }),
   }
+}
+
+/** P0-07b: the runner's capture shows the state of the turn that started last (the hooks and the turns map are the runner's own and stay). */
+function mirrorTurn(from: TextCapture, to: TextCapture): void {
+  to.last = from.last
+  if (from.narrated === undefined) delete to.narrated
+  else to.narrated = from.narrated
+  if (from.report === undefined) delete to.report
+  else to.report = from.report
+  if (from.reportAt === undefined) delete to.reportAt
+  else to.reportAt = from.reportAt
+  if (from.firstAt === undefined) delete to.firstAt
+  else to.firstAt = from.firstAt
+  if (from.question === undefined) delete to.question
+  else to.question = from.question
+  if (from.ask === undefined) delete to.ask
+  else to.ask = from.ask
+  if (from.step === undefined) delete to.step
+  else to.step = from.step
+  if (from.tools === undefined) delete to.tools
+  else to.tools = from.tools
+  if (from.toolTimes === undefined) delete to.toolTimes
+  else to.toolTimes = from.toolTimes
 }
 
 async function* mapEvents(

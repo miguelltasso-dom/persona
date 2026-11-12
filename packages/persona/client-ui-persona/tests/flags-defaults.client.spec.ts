@@ -22,6 +22,7 @@ import { CHANNEL_SECTIONS_FLAG_KEY, isChannelSectionsEnabled } from '../src/clie
 import { isPlacesNavEnabled, NAV_PLACES_FLAG_KEY } from '../src/client/shell/nav-flag.ts'
 import { isTeamworkEnabled as isTeamworkTeam } from '../src/client/teamwork/teamwork-flag.ts'
 import { isToolsCatalogEnabled, TOOLS_CATALOG_FLAG_KEY } from '../src/client/tools/tools-flag.ts'
+import { isStationEnabled, STATION_FLAG_KEY } from '../src/client/station/station-flag.ts'
 
 type Win = { __PERSONA_FLAGS__?: Record<string, unknown> }
 const win = (): Win => window as unknown as Win
@@ -53,18 +54,19 @@ const WRAPPERS: readonly (readonly [FlagName, () => boolean, string])[] = [
   ['remoteTeamTab', isRemoteTeamTabEnabled, REMOTE_TEAM_TAB_FLAG_KEY],
   ['channelSections', isChannelSectionsEnabled, CHANNEL_SECTIONS_FLAG_KEY],
   ['toolsCatalog', isToolsCatalogEnabled, TOOLS_CATALOG_FLAG_KEY],
+  ['station', isStationEnabled, STATION_FLAG_KEY],
 ]
 
 describe('a tabela de padrões da v1.1', () => {
   it('são as 15 flags persona.flag.* mais o V2 de Aprovações (a chave dele nasceu fora do prefixo)', () => {
     expect([...FLAG_NAMES].sort()).toEqual([
       'actionPreview', 'approvalsInboxV2', 'bubbles', 'channelSections', 'engineEffort', 'figurinhas', 'houseDecor', 'lampLight', 'navPlaces', 'nextStep',
-      'personaAsk', 'remoteTeamTab', 'settingsPersonas', 'taskProposal', 'teamwork', 'toolsCatalog', 'workingControl',
+      'personaAsk', 'remoteTeamTab', 'settingsPersonas', 'station', 'taskProposal', 'teamwork', 'toolsCatalog', 'workingControl',
     ])
   })
 
-  it('as flags da v1.1 entram LIGADAS, salvo nextStep (corte, Muse 06:15), remoteTeamTab (cena 20, decisão do Keel), channelSections (item 22, ordem do Keel) e toolsCatalog (item 26: sem o "Conectar" a aba teria cartões mortos), que ficam DESLIGADAS', () => {
-    expect(FLAG_NAMES.filter(name => !FLAGS[name].defaultOn)).toEqual(['nextStep', 'remoteTeamTab', 'channelSections', 'toolsCatalog'])
+  it('as flags da v1.1 entram LIGADAS, salvo nextStep (corte, Muse 06:15), remoteTeamTab (cena 20, decisão do Keel), channelSections (item 22, ordem do Keel), toolsCatalog (item 26: sem o "Conectar" a aba teria cartões mortos) e station (item 24, D-113: em construção), que ficam DESLIGADAS', () => {
+    expect(FLAG_NAMES.filter(name => !FLAGS[name].defaultOn)).toEqual(['nextStep', 'remoteTeamTab', 'channelSections', 'toolsCatalog', 'station'])
   })
 
   it('toda chave é "persona.flag.<nome>", salvo o V2 de Aprovações (persona.approvalsInbox.v2)', () => {
@@ -76,8 +78,12 @@ describe('a tabela de padrões da v1.1', () => {
 describe('o padrão de PRODUÇÃO (sem nenhuma escolha explícita)', () => {
   beforeEach(() => { setFlagDefaults(undefined) })
 
-  it.each(FLAG_NAMES.filter(name => name !== 'nextStep' && name !== 'remoteTeamTab' && name !== 'channelSections' && name !== 'toolsCatalog'))('%s vem LIGADA', (name) => {
+  it.each(FLAG_NAMES.filter(name => name !== 'nextStep' && name !== 'remoteTeamTab' && name !== 'channelSections' && name !== 'toolsCatalog' && name !== 'station'))('%s vem LIGADA', (name) => {
     expect(readFlag(name)).toBe(true)
+  })
+
+  it('station vem DESLIGADA (item 24, D-113: a Estação está em construção; sem o cartão em Configurações › Conexões)', () => {
+    expect(readFlag('station')).toBe(false)
   })
 
   it('nextStep vem DESLIGADA no corte (Muse 06:15: sem prova visual da regra certa; v1.2)', () => {

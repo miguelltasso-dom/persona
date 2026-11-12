@@ -139,6 +139,13 @@ describe('o que o topo de Aprovações mostra', () => {
     expect(rows.every(item => item.faceSrc !== undefined)).toBe(true)
   })
 
+  it('Carbon P1-02: o site que a persona nomeou chega ao cartão ("Precisa de um código · Banco"); sem site, só o rótulo curto', () => {
+    const rows = codeRequestRows([host({ id: 'a', site: 'Banco' }), host({ id: 'b' })], [{ id: 'bia', name: 'Bia', avatarRef: 'capivara' }])
+    expect(rows.map(item => item.site)).toEqual(['Banco', undefined])
+    render(<CodeRequestCard row={rows[0]!} t={t} now={() => NOW} rowTag="div" />)
+    expect(screen.getByText('Precisa de um código · Banco')).toBeTruthy()
+  })
+
   it('só os dígitos de um texto, no máximo seis', () => {
     expect(digitsOf('12 34-56 78')).toBe('123456')
     expect(digitsOf('abc')).toBe('')

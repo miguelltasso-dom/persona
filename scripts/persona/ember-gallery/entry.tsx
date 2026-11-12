@@ -53,6 +53,9 @@ import { BoardColumn, BoardColumns } from '../../../packages/persona/client-ui-p
 import { SecondBrainShell } from '../../../packages/persona/client-ui-persona/src/client/second-brain/SecondBrainShell.tsx'
 import type { BrainHomeView, BrainPageView } from '@deepseek-ai/dsh-persona-host/types'
 import type { PersonaRemoteClient } from '../../../packages/persona/client-ui-persona/src/client/data/lumen-inject.ts'
+import { MessageList } from '../../../packages/persona/client-ui-persona/src/client/chat/GeneralChannelView.tsx'
+import { mapMessage } from '../../../packages/persona/client-ui-persona/src/client/remote/map-host-ui.ts'
+import { Details } from '../../../packages/persona/client-ui-persona/src/client/remote/ConnectedTaskConversation.tsx'
 import { MarkdownBody } from '../../../packages/persona/client-ui-persona/src/client/chat/markdown/MarkdownBody.tsx'
 
 // ---- A-4: hire cards. A host that sends role + description + measured tasks; an older host that sends only the name; a vault card.
@@ -373,8 +376,9 @@ const codeRow = (over: Partial<CodeRequestRow> = {}): CodeRequestRow => ({
 const codeCard = (row: CodeRequestRow): ReactNode => thread(<CodeRequestCard row={row} t={cofreT} rowTag="div" onFill={async () => {}} onCancel={async () => {}} onRetry={() => {}} />)
 // Passada de leigo (Lumen L5/L6/L7). Dados de exemplo.
 const LEIGO_LABELS = { todo: 'A fazer', backlog: 'A fazer', in_progress: 'Fazendo', in_review: 'Em revisão', blocked: 'Bloqueado', done: 'Feito' }
-const leigoCard = (id: string, title: string, column: KanbanCardModel['column'], extra: Partial<KanbanCardModel> = {}): ReactNode => (
-  <KanbanCard dict={kanbanPt} card={{ id, title, projectId: 'p1', projectName: 'Padaria Lua', teamId: 't1', teamName: 'Marketing', column, waitingEvent: false, blocked: false, reviewApproved: false, ...extra }} draggingId={null} showProject={false} columnLabels={LEIGO_LABELS as never} onDragStart={() => {}} onDragEnd={() => {}} />
+const FLOW_TARGETS = [{ id: 'col-int', label: 'Revisão interna' }, { id: 'col-cli', label: 'Revisão do cliente' }]
+const leigoCard = (id: string, title: string, column: KanbanCardModel['column'], extra: Partial<KanbanCardModel> = {}, flowColumn?: string): ReactNode => (
+  <KanbanCard dict={kanbanPt} card={{ id, title, projectId: 'p1', projectName: 'Padaria Lua', teamId: 't1', teamName: 'Marketing', column, waitingEvent: false, blocked: false, reviewApproved: false, ...extra }} draggingId={null} showProject={false} columnLabels={LEIGO_LABELS as never} {...(flowColumn === undefined ? {} : { flowMoveTargets: FLOW_TARGETS, currentFlowColumnId: flowColumn })} onDragStart={() => {}} onDragEnd={() => {}} />
 )
 const BIA = { id: 'bia', name: 'Bia', initials: 'B' }
 const NINA = { id: 'nina', name: 'Nina', initials: 'N' }
@@ -382,10 +386,26 @@ const leigoColumns = (): ReactNode => (
   <BoardColumns label="Quadro da equipe">
     <BoardColumn name="A fazer" category="todo" categoryLabel="A fazer" count={1} emptyLabel="Nada aqui">{leigoCard('c0', 'Legenda do post de sexta', 'todo', { assignee: BIA, assigneeState: 'resting' })}</BoardColumn>
     <BoardColumn name="Fazendo" category="doing" categoryLabel="Em andamento" count={1} emptyLabel="Nada aqui">{leigoCard('c1', 'Tabela de preços da semana', 'in_progress', { assignee: NINA, assigneeState: 'working' })}</BoardColumn>
-    <BoardColumn name="Revisão do cliente" category="review" categoryLabel="Em revisão" count={1} emptyLabel="Nada aqui">{leigoCard('c2', 'Cartaz da promoção', 'in_review', { assignee: BIA, assigneeState: 'resting' })}</BoardColumn>
-    <BoardColumn name="Revisão interna" category="review" categoryLabel="Em revisão" count={1} emptyLabel="Nada aqui">{leigoCard('c4', 'Folheto de natal', 'in_review', { assignee: NINA, assigneeState: 'resting', reviewing: { personaId: 'bia' } as never })}</BoardColumn>
+    <BoardColumn name="Revisão do cliente" category="review" categoryLabel="Em revisão" count={1} emptyLabel="Nada aqui">{leigoCard('c2', 'Cartaz da promoção', 'in_review', { assignee: BIA, assigneeState: 'resting' }, 'col-cli')}</BoardColumn>
+    <BoardColumn name="Revisão interna" category="review" categoryLabel="Em revisão" count={1} emptyLabel="Nada aqui">{leigoCard('c4', 'Folheto de natal', 'in_review', { assignee: NINA, assigneeState: 'resting', reviewing: { personaId: 'nina' } as never }, 'col-int')}</BoardColumn>
+    <BoardColumn name="Bloqueado" category="blocked" categoryLabel="Bloqueado" count={3} emptyLabel="Nada aqui">{leigoCard('b1', 'Resposta ao cliente', 'blocked', { assignee: NINA, assigneeState: 'waiting', question: 'Posso dar 10% de desconto?' })}{leigoCard('b2', 'Fotos do cardápio', 'blocked', { assignee: BIA, assigneeState: 'resting', blockedReason: 'Falta o acesso ao Instagram da padaria.' })}{leigoCard('b3', 'Cartão de visita', 'blocked', { assignee: BIA, assigneeState: 'resting' })}</BoardColumn>
     <BoardColumn name="Feito" category="done" categoryLabel="Concluído" count={1} emptyLabel="Nada aqui">{leigoCard('c3', 'Foto do pão de queijo', 'done', { assignee: BIA, assigneeState: 'resting' })}</BoardColumn>
   </BoardColumns>
+)
+const leigoBloqueado = (): ReactNode => (
+  <BoardColumns label="Quadro da equipe">
+    <BoardColumn name="Revisão interna" category="review" categoryLabel="Em revisão" count={3} emptyLabel="Nada aqui">{leigoCard('r1', 'Folheto de natal', 'in_review', { assignee: NINA, assigneeState: 'resting', reviewing: { personaId: 'nina' } as never }, 'col-int')}{leigoCard('r2', 'Cartaz do domingo', 'in_review', { assignee: BIA, assigneeState: 'resting' }, 'col-int')}{leigoCard('r3', 'Cartaz da promoção', 'in_review', { assignee: BIA, assigneeState: 'resting' }, 'col-cli')}</BoardColumn>
+    <BoardColumn name="Bloqueado" category="blocked" categoryLabel="Bloqueado" count={3} emptyLabel="Nada aqui">{leigoCard('b1', 'Resposta ao cliente', 'blocked', { assignee: NINA, assigneeState: 'waiting', question: 'Posso dar 10% de desconto?' })}{leigoCard('b2', 'Fotos do cardápio', 'blocked', { assignee: BIA, assigneeState: 'resting', blockedReason: 'Falta o acesso ao Instagram da padaria.' })}{leigoCard('b3', 'Cartão de visita', 'blocked', { assignee: BIA, assigneeState: 'resting' })}</BoardColumn>
+  </BoardColumns>
+)
+const DETAIL_REASON = 'Falta o acesso ao Instagram da padaria; peça a senha ao dono e avise quando chegar para continuar'
+const detailCard = (extra: Partial<KanbanCardModel>): KanbanCardModel => ({ id: 'dt', title: 'Fotos do cardápio', projectId: 'p1', projectName: 'Padaria Lua', teamId: 't1', teamName: 'Marketing', column: 'blocked', waitingEvent: false, blocked: true, reviewApproved: false, assignee: BIA, assigneeState: 'resting', ...extra })
+const leigoDetalhes = (): ReactNode => (
+  <div style={{ display: 'grid', gap: 24, maxWidth: 420 }}>
+    <Details dict={kanbanPt} card={detailCard({ blockedReason: DETAIL_REASON })} columnLabel="Bloqueado" />
+    <Details dict={kanbanPt} card={detailCard({ title: 'Cartão de visita' })} columnLabel="Bloqueado" />
+    <Details dict={kanbanPt} card={detailCard({ column: 'in_progress', blocked: false, blockedReason: DETAIL_REASON, assigneeState: 'working' })} columnLabel="Fazendo" />
+  </div>
 )
 const brainPageOf = (id: string, title: string, kind: BrainPageView['kind'], body = 'Corpo da página.'): BrainPageView => ({
   id, slug: id, title, kind, body, revision: 1, links: [], sources: [], editorHint: 'persona:nina', updatedAt: new Date().toISOString(), restricted: false,
@@ -399,8 +419,36 @@ const brainClient = (): PersonaRemoteClient => ({
 const brainShell = (): ReactNode => (
   <SecondBrainShell persona={brainClient()} scope={{ workspaceId: 'ws', projectId: 'proj' }} actorId="owner" home={BRAIN_HOME} pages={[BRAIN_START]} grants={[]} personaNames={{ nina: 'Nina' }} memberNames={{ owner: 'Você' }} surfaceState="ready" />
 )
+// §23 (Quill): o fio com fonte C, balão v5 e rosto R2 (40 px). Dados de exemplo; MessageList com mensagens mapeadas como no app.
+const THREAD_TEAM = { personas: [{ id: 'p-nina', name: 'Nina', avatarRef: 'nina', title: 'Vendas' }], members: [] } as never
+const threadMsg = (seq: number, actor: 'p-nina' | 'owner', body: string): ReturnType<typeof mapMessage> => mapMessage({
+  id: 'm-' + String(seq), streamId: 'channel:geral', seq, body, actorId: actor, subjectId: '', occurredAt: new Date(Date.UTC(2026, 10, 12, 11, seq % 60, 0)).toISOString(), type: 'message', source: 'host',
+  attachmentIds: [], replyToId: '', editedAt: '', pinned: false, reactions: [], topicId: '',
+} as never, THREAD_TEAM, 'owner')
+const threadOf = (messages: ReturnType<typeof mapMessage>[]): ReactNode => (
+  <div style={{ maxWidth: 760 }}><MessageList t={chatT as never} team={THREAD_TEAM} messages={messages} /></div>
+)
+const LONG_REPLY = [
+  'Montei a tabela de preços da semana com o que você me passou ontem e deixei tudo no rascunho para você conferir.',
+  '',
+  'O que mudou em relação à semana passada:',
+  '',
+  '- o bolo de cenoura subiu de R$ 12 para R$ 14, por causa do custo da cenoura;',
+  '- o pão de queijo continua R$ 8 a dúzia, mas agora com um desconto de 10% acima de 5 dúzias;',
+  '- o café coado saiu da tabela, porque você disse que vai parar de vender.',
+  '',
+  'Se estiver tudo certo, é só aprovar e eu mando para o cartaz. Se quiser mudar alguma coisa, me diga qual item.',
+].join('\n')
+const LIST_REPLY = ['Três coisas faltam para fechar o cartaz:', '', '1. o horário de sexta;', '2. o preço do bolo de cenoura;', '3. a foto do balcão novo.'].join('\n')
 const STATES: Readonly<Record<string, () => ReactNode>> = {
+  'fio-resposta-longa': () => threadOf([threadMsg(1, 'owner', 'Nina, monta a tabela de preços da semana?'), threadMsg(2, 'p-nina', LONG_REPLY)]),
+  'fio-resposta-curta': () => threadOf([threadMsg(1, 'owner', 'Já fechou o cartaz?'), threadMsg(2, 'p-nina', 'Já! Está no rascunho.')]),
+  'fio-lista': () => threadOf([threadMsg(1, 'owner', 'O que falta para fechar?'), threadMsg(2, 'p-nina', LIST_REPLY)]),
+  'fio-grupo-3': () => threadOf([threadMsg(1, 'p-nina', 'Oi! Posso começar o cartaz?'), threadMsg(2, 'owner', 'Pode.'), threadMsg(3, 'owner', 'Usa o fundo claro.'), threadMsg(4, 'owner', 'E a letra grande, por favor.'), threadMsg(5, 'p-nina', 'Combinado, já começo.')]),
+  'fio-100': () => threadOf(Array.from({ length: 100 }, (_, index) => threadMsg(index + 1, index % 3 === 1 ? 'owner' : 'p-nina', index % 3 === 1 ? 'Pode seguir.' : 'Mensagem ' + String(index + 1) + ' de exemplo para medir o fio longo.'))),
   'quadro-colunas': () => leigoColumns(),
+  'quadro-bloqueado': () => leigoBloqueado(),
+  'tarefa-detalhes': () => leigoDetalhes(),
   'cartao-feito': () => <div style={{ display: 'grid', gap: 12, maxWidth: 340 }}>{leigoCard('d1', 'Cartaz da promoção', 'done', { assignee: { id: 'bia', name: 'Bia', initials: 'B' }, assigneeState: 'resting' })}{leigoCard('d2', 'Tabela de preços da semana', 'in_progress', { assignee: { id: 'nina', name: 'Nina', initials: 'N' }, assigneeState: 'working' })}</div>,
   'memoria-empresa': () => brainShell(),
   'cofre-codigo-pedindo': () => <TypeIn digits="4829">{codeCard(codeRow())}</TypeIn>,

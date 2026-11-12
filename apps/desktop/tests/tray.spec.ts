@@ -70,7 +70,7 @@ it('relabels the menu in the current locale and ignores relabel after disposal',
   f.setLocale('pt')
   f.tray.relabel()
   expect(labels(native.menus[1]!)).toEqual([
-    'equipe descansando', 'Abrir o Persona', 'separator', 'Pausar a equipe', 'Abrir pasta de logs', 'Copiar diagnóstico', 'separator', 'Sair de vez',
+    'equipe descansando', 'Abrir a Persona', 'separator', 'Pausar a equipe', 'Abrir pasta de logs', 'Copiar diagnóstico', 'separator', 'Sair de vez',
   ])
   f.tray.dispose()
   f.tray.dispose()

@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { batchesOf, collectFiles, isLintable, MAX_ARGS_CHARS, parseArgs, parseUnix, renderText, runLint, summarize, UsageError } from './check-lint-staged.mjs'
+import { applyBaseline, baselineOf, batchesOf, collectFiles, isLintable, MAX_ARGS_CHARS, parseArgs, parseUnix, renderText, runLint, summarize, UsageError } from './check-lint-staged.mjs'
 
 const CLI = join(dirname(fileURLToPath(import.meta.url)), 'check-lint-staged.mjs')
 const tmp = () => mkdtempSync(join(tmpdir(), 'lintst-'))
@@ -212,4 +212,60 @@ test('parseArgs: valores, --files com pasta, estrito', () => {
   assert.equal(args.flags.has('staged'), true)
   assert.throws(() => parseArgs(['--config']), UsageError)
   assert.throws(() => parseArgs(['solto']), UsageError)
+})
+
+// ------------------------------------------------------------------------------------------------------------------------------ RATCHET (Carbon P2-01)
+
+test('baselineOf conta só ERROS por arquivo e regra (sem linha); applyBaseline perdoa até o número e o erro a mais é NOVO', () => {
+  const problems = [
+    { file: 'a.ts', line: 1, column: 1, severity: 'erro', rule: 'no-var', message: 'x' },
+    { file: 'a.ts', line: 9, column: 1, severity: 'erro', rule: 'no-var', message: 'x' },
+    { file: 'a.ts', line: 3, column: 1, severity: 'erro', rule: 'no-debugger', message: 'x' },
+    { file: 'a.ts', line: 4, column: 1, severity: 'aviso', rule: 'no-console', message: 'x' },
+  ]
+  assert.deepEqual(baselineOf(problems), { 'a.ts': { 'no-var': 2, 'no-debugger': 1 } })
+  const same = applyBaseline(problems, baselineOf(problems))
+  assert.equal(same.known.length, 3)
+  assert.deepEqual(same.fresh.map((p) => p.severity), ['aviso']) // aviso nunca é dívida perdoada: segue como aviso
+  // a MESMA dívida em outras linhas (o arquivo foi editado) continua perdoada: o baseline não guarda linha
+  const moved = problems.map((p) => ({ ...p, line: p.line + 40 }))
+  assert.equal(applyBaseline(moved, baselineOf(problems)).known.length, 3)
+  // um erro a MAIS da mesma regra, ou uma regra nova, ou um arquivo novo: NOVO
+  const worse = [...problems, { file: 'a.ts', line: 50, column: 1, severity: 'erro', rule: 'no-var', message: 'x' }, { file: 'b.ts', line: 1, column: 1, severity: 'erro', rule: 'no-var', message: 'x' }]
+  const result = applyBaseline(worse, baselineOf(problems))
+  assert.deepEqual(result.fresh.filter((p) => p.severity === 'erro').map((p) => `${p.file}:${p.rule}`), ['a.ts:no-var', 'b.ts:no-var'])
+})
+
+test('summarize com baseline: só o erro NOVO reprova; sem baseline tudo reprova como antes', () => {
+  const problems = [{ file: 'a.ts', line: 1, column: 1, severity: 'erro', rule: 'no-var', message: 'x' }]
+  assert.equal(summarize(['a.ts'], problems).ok, false)
+  const within = summarize(['a.ts'], problems, { 'a.ts': { 'no-var': 1 } })
+  assert.equal(within.ok, true)
+  assert.equal(within.known, 1)
+  assert.match(renderText(within), /1 da dívida conhecida/u)
+  assert.equal(summarize(['a.ts'], problems, {}).ok, false)
+})
+
+test('CLI de verdade: --write-baseline grava a dívida; --baseline perdoa a dívida e REPROVA o erro novo; baseline inexistente = uso errado (2)', () => {
+  const root = tmp()
+  try {
+    put(root, '.oxlintrc.staged.json', CONFIG)
+    put(root, 'a.ts', 'var antigo = 1\nexport { antigo }\n')
+    git(root, 'init', '-q')
+    git(root, 'add', '-A')
+    git(root, 'commit', '-q', '-m', 'c1')
+    const baseline = join(root, 'lint-baseline.json')
+    const write = spawnSync(process.execPath, [CLI, '--root', root, '--files', 'a.ts', '--write-baseline', baseline], { encoding: 'utf8' })
+    assert.equal(write.status, 1) // a dívida existe: o comando que GRAVA ainda reporta como sem baseline
+    assert.deepEqual(JSON.parse(readFileSync(baseline, 'utf8')).allow, { 'a.ts': { 'eslint(no-var)': 1 } })
+    const forgiven = spawnSync(process.execPath, [CLI, '--root', root, '--files', 'a.ts', '--baseline', baseline], { encoding: 'utf8' })
+    assert.equal(forgiven.status, 0, forgiven.stdout + forgiven.stderr)
+    assert.match(forgiven.stdout, /1 da dívida conhecida/u)
+    put(root, 'a.ts', 'var antigo = 1\nvar novo = 2\nexport { antigo, novo }\n') // UM erro a mais
+    const worse = spawnSync(process.execPath, [CLI, '--root', root, '--files', 'a.ts', '--baseline', baseline], { encoding: 'utf8' })
+    assert.equal(worse.status, 1)
+    assert.match(worse.stdout, /FALHOU \[lint\] a\.ts:\d+/u)
+    const missing = spawnSync(process.execPath, [CLI, '--root', root, '--files', 'a.ts', '--baseline', join(root, 'nao-existe.json')], { encoding: 'utf8' })
+    assert.equal(missing.status, 2)
+  } finally { rmSync(root, { recursive: true, force: true }) }
 })

@@ -268,7 +268,7 @@
 .draftText,
 .replyText {
   margin: var(--persona-space-2) 0 0;
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -370,7 +370,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--persona-space-2);
-  font: 500 13px/20px var(--persona-font-text);
+  font: 400 13px/20px var(--persona-font-text);
   color: var(--persona-ink-soft);
 }
 

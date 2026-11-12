@@ -90,6 +90,8 @@ import { readDesktopLoginShellEnvironment, resolveDesktopLoginShellConfig, withP
 import { DesktopMandatoryUpdatePolicy, resolveDesktopPolicyConfig, type DesktopPolicyState } from './mandatory-update-policy.ts'
 import { desktopClientMetadata, desktopClientVersion } from './client-metadata.ts'
 import { DesktopMandatoryUpdateWindow } from './mandatory-update-window.ts'
+import { MANDATORY_IPC } from './mandatory-update-ipc.ts'
+import { createBootMarks } from './boot-marks.ts'
 import { DesktopPolicyTestAuth } from './policy-test-auth.ts'
 import { readDesktopSettings } from './settings.ts'
 import { readDesktopLocaleCache, writeDesktopLocaleCache } from './locale-cache.ts'
@@ -114,7 +116,7 @@ import { ALWAYS_ON_IPC, isAlwaysOnAttention, isAlwaysOnResolved, needsYouCountVa
 import { applyThemeOverride, themeOverrideArguments } from './theme-override.ts'
 import { DesktopPower } from './power.ts'
 import { backupPersonaHome, restorePersonaBackup } from './backup.ts'
-import { parsePersonaDeepLink } from './deep-link.ts'
+import { parsePersonaDeepLink, parsePersonaInviteLink } from './deep-link.ts'
 import { HOST_RECONNECT_BACKOFF_MS } from './backend-controller.ts'
 import { isDeepSeekHost } from './deepseek-hosts.ts'
 import { aboutLegalText, formatDesktopLegalNotices } from './legal-notices.ts'
@@ -480,6 +482,9 @@ async function main(): Promise<void> {
   const personaLogger = createPersonaLogger(resolvePersonaProcessHome())
   void personaLogger.rotate().catch((error: unknown) => { console.error(error) })
   void personaLogger.write('main', `desktop start v${app.getVersion()}`).catch((error: unknown) => { console.error(error) })
+  // Opening time by phase (`<PERSONA_HOME>/logs/boot-*.log`): the packaged boot is measured here, not guessed from outside.
+  const boot = createBootMarks((scope, line) => personaLogger.write(scope, line))
+  boot.mark('main:start')
   const journalDirectory = process.env.DSH_DESKTOP_UPDATE_JOURNAL_DIR
   const updateJournal = journalDirectory === undefined ? undefined : new DesktopUpdateJournal(journalDirectory, app.getVersion())
   const resources = runtimeResources()
@@ -667,6 +672,10 @@ async function main(): Promise<void> {
       hostInspectPort, {
         ...hostEnvironment,
         DSH_CLIENT_VERSION: desktopClientVersion(),
+        // D-101 (item 20): the release build writes components.json beside the app; the Host's persona-components plugin
+        // activates only when the manifest is present (otherwise it stays inert and the voice model is unavailable).
+        ...(app.isPackaged && existsSync(join(process.resourcesPath, 'components.json'))
+          ? { DSH_COMPONENTS_MANIFEST: join(process.resourcesPath, 'components.json') } : {}),
         ...(app.isPackaged && process.platform === 'win32'
           ? { PERSONA_BUNDLED_GIT: join(process.resourcesPath, 'mingit', 'cmd', 'git.exe') } : {}),
         ...(process.env.VITEST === 'true' || process.env.PERSONA_SCRIPTED === '1'
@@ -838,10 +847,13 @@ async function main(): Promise<void> {
     startup ??= (async () => {
       // v1.1.1 (Cobalt): the compile cache stays; the early window was measured to cost ~1.5 s of shell (the renderer competes with
       // the Host boot) and moved to v1.1.2. The window is created after the Host answers, as in v1.1.
+      boot.mark('host:starting')
       await backend.start(async () => {
         await Promise.all([manager.applyRelease(), prepareHostEnvironment()])
       })
+      boot.mark('host:answered')
       if (backend.host !== undefined) await openInitialWindow()
+      boot.mark('window:opened')
       if (backend.host !== undefined) updateJournal?.action('workspace-ready')
       // The existing Web document resumes through the boot IPC response.
     })().catch((error: unknown) => {
@@ -1103,8 +1115,10 @@ async function main(): Promise<void> {
 
   ipcMain.handle(DESKTOP_IPC.boot, async (event) => {
     assertDesktopSender(event, ['app'])
+    boot.mark('boot-ipc:asked') // the renderer asked: when it is early, the wait that follows is the Host's
     await startup
     if (backend.host === undefined || hostUrl === undefined) throw new Error('Desktop Host is unavailable')
+    boot.mark('boot-ipc:answered')
     return { injections, streamBaseUrl: new URL(hostUrl).origin }
   })
 
@@ -1524,6 +1538,21 @@ async function main(): Promise<void> {
       mainWindow.webContents.send(ALWAYS_ON_IPC.openTask, link.ticketId, link.view ?? 'thread')
     }
   }
+  /**
+   * An invitation link from outside (macOS `open-url`, or a second launch on Windows). Only a link that is EXACTLY `persona://entrar/<time>/<token>` reaches the screen,
+   * and the screen only SHOWS the team with a button: opening a link never asks to join, and it never carries the hub address.
+   * @returns Whether it was an invitation link.
+   */
+  const openInviteLink = (href: string): boolean => {
+    const invite = parsePersonaInviteLink(href)
+    if (invite === undefined) return false
+    focusPrimaryWindow()
+    if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send(ALWAYS_ON_IPC.openInvite, invite.teamId, invite.token)
+    }
+    return true
+  }
+  incomingLink = (href: string): void => { if (!openInviteLink(href)) openPersonaLink(href) }
   const runBackupNow = async (): Promise<void> => {
     const dest = await dialog.showSaveDialog({
       title: currentDesktopLocale().messages.backupNow,
@@ -1966,6 +1995,7 @@ async function main(): Promise<void> {
     }
     const task = parsePersonaDeepLink(url)
     if (task !== undefined) openPersonaLink(url)
+    else openInviteLink(url)
   })
 
   app.on('activate', (_event, hasVisibleWindows) => {
@@ -2091,6 +2121,11 @@ async function main(): Promise<void> {
     void mandatoryPolicy.check('launch').then((state) => {
       if (app.isPackaged && state.error === 'authentication-required' && !isQuitting()) queuePolicyAuthentication()
     }).catch((error: unknown) => { console.error(error) })
+  } else {
+    // Updates are off (Persona's default): there is no mandatory-update window, yet the app preload still asks for its
+    // status on every launch. Answer "no policy" (null) so the main process stops logging "No handler registered for
+    // 'dsh-desktop:mandatory-status'" at each boot (seen in the packaged boot log of 752e85396a).
+    ipcMain.handle(MANDATORY_IPC.status, () => null)
   }
   automaticCheck()
   await reconcileBackend().catch(() => undefined)
@@ -2103,7 +2138,9 @@ async function main(): Promise<void> {
   publishUpdate(updateState)
 }
 
-const ownsDesktopInstance = claimDesktopSingleInstance(app, () => { focusPrimaryWindow() })
+/** Set by `main`: routes a `persona://` link that a second launch carried (Windows hands a protocol click to the running app that way). */
+let incomingLink: ((href: string) => void) | undefined
+const ownsDesktopInstance = claimDesktopSingleInstance(app, () => { focusPrimaryWindow() }, (href) => { incomingLink?.(href) })
 
 if (ownsDesktopInstance) void app.whenReady().then(main).catch(async (error: unknown) => {
   const message = error instanceof Error ? error.message : String(error)

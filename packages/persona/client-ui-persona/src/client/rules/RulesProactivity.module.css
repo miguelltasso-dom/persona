@@ -90,3 +90,92 @@
     flex-wrap: wrap;
   }
 }
+
+/* P1-10 (Muse 07:07): travas — a chave à esquerda, o nome e a explicação ALINHADOS na coluna do texto (o par lê junto), nunca a explicação sob a chave. */
+.lockRow {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: var(--persona-space-3);
+  row-gap: var(--persona-space-1);
+  align-items: center;
+}
+
+.lockRow > :first-child {
+  grid-row: 1 / span 3;
+  align-self: start;
+}
+
+.lockName {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+/* O subtítulo dos cards (13 px, apagado) no lugar do eyebrow em caixa alta. */
+.cardSubtitle {
+  margin: 0 0 var(--persona-space-3);
+  font-size: 0.8125rem;
+  color: var(--persona-ink-soft);
+}
+
+/* P1-10: a lista e o editor da janela de silêncio. */
+.quietBlock {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.quietLine {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  flex-wrap: wrap;
+}
+
+.quietActions {
+  display: inline-flex;
+  gap: var(--persona-space-1);
+  margin-left: auto;
+}
+
+.quietConfirm {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  flex-wrap: wrap;
+}
+
+/* O chip "Agora em silêncio até 7h" e o "+ Nova janela" ficam do tamanho do texto, à esquerda (numa coluna flex eles esticavam a linha toda). */
+.quietNow,
+.quietAdd {
+  display: flex;
+  justify-content: flex-start;
+}
+
+/* Muse 08:51: o chip "Agora em silêncio" no tom de "Descansando" (lavanda), não no âmbar de "espera você". */
+.quietNowChip {
+  background: color-mix(in srgb, var(--persona-state-resting) 32%, var(--persona-card));
+  border-color: var(--persona-state-resting);
+  color: var(--persona-ink);
+}
+
+.quietUndo {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--persona-ink-soft);
+}
+
+.quietForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.quietFields {
+  display: flex;
+  gap: var(--persona-space-3);
+  flex-wrap: wrap;
+}

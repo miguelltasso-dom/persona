@@ -40,7 +40,7 @@
   border: var(--persona-border-width) solid var(--persona-outline-soft);
   border-radius: var(--persona-radius-s);
   background: var(--persona-paper);
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   overflow-wrap: anywhere;
 }
 

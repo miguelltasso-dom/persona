@@ -6,7 +6,7 @@ button.head { cursor: pointer; }
 button.head:hover { background: var(--persona-wash); }
 .icon { display: grid; place-items: center; flex: 0 0 36px; height: 36px; border-radius: var(--persona-radius-s); background: var(--persona-paper-sunken); color: var(--persona-ink-soft); }
 .text { display: grid; flex: 1 1 auto; min-width: 0; }
-.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 800 15px/20px var(--persona-font-text); }
+.name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 600 15px/20px var(--persona-font-text); }
 .row[data-kind='deleted'] .name { text-decoration: line-through; text-decoration-color: var(--persona-danger); }
 .folder, .note { color: var(--persona-ink-soft); font: 600 13px/18px var(--persona-font-text); }
 .note { color: var(--persona-danger); }

@@ -1,3 +1,4 @@
+import { randomUuid } from '../remote/random-id.ts'
 import type { PersonaRemoteClient } from './lumen-inject.ts'
 import { unwrapRemote } from './remote-call.ts'
 import { readFileAsBase64 } from '../chat/read-file-as-base64.ts'
@@ -14,7 +15,7 @@ export async function ingestVaultDocumentRemote(
   file: File,
 ): Promise<void> {
   const bytesBase64 = await readFileAsBase64(file)
-  const id = `vault-doc-${crypto.randomUUID()}`
+  const id = `vault-doc-${randomUuid()}`
   unwrapRemote(await persona.ingestVaultDocument({
     workspaceId: scope.workspaceId,
     projectId: scope.projectId,

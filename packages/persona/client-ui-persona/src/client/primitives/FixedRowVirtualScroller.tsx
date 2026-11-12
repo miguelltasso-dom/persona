@@ -14,6 +14,8 @@ export interface FixedRowVirtualScrollerProps {
   readonly overscan?: number
   readonly className?: string | undefined
   readonly ariaLabel?: string | undefined
+  /** A raiz é `role="list"`: use quando cada linha é um `listitem` (sem isso, o axe reprova as linhas sem lista-pai). */
+  readonly listRole?: boolean | undefined
   readonly getRowKey: (index: number) => string
   readonly renderRow: (index: number) => ReactNode
 }
@@ -25,6 +27,7 @@ export function FixedRowVirtualScroller({
   overscan = DEFAULT_OVERSCAN,
   className,
   ariaLabel,
+  listRole = false,
   getRowKey,
   renderRow,
 }: FixedRowVirtualScrollerProps): ReactNode {
@@ -55,6 +58,8 @@ export function FixedRowVirtualScroller({
     <div
       ref={ref}
       className={merged}
+      role={listRole ? 'list' : undefined}
+      tabIndex={0}
       {...(ariaLabel === undefined ? {} : { 'aria-label': ariaLabel })}
       onScroll={(event) => { setScrollTop(event.currentTarget.scrollTop) }}
     >

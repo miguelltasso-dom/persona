@@ -91,7 +91,7 @@ it('Memória lists it with its source; a rule is listed too (it is not kind "mem
   expect(h.vault.getRecord('owner-mem-m2')?.kind).toBe('constraint') // mandatory context in every turn
 })
 
-it('another member looking at the list reads the name, not "você"; a DM memory says whom it was said to (her name only: no gender is guessed)', () => {
+it('another member looking at the list reads the name, not "você", and does NOT see a DM memory that is not theirs; the author\'s DM memory says whom it was said to (her name only: no gender is guessed)', () => {
   const h = host()
   const deps = seed(h)
   // a second person who can read the project (a plain "member" needs a project grant first; this test is about who SAID it)
@@ -101,8 +101,10 @@ it('another member looking at the list reads the name, not "você"; a DM memory 
   h.sessionMemberId = 'caio'
   const rows = h.listMemory({ ...SCOPE })
   expect(rows.find(row => row.body === 'A padaria abre às 7h.')?.source).toMatchObject({ by: 'Ana', mine: false })
-  const dm = rows.find(row => row.scope === 'persona')
-  expect(dm).toMatchObject({ to: { name: 'Bento' }, source: { where: 'dm', place: '' } })
+  expect(rows.find(row => row.scope === 'persona')).toBeUndefined() // P1-NOVO: a DM is private to who said it (memory-dm-privacy.host.spec.ts has the full set)
+  h.sessionMemberId = 'ana'
+  const dm = h.listMemory({ ...SCOPE }).find(row => row.scope === 'persona')
+  expect(dm).toMatchObject({ to: { name: 'Bento' }, source: { where: 'dm', place: '', mine: true } })
   expect(Object.keys(dm?.to ?? {})).toEqual(['name']) // no article, no gender
 })
 

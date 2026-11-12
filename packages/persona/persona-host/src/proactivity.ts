@@ -715,6 +715,8 @@ function scoreInitiativeProposal(
   const facts: ProjectFact[] = []
   const existing: ExistingWorkItem[] = []
   for (const ticket of tickets) {
+    // Carbon P1-DM-2: a Task born in a private DM is never the subject of an initiative of the team: its title and the question asked there are the DM's.
+    if (orchestration.conversationOfTicket(projectId, ticket.id)?.streamKind === 'dm') continue
     // A fact ABOUT a Ticket (waiting on a question, no progress) is the reason to act on it, so that Ticket must not count as
     // "work that already exists": it would be dropped as a duplicate of itself and the initiative would stay silent exactly
     // when something is stuck. An external event is compared against every Ticket.

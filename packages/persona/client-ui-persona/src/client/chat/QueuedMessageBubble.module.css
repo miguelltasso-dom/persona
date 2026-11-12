@@ -51,7 +51,7 @@
 
 .text {
   margin: 2px 0 var(--persona-space-2);
-  font: 500 15px/22px var(--persona-font-text);
+  font: 400 15px/22px var(--persona-font-text);
   color: var(--persona-ink);
   white-space: pre-wrap;
   word-break: break-word;

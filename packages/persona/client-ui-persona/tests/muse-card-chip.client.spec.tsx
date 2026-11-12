@@ -10,6 +10,8 @@ import { resolve } from 'node:path'
 import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it } from 'vitest'
 import { KanbanCard } from '../src/client/kanban/KanbanCard.tsx'
+import { Details } from '../src/client/remote/ConnectedTaskConversation.tsx'
+import { TeamworkProvider } from '../src/client/teamwork/teamwork-context.tsx'
 import { cardStateChipOf } from '../src/client/kanban/card-state.ts'
 import type { KanbanCardModel } from '../src/client/kanban/types.ts'
 import { pt as kanbanPt } from '../src/client/locale/kanban/locales.ts'
@@ -50,10 +52,53 @@ describe('o chip do cartão diz o estado do cartão', () => {
     expect(screen.getByText(text)).toBeTruthy()
   })
 
-  it('revisão interna (um colega revisa agora): "Bia está revisando"; sem colega revisando é a revisão de fora', () => {
-    draw({ ...BASE, column: 'in_review', reviewing: { personaId: 'bia', round: 1 } })
-    expect(screen.getByText('Bia está revisando')).toBeTruthy()
+  it('revisão interna com o revisor resolvido pelo contexto de equipe: "Lia está revisando" (o nome do REVISOR); sem colega revisando é a revisão de fora', () => {
+    const team = { personaFor: (id: string) => (id === 'lia' ? { id: 'lia', name: 'Lia' } : undefined) } as never
+    render(
+      <TeamworkProvider value={team}>
+        <KanbanCard dict={kanbanPt} card={{ ...BASE, column: 'in_review', reviewing: { personaId: 'lia', round: 1 } }} draggingId={null} showProject={false} columnLabels={{ todo: 'A fazer', in_progress: 'Fazendo', in_review: 'Em revisão', blocked: 'Bloqueado', done: 'Feito' } as never} onDragStart={() => undefined} onDragEnd={() => undefined} />
+      </TeamworkProvider>,
+    )
+    expect(screen.getByText('Lia está revisando')).toBeTruthy()
     expect(screen.queryByText('Esperando o cliente')).toBeNull()
+  })
+
+  it('Ember + Atlas + Muse (12/11): sem o revisor conhecido o chip diz "Em revisão", SEM nome: nunca que o autor revisa o próprio cartão', () => {
+    // no team context at all (the gallery, a host that does not send the colleague): the old fallback was the responsible persona
+    draw({ ...BASE, assignee: { id: 'nina', name: 'Nina', initials: 'N' }, column: 'in_review', reviewing: { personaId: 'bia', round: 1 } })
+    expect(screen.getByText('Em revisão', { selector: '[data-card-state]' })).toBeTruthy()
+    expect(document.body.textContent).not.toMatch(/Nina está revisando/u)
+    expect(document.body.textContent).not.toMatch(/está revisando/u)
+    cleanup()
+    // the team context knows the persona but it is the card's OWN responsible persona: still no name
+    const team = { personaFor: (id: string) => ({ id, name: id === 'nina' ? 'Nina' : 'Bia' }) } as never
+    render(
+      <TeamworkProvider value={team}>
+        <KanbanCard dict={kanbanPt} card={{ ...BASE, assignee: { id: 'nina', name: 'Nina', initials: 'N' }, column: 'in_review', reviewing: { personaId: 'nina', round: 1 } }} draggingId={null} showProject={false} columnLabels={{ todo: 'A fazer', in_progress: 'Fazendo', in_review: 'Em revisão', blocked: 'Bloqueado', done: 'Feito' } as never} onDragStart={() => undefined} onDragEnd={() => undefined} />
+      </TeamworkProvider>,
+    )
+    expect(document.body.textContent).not.toMatch(/Nina está revisando/u)
+    expect(document.querySelector('[data-card-state="card.state.reviewingTeam"]')?.textContent).toBe('Em revisão')
+  })
+
+  it('a função pura: nunca o nome do autor, em nenhum caminho', () => {
+    const author = { id: 'nina', name: 'Nina', initials: 'N' }
+    for (const reviewerName of [undefined, '', '   ', 'Nina', 'nina']) {
+      const chip = cardStateChipOf({ column: 'in_review', assignee: author, reviewing: { personaId: 'x', round: 1 } }, reviewerName)
+      expect(chip, String(reviewerName)).toEqual({ key: 'card.state.reviewingTeam', tone: 'info', who: 'none' })
+    }
+    expect(cardStateChipOf({ column: 'in_review', assignee: author, reviewing: { personaId: 'nina', round: 1 } }, 'Lia')?.key).toBe('card.state.reviewingTeam')
+    expect(cardStateChipOf({ column: 'in_review', assignee: author, reviewing: { personaId: 'lia', round: 1 } }, 'Lia')).toEqual({ key: 'card.state.reviewing', tone: 'info', who: 'reviewer' })
+  })
+
+  it('o chip de estado quebra em 2 linhas numa coluna estreita e nunca termina em reticências (Muse, 12/11)', () => {
+    const css = read('src/client/kanban/Kanban.module.css')
+    const rule = /\.stateChip\s*\{([^}]*)\}/u.exec(css)?.[1] ?? ''
+    expect(rule).toMatch(/white-space:\s*normal/u)
+    expect(rule).toMatch(/text-overflow:\s*clip/u)
+    expect(rule).not.toMatch(/text-overflow:\s*ellipsis/u)
+    draw({ ...BASE, column: 'in_progress', assignee: { id: 'n', name: 'Nina Cristina de Albuquerque', initials: 'NC' } })
+    expect(document.querySelector('[data-card-state]')?.className).toContain('stateChip')
   })
 
   it('"Descansando", "Pausada", "Trabalhando" e "Precisa de ajuda" nunca aparecem no cartão, qualquer que seja o estado da persona; "Esperando você" só no Bloqueado que espera o dono', () => {
@@ -87,7 +132,7 @@ describe('o chip do cartão diz o estado do cartão', () => {
       ['a persona esperando o dono', { assigneeState: 'waiting' as const }],
     ])('espera o dono (%s): o chip ÂMBAR "Esperando você", único caso em que o âmbar entra no cartão', (_why, extra) => {
       const chip = cardStateChipOf({ column: 'blocked', assignee: BIA, ...extra })
-      expect(chip).toEqual({ key: 'card.state.waitingYou', tone: 'accent' })
+      expect(chip).toEqual({ key: 'card.state.waitingYou', tone: 'accent', who: 'none' })
       draw({ ...BASE, column: 'blocked', assigneeState: 'stuck', ...extra })
       const drawn = screen.getByText('Esperando você')
       expect(drawn.className).toContain('accent')
@@ -113,14 +158,39 @@ describe('o chip do cartão diz o estado do cartão', () => {
       expect(document.querySelector('[data-card-reason]')).toBeNull()
     })
 
-    it('o motivo só aparece no Bloqueado e a linha é de 13 px, apagada, numa linha só', () => {
+    it('o motivo só aparece no Bloqueado; a linha é de 13 px, apagada, em até 2 linhas (nunca 1 linha com reticências)', () => {
       draw({ ...BASE, column: 'in_progress', blockedReason: 'Falta o login do Mercado Pago' })
       expect(document.querySelector('[data-card-reason]')).toBeNull()
       const css = read('src/client/kanban/Kanban.module.css')
       const rule = /\.cardReason\s*\{([^}]*)\}/u.exec(css)?.[1] ?? ''
       expect(rule).toMatch(/font-size:\s*0\.8125rem/u)
       expect(rule).toMatch(/color:\s*var\(--persona-ink-soft\)/u)
-      expect(rule).toMatch(/white-space:\s*nowrap/u)
+      expect(rule).toMatch(/-webkit-line-clamp:\s*2/u)
+      expect(rule).not.toMatch(/white-space:\s*nowrap/u)
+    })
+
+    it('Muse 12/11: o texto inteiro do motivo está no title da linha e no aria-label do cartão (o corte visual nunca esconde a informação)', () => {
+      const reason = 'Falta o acesso ao Instagram da padaria; peça a senha ao dono e avise quando chegar para continuar'
+      draw({ ...BASE, column: 'blocked', assigneeState: 'stuck', blockedReason: reason })
+      expect(document.querySelector('[data-card-reason]')?.getAttribute('title')).toBe(reason)
+      expect(screen.getByRole('article').getAttribute('aria-label')).toBe(`Cartaz da promoção. ${reason}`)
+      cleanup()
+      draw({ ...BASE, column: 'blocked', assigneeState: 'stuck' })
+      expect(screen.getByRole('article').getAttribute('aria-label')).toBe('Cartaz da promoção') // no reason: the label is the title, as before
+    })
+
+    it('Muse + Atlas 12/11: no cartão ABERTO (a aba Detalhes) o motivo vai inteiro, sem corte', () => {
+      const reason = 'Falta o acesso ao Instagram da padaria; peça a senha ao dono e avise quando chegar para continuar'
+      render(<Details dict={kanbanPt} card={{ ...BASE, column: 'blocked', blockedReason: reason }} columnLabel="Bloqueado" />)
+      const shown = document.querySelector('[data-card-reason-full]')
+      expect(shown?.textContent).toBe(reason)
+      expect(shown?.previousElementSibling?.textContent).toBe('Por que parou')
+      cleanup()
+      render(<Details dict={kanbanPt} card={{ ...BASE, column: 'blocked' }} columnLabel="Bloqueado" />)
+      expect(document.querySelector('[data-card-reason-full]')).toBeNull() // no reason: no empty row
+      cleanup()
+      render(<Details dict={kanbanPt} card={{ ...BASE, column: 'in_progress', blockedReason: reason }} columnLabel="Fazendo" />)
+      expect(document.querySelector('[data-card-reason-full]')).toBeNull() // only a stopped card says why
     })
 
     it('"Esperando você" e "Parado" existem nos dois idiomas', () => {
@@ -130,6 +200,26 @@ describe('o chip do cartão diz o estado do cartão', () => {
         expect((kanbanPt as Readonly<Record<string, string>>)[key], key).toBeTruthy()
       }
     })
+  })
+
+  it('Muse 12/11: o chip SEGUE A ETAPA: numa coluna de revisão interna o cartão nunca diz "Esperando o cliente" (diz "Em revisão"); só a coluna do cliente diz', () => {
+    const inColumn = (columnName: string | undefined): ReturnType<typeof cardStateChipOf> => cardStateChipOf({ column: 'in_review', assignee: BIA }, undefined, columnName)
+    expect(inColumn('Revisão interna')).toEqual({ key: 'card.state.reviewingTeam', tone: 'info', who: 'none' })
+    expect(inColumn('Revisão da Lia')).toMatchObject({ key: 'card.state.reviewingTeam' })
+    expect(inColumn('Revisão do cliente')).toMatchObject({ key: 'card.state.client' })
+    expect(inColumn('Client review')).toMatchObject({ key: 'card.state.client' })
+    expect(inColumn(undefined)).toMatchObject({ key: 'card.state.client' }) // a board that does not know its columns' names keeps the old reading
+    // through the card: the flow column the card sits in decides
+    const targets = [{ id: 'col-int', label: 'Revisão interna' }, { id: 'col-cli', label: 'Revisão do cliente' }]
+    const drawIn = (currentFlowColumnId: string): void => {
+      render(<KanbanCard dict={kanbanPt} card={{ ...BASE, column: 'in_review' }} draggingId={null} showProject={false} columnLabels={{ todo: 'A fazer', in_progress: 'Fazendo', in_review: 'Em revisão', blocked: 'Bloqueado', done: 'Feito' } as never} flowMoveTargets={targets} currentFlowColumnId={currentFlowColumnId} onDragStart={() => undefined} onDragEnd={() => undefined} />)
+    }
+    drawIn('col-int')
+    expect(screen.getByText('Em revisão', { selector: '[data-card-state]' })).toBeTruthy()
+    expect(screen.queryByText('Esperando o cliente')).toBeNull()
+    cleanup()
+    drawIn('col-cli')
+    expect(screen.getByText('Esperando o cliente')).toBeTruthy()
   })
 
   it('"Fazendo" é verde, a fila e a espera do cliente são neutras, a revisão interna informa', () => {

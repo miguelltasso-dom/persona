@@ -22,7 +22,8 @@ export interface VoiceComposeButtonProps {
 }
 
 export function VoiceComposeButton({ t, empty, onSendVoice, captureOptions }: VoiceComposeButtonProps): ReactNode {
-  const capture = useVoiceCapture(captureOptions)
+  // COLHEITA-S1 P1-03 (Carbon): o teto de 2 min encerra a gravação sozinho; o áudio vai ao envio (antes era descartado: onComplete não passava).
+  const capture = useVoiceCapture({ ...captureOptions, onComplete: (recording) => { void onSendVoice(recording) } })
   if (capture.state === 'recording') {
     return (
       <VoiceRecorderBar

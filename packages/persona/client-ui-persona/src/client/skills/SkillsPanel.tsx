@@ -103,12 +103,14 @@ export function SkillsPanel({
         {skills.map((listed) => {
           const skill = applied[listed.id] ?? listed
           const taught = skill.origin === 'taught'
+          // P1-11: a skill the Playbook offered ("Virar skill?") is decided in Aprovações (like a proposal), then it can be turned off and shared like a taught one.
+          const own = taught || skill.origin === 'learned'
           const mine = busy?.id === skill.id ? busy.action : null
           const canActivate = skill.status === 'candidate' && taught && onActivate !== undefined
           const canReview = skill.status === 'candidate' && !taught && onReview !== undefined
           // A plain skill can only go back to an earlier version when there is one.
-          const canRollback = skill.status === 'active' && onRollback !== undefined && (taught || skill.version > 1)
-          const canShare = !skill.sharedWithTeam && taught && onShare !== undefined
+          const canRollback = skill.status === 'active' && onRollback !== undefined && (own || skill.version > 1)
+          const canShare = !skill.sharedWithTeam && own && onShare !== undefined
           return (
             <li key={skill.id}>
               <Card padding="m">
@@ -146,9 +148,9 @@ export function SkillsPanel({
                         size="s"
                         loading={mine === 'rollback'}
                         disabled={busy !== null}
-                        onClick={() => { run(skill, 'rollback', onRollback, t(taught ? 'live.backToCandidate' : 'live.rolledBack', { name: skill.name })) }}
+                        onClick={() => { run(skill, 'rollback', onRollback, t(own ? 'live.backToCandidate' : 'live.rolledBack', { name: skill.name })) }}
                       >
-                        {mine === 'rollback' ? t('action.rollingBack') : t(taught ? 'action.backToCandidate' : 'action.rollback')}
+                        {mine === 'rollback' ? t('action.rollingBack') : t(own ? 'action.backToCandidate' : 'action.rollback')}
                       </Button>
                     )}
                     {canShare && (

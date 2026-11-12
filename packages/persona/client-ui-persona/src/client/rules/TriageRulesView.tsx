@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Button, Card, ChoiceCards, Chip, Input, Screen, ScreenHeader, Switch } from '../primitives/index.ts'
+import { Button, Card, ChoiceCards, Chip, Input, Screen, ScreenHeader, Switch, UiIcon } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import styles from './RulesProactivity.module.css'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import type { ProactivityLimits, QuietWindow, TriageRule, TriageSimulationLog } from './mock-data.ts'
+import { QuietWindows, type QuietWindowRow } from './QuietWindows.tsx'
 import { pt as defaultDict } from '../locale/rules/locales.ts'
 
 export type RulesSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
@@ -16,6 +17,8 @@ export type HouseLockKind = 'never-spend' | 'never-send' | 'never-publish' | 'ne
 export interface HouseLockUi {
   readonly kind: HouseLockKind
   readonly on: boolean
+  /** Muse 07:07: paying and deleting ALWAYS ask (D-084, item 5), so their lock is shown on and cannot be switched off (a switch that goes off would suggest the team may pay or delete without asking). */
+  readonly locked?: true | undefined
   /** How many times it really held something back; the line only exists when the host said so. */
   readonly applied?: { readonly thisWeek: number; readonly lastWhat?: string | undefined } | undefined
 }
@@ -39,6 +42,9 @@ export interface TriageRulesViewProps {
   readonly houseLocks?: readonly HouseLockUi[] | undefined
   /** Turns a lock on or off; a rejection means the host refused (the card says so and the switch stays where the host has it). */
   readonly onToggleLock?: ((kind: HouseLockKind, on: boolean) => void | Promise<void>) | undefined
+  /** P1-10: save / delete a quiet window of the whole team (`putQuietWindow` / `deleteQuietWindow`). Without them the windows are read-only. */
+  readonly onSaveQuiet?: ((window: QuietWindowRow) => Promise<void>) | undefined
+  readonly onDeleteQuiet?: ((id: string) => Promise<void>) | undefined
 }
 
 /** UX-05: budgets as plain-language presets; raw numbers only under "Personalizar". */
@@ -66,14 +72,6 @@ export function tasksPerMonth(tokens: number): number {
   return Math.max(1, Math.round(tokens / TOKENS_PER_MEDIUM_TASK / 5) * 5)
 }
 
-function quietWindowLabel(dict: LocaleDict, window: QuietWindow): string {
-  return bindLocale(dict, 'quiet.windowLine', {
-    label: window.label,
-    start: window.start,
-    end: window.end,
-  })
-}
-
 export function TriageRulesView({
   dict = defaultDict,
   rules = [],
@@ -87,6 +85,8 @@ export function TriageRulesView({
   obeyed,
   houseLocks,
   onToggleLock,
+  onSaveQuiet,
+  onDeleteQuiet,
 }: TriageRulesViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const canCreateRules = obeyed?.newRules === true
@@ -246,18 +246,22 @@ export function TriageRulesView({
       </Card>
 
       {showLocks && (
-        <Card padding="m" as="section" aria-labelledby="persona-rules-locks" title={t('locks.title')} eyebrow={t('locks.subtitle')}>
+        <Card padding="m" as="section" aria-labelledby="persona-rules-locks" title={t('locks.title')}>
+          <p className={styles.cardSubtitle}>{t('locks.subtitle')}</p>
           <ul className={styles.ruleList}>
             {houseLocks.map((lock) => {
               const nameId = `persona-lock-${lock.kind}`
               const line = appliedLine(lock.applied)
+              const locked = lock.locked === true
               return (
-                <li key={lock.kind} className={styles.ruleRow} data-house-lock={lock.kind}>
-                  <div className={styles.lockHead}>
-                    <Switch checked={lock.on} disabled={lockBusy !== undefined} labelledBy={nameId} onChange={(next) => { toggleLock(lock.kind, next) }} />
-                    <span id={nameId} className={styles.ruleText}>{t(`locks.${lock.kind}`)}</span>
-                  </div>
-                  <p className={styles.ruleMeta}>{t(`locks.${lock.kind}.hint`)}</p>
+                // Muse 07:07: the switch on the left, the name and its explanation ALIGNED in the text column (the pair reads together).
+                <li key={lock.kind} className={`${styles.ruleRow} ${styles.lockRow}`} data-house-lock={lock.kind} data-lock-locked={locked ? '' : undefined}>
+                  <Switch checked={locked || lock.on} disabled={locked || lockBusy !== undefined} labelledBy={nameId} onChange={(next) => { toggleLock(lock.kind, next) }} />
+                  <span id={nameId} className={`${styles.ruleText} ${styles.lockName}`}>
+                    {t(`locks.${lock.kind}`)}
+                    {locked && <UiIcon name="lock" size={14} />}
+                  </span>
+                  <p className={styles.ruleMeta}>{locked ? t('locks.always') : t(`locks.${lock.kind}.hint`)}</p>
                   {line !== undefined && <p className={styles.ruleMeta} data-lock-applied="">{line}</p>}
                 </li>
               )
@@ -268,14 +272,9 @@ export function TriageRulesView({
       )}
 
       {obeyed?.quietWindows === true && (
-        <Card padding="m" as="section" aria-labelledby="persona-rules-quiet" title={t('quiet.title')} eyebrow={t('quiet.subtitle')}>
-          <ul className={styles.quietList}>
-            {quietWindows.map(window => (
-              <li key={window.id}>
-                <Chip tone="neutral" size="s">{quietWindowLabel(dict, window)}</Chip>
-              </li>
-            ))}
-          </ul>
+        <Card padding="m" as="section" aria-labelledby="persona-rules-quiet" title={t('quiet.title')}>
+          <p className={styles.cardSubtitle}>{t('quiet.subtitle')}</p>
+          <QuietWindows dict={dict} windows={quietWindows} onSave={onSaveQuiet} onDelete={onDeleteQuiet} />
         </Card>
       )}
 

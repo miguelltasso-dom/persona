@@ -12,8 +12,9 @@ import {
   type DevHarnessSeedRemote,
   type OnboardingRosterPerson,
 } from './seed-default-team.ts'
-import type { ChannelLayoutView, CompleteOnboardingRequest } from '@deepseek-ai/dsh-persona-host/types'
+import type { ChannelHeaderView, ChannelLayoutView, CompleteOnboardingRequest } from '@deepseek-ai/dsh-persona-host/types'
 import { writeOnboardingCacheComplete, writeOnboardingDisplayName } from '../shell/onboarding-persistence.ts'
+import { rememberBootFaces } from '../shell/boot-faces.ts'
 import { applyMessageStreamFrame, type MessageStreamFrame } from './apply-message-stream.ts'
 import { enrichKanbanCardsFromHost } from './map-host-ui.ts'
 import type { KanbanCardModel } from '../kanban/types.ts'
@@ -59,6 +60,9 @@ import { PersonaRemoteError } from './persona-remote-unwrap.ts'
 import { mapUsedContextRecord } from './map-used-context.ts'
 import { mapTurnActivityFolds, type TurnActivityGroupWire } from './map-turn-activity-folds.ts'
 import { mapReplyActivity, type ReplyActivityUi } from './map-reply-activity.ts'
+import { micAvailableFor, productionVoiceTranscriber } from '../voice/voice-production.ts'
+import type { VoiceModelHost } from '../voice/voice-model-host.ts'
+import type { VoiceTranscribe } from '../voice/voice-send.ts'
 import { randomUuid } from './random-id.ts'
 import { attachmentRemoteOf, audioMetaOf, audioObjectUrl, durationFromAttachmentName, resolveAudioAttachment } from '../chat/voice-compose/attachment-audio.ts'
 import {
@@ -122,6 +126,8 @@ export interface PersonaLiveSnapshot {
   readonly selectedChannelId?: string | null | undefined
   /** Item 22 (same flag): the sidebar as the host arranges it (`getChannelLayout`: channels with no section, then one section per equipe); absent = never read. */
   readonly channelLayout?: ChannelLayoutView | undefined
+  /** Item 22 (same flag): the header of the open channel (`getChannelHeader`: "#vendas", the equipe, who answers there); absent = never read or a channel the host does not know (a DM). */
+  readonly channelHeader?: ChannelHeaderView | undefined
   readonly tenant: PersonaTenantScope | null
   readonly team: TeamView | null
   readonly nowRows: readonly PersonaNowSnapshot[]
@@ -252,6 +258,10 @@ export interface PersonaLiveStore {
   loadTurnContext(ticketId: string): Promise<void>
   /** COLHEITA §6 (Quill): pede a atividade de uma resposta (uma vez por resposta). */
   loadReplyActivity?(subjectId: string): Promise<void>
+  /** COLHEITA-S1 P1-03 (Carbon; Keel 10:08): o microfone aparece? Só com o modelo pronto ou baixável (e a ponte do host). */
+  voiceMicAvailable?(): Promise<boolean>
+  /** COLHEITA-S1 P1-03: o transcritor real do host; só existe quando o microfone aparece. */
+  voiceTranscriber?(): VoiceTranscribe | undefined
   /** COLHEITA §14 (Quill): figurinha sozinha no composer (sem turno). */
   sendStickerMessage?(stickerId: string): Promise<void>
   /** COLHEITA-S1 P1-05: o anexo é áudio? (só o tipo; quando a mensagem aparece). */
@@ -346,6 +356,7 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
   }): unknown
   listDms?(request: PersonaTenantScope): readonly DmView[]
   getChannelLayout?(request: PersonaTenantScope): ChannelLayoutView
+  getChannelHeader?(request: { readonly workspaceId: string; readonly projectId: string; readonly channelId: string }): ChannelHeaderView | undefined
   createDm?(request: {
     id: string
     workspaceId: string
@@ -753,6 +764,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       const arrivingIds = activeArrivingIds()
       const arrivingHostPersonaIds = [...arrivingIds]
       const stripMembers = mapTeamToStrip(team, now.personas, arrivingIds)
+      rememberBootFaces(team.personas) // the next opening's waiting scene shows these faces (ids only)
       const awayEvents = away.events.map(mapAwayEventLive)
       const awayLive = mapAwayLive(away, team)
       const [rawApprovals, rawSummaries] = await Promise.all([
@@ -880,7 +892,10 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         // Item 22: the open channel and the sidebar layout belong to the person's navigation, not to what the host answered: a refresh never drops them.
         selectedChannelId: store.getSnapshot().selectedChannelId,
         channelLayout: store.getSnapshot().channelLayout,
+        channelHeader: store.getSnapshot().channelHeader,
       })
+      // Item 22: the sidebar layout is read with the rest (at most once every 5 s: a message stream refreshes often); nothing happens with the flag off.
+      if (Date.now() - channelLayoutAt > 5_000) void refreshChannelLayout()
       await publishHostOnboardingState()
     } catch (error) {
       console.error('[persona] refresh falhou', error)
@@ -1078,19 +1093,43 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   const selectChannel = async (channelId: string | null): Promise<void> => {
     if (!isChannelSectionsEnabled() || tenant === null) return
     if ((store.getSnapshot().selectedChannelId ?? null) === channelId) return
-    store.set({ ...store.getSnapshot(), selectedChannelId: channelId, messages: [] }) // the old channel's lines leave the screen first
+    store.set({ ...store.getSnapshot(), selectedChannelId: channelId, messages: [], channelHeader: undefined }) // the old channel's lines and header leave the screen first
     await refresh()
     startMessageStream()
+    await refreshChannelLayout() // the header of the channel that just opened
   }
+  let channelLayoutAt = 0
   const refreshChannelLayout = async (): Promise<void> => {
     if (!isChannelSectionsEnabled() || tenant === null || remote.getChannelLayout === undefined) return
+    channelLayoutAt = Date.now()
     try {
-      store.set({ ...store.getSnapshot(), channelLayout: await Promise.resolve(remote.getChannelLayout(tenant)) })
+      const channelLayout = await Promise.resolve(remote.getChannelLayout(tenant))
+      // The header of the open channel travels with the layout (a channel the host does not know, like a DM, has none).
+      const channelHeader = remote.getChannelHeader === undefined
+        ? undefined
+        : await Promise.resolve(remote.getChannelHeader({ workspaceId: tenant.workspaceId, projectId: tenant.projectId, channelId: channelOf(tenant) }))
+      store.set({ ...store.getSnapshot(), channelLayout, channelHeader })
     } catch (error) { void error } // the sidebar keeps what it had
   }
 
   // COLHEITA §6 (Quill): a atividade de UMA resposta de persona (turno de conversa; `subjectId` = id da mensagem respondida).
   // Pede uma vez por resposta. Turno sem ferramenta não guarda nada: sem resumo.
+  // COLHEITA-S1 P1-03 (Carbon; Keel 10:08): a ponte de voz do host (ensureVoiceModel/voiceModelState). Sem os dois métodos, sem microfone.
+  const voiceHost = (): VoiceModelHost | undefined => {
+    const probe = remote as unknown as Partial<VoiceModelHost>
+    if (typeof probe.voiceModelState !== 'function' || typeof probe.ensureVoiceModel !== 'function') return undefined
+    const full = remote as unknown as VoiceModelHost
+    return { voiceModelState: () => full.voiceModelState(), ensureVoiceModel: () => full.ensureVoiceModel() }
+  }
+  const voiceMicAvailable = async (): Promise<boolean> => {
+    const host = voiceHost()
+    if (host === undefined) return false
+    try { return micAvailableFor(await host.voiceModelState()) } catch { return false }
+  }
+  const voiceTranscriber = (): VoiceTranscribe | undefined => {
+    const host = voiceHost()
+    return host === undefined ? undefined : productionVoiceTranscriber(host)
+  }
   const replyActivityAsked = new Set<string>()
   const loadReplyActivity = async (subjectId: string): Promise<void> => {
     if (tenant === null || remote.listTurnActivity === undefined) return
@@ -2023,6 +2062,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     openFirstAvailableDm,
     loadTurnContext,
     loadReplyActivity,
+    voiceMicAvailable,
+    voiceTranscriber,
     sendStickerMessage,
     isAudioAttachment,
     loadAudioAttachment,

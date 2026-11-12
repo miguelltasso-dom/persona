@@ -145,7 +145,7 @@
 
 .emptyHint {
   margin: 0;
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink-muted);
 }
 

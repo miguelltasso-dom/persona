@@ -59,7 +59,7 @@
   display: flex;
   flex-direction: column;
   gap: var(--persona-space-4);
-  font: 500 15px/22px var(--persona-font-text);
+  font: 400 15px/22px var(--persona-font-text);
   color: var(--persona-ink);
 }
 

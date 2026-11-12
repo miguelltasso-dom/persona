@@ -23,7 +23,7 @@
   width: 100%;
   border-collapse: collapse;
   table-layout: fixed;
-  font: 500 14px/1.5 var(--persona-font-text);
+  font: 400 14px/1.5 var(--persona-font-text);
   color: var(--persona-ink);
 }
 

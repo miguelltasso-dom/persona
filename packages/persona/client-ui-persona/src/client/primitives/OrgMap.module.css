@@ -87,7 +87,7 @@
   padding: 6px 8px;
   border-radius: var(--persona-radius-s);
   color: var(--persona-ink);
-  font: 500 13px/18px var(--persona-font-text);
+  font: 400 13px/18px var(--persona-font-text);
   cursor: pointer;
 }
 

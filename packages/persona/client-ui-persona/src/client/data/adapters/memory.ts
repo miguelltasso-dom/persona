@@ -1,6 +1,15 @@
 import type { MemoryView } from '@deepseek-ai/dsh-persona-host/types'
 import type { MemoryOrigin, MemoryRow } from '../../memory/mock-data.ts'
 
+/**
+ * P1-11: what a persona's profile may list. A memory the owner told ANOTHER persona in a DM is private to her: the profile shows the team's memories
+ * and the ones said to this persona, never someone else's. A private memory with no name (an older row) belongs to no profile. P1-NOVO: and a private memory is
+ * only ever shown to the one who said it (`source.mine`): the host filters first, this is the second lock.
+ */
+export function memoriesOfPersona(views: readonly MemoryView[], personaName: string): MemoryView[] {
+  return views.filter(view => view.scope !== 'persona' || (view.to?.name === personaName && view.source?.mine === true))
+}
+
 /** Host memory rows → profile Memory tab. */
 export function memoryViewsToRows(
   views: readonly MemoryView[],

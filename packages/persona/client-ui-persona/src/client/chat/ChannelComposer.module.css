@@ -75,7 +75,7 @@
   resize: none;
   background: transparent;
   color: var(--persona-ink);
-  font: 500 16px/24px var(--persona-font-text);
+  font: 600 16px/24px var(--persona-font-text);
 }
 
 /* The composer frame shows focus (:focus-within); beat the global [data-persona-shell] :focus-visible ring (Muse). */
@@ -441,13 +441,13 @@
 }
 
 .whoRespondsTitle {
-  font: 800 14px/18px var(--persona-font-text);
+  font: 600 14px/18px var(--persona-font-text);
   margin: 0 0 var(--persona-space-1);
   color: var(--persona-ink);
 }
 
 .whoRespondsBody {
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   margin: 0 0 var(--persona-space-3);
   color: var(--persona-ink-soft);
 }

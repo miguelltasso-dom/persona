@@ -77,7 +77,7 @@
   margin: 0;
   padding-left: var(--persona-space-4);
   color: var(--persona-ink);
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
 }
 
 .validity {
@@ -192,7 +192,7 @@
 .permissionScope {
   margin: 0;
   color: var(--persona-ink-soft);
-  font: 500 13px/18px var(--persona-font-text);
+  font: 400 13px/18px var(--persona-font-text);
 }
 
 .permissionMeta {
@@ -242,7 +242,7 @@
 .feedText p {
   margin: 0;
   color: var(--persona-ink);
-  font: 500 14px/21px var(--persona-font-text);
+  font: 400 14px/21px var(--persona-font-text);
 }
 
 .feedText .feedSource {
@@ -262,7 +262,7 @@
 .feedEmpty {
   margin: 0;
   color: var(--persona-ink-soft);
-  font: 500 13px/19px var(--persona-font-text);
+  font: 400 13px/19px var(--persona-font-text);
 }
 
 .typeChip {
@@ -344,7 +344,7 @@
 .sideText {
   margin: 0;
   color: var(--persona-ink);
-  font: 500 14px/21px var(--persona-font-text);
+  font: 400 14px/21px var(--persona-font-text);
 }
 
 .sideSource {
@@ -421,7 +421,7 @@
   display: grid;
   grid-template-columns: 9.5rem minmax(0, 1fr);
   gap: var(--persona-space-2);
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
 }
 
 .prop dt {
@@ -442,7 +442,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
 }
 
 .links li {

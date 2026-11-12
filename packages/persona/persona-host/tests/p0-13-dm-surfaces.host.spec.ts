@@ -41,3 +41,14 @@ it('the morning card (a message of the shared #geral) never carries the title of
   expect(seen.includes(SECRET)).toBe(false)
   expect(seen.includes(ticket.title), `the card shows the title "${ticket.title}"`).toBe(false)
 })
+
+it('the triage log (the first words of every message, and the stream it came from) never shows a member the lines of a DM they are not in; the DM\'s own participant reads them', async () => {
+  const { h } = await derivedFromDm()
+  h.sessionMemberId = 'ana'
+  expect(JSON.stringify(h.listTriageLog(SP)), 'control: the participant reads her own DM line in the log (otherwise nothing was proved)').toContain('lista do cliente')
+  h.sessionMemberId = 'bob'
+  const seen = JSON.stringify(h.listTriageLog(SP))
+  expect(seen.includes('lista do cliente'), 'the words of the DM').toBe(false)
+  expect(seen.includes(SECRET), 'the secret of the DM').toBe(false)
+  expect(seen.includes('dm-ab'), 'the id of the DM').toBe(false)
+})

@@ -1133,6 +1133,48 @@ const V25_ENV_MODE_REASON = `
 ALTER TABLE turn_ledger ADD COLUMN env_mode_reason TEXT CHECK (env_mode_reason IS NULL OR length(env_mode_reason) BETWEEN 1 AND 40);
 `
 
+/** Item 22 (H22): equipes montadas pela pessoa, categorias que agrupam canais, posição do canal. Aditiva: nada existente muda; o canal sem categoria é o de sempre. */
+const V26_EQUIPES_CATEGORIAS = `
+CREATE TABLE equipe (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id),
+  project_id TEXT NOT NULL REFERENCES project(id),
+  name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 40),
+  position INTEGER NOT NULL DEFAULT 0,
+  color TEXT,
+  icon TEXT,
+  source_id TEXT,
+  created_at TEXT NOT NULL,
+  archived_at TEXT,
+  UNIQUE (project_id, name)
+) STRICT;
+
+CREATE UNIQUE INDEX equipe_source ON equipe (project_id, source_id) WHERE source_id IS NOT NULL;
+CREATE INDEX equipe_project ON equipe (project_id, position);
+
+CREATE TABLE equipe_member (
+  equipe_id TEXT NOT NULL REFERENCES equipe(id) ON DELETE CASCADE,
+  persona_id TEXT NOT NULL,
+  added_at TEXT NOT NULL,
+  PRIMARY KEY (equipe_id, persona_id)
+) STRICT;
+
+CREATE TABLE channel_category (
+  id TEXT PRIMARY KEY,
+  workspace_id TEXT NOT NULL REFERENCES workspace(id),
+  project_id TEXT NOT NULL REFERENCES project(id),
+  name TEXT NOT NULL CHECK (length(name) BETWEEN 1 AND 40),
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL,
+  UNIQUE (project_id, name)
+) STRICT;
+
+CREATE INDEX channel_category_project ON channel_category (project_id, position);
+
+ALTER TABLE channel ADD COLUMN category_id TEXT REFERENCES channel_category(id) ON DELETE SET NULL;
+ALTER TABLE channel ADD COLUMN position INTEGER NOT NULL DEFAULT 0;
+`
+
 export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 1,
@@ -1233,5 +1275,9 @@ export const PERSONA_MIGRATIONS: readonly Migration[] = [
   {
     version: 25,
     sql: V25_ENV_MODE_REASON,
+  },
+  {
+    version: 26,
+    sql: V26_EQUIPES_CATEGORIAS,
   },
 ]

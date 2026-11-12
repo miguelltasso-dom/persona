@@ -1,5 +1,6 @@
 /** BRIEFING 18 / BRING-CONTEXT-SPEC — onboarding passo 2 (Prism). */
 
+import { randomUuid } from '../remote/random-id.ts'
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { BringContextPreview } from '@deepseek-ai/dsh-persona-core'
 import type { LocaleDict } from '../preview/locale-bind.ts'
@@ -308,7 +309,7 @@ export function BringYourContextBlock({
                   onAdd={() => {
                     const trimmed = paste.trim()
                     if (trimmed.length === 0) return
-                    const id = `paste-${crypto.randomUUID()}`
+                    const id = `paste-${randomUuid()}`
                     onPastedChange([...pasted, { id, source: provider, text: trimmed }])
                     onPasteChange('')
                   }}

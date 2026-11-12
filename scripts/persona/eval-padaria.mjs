@@ -5,9 +5,12 @@
  *   node scripts/persona/eval-padaria.mjs                         fake x 3 (0 AI): the TEAM-10 driver with stubs, N rounds, one summary
  *   node scripts/persona/eval-padaria.mjs --repeat 5              fake x 5
  *   node scripts/persona/eval-padaria.mjs --replay <home> [...]   evaluate homes a round already left (a real attempt, an older fake): no host, no model, no cost
- *   node scripts/persona/eval-padaria.mjs --strict                exit 1 unless EVERY round passed every check (default: report, exit 0)
+ *   node scripts/persona/eval-padaria.mjs --lenient               report and exit 0 even when a check failed (STRICT is the default since 12/11 — Gauge P2-02: a failed rule exits 1;
+ *                                                                 `--strict` is still accepted and means the default)
  *   node scripts/persona/eval-padaria.mjs --d100                  the stub makes no hand-off of its own (no pass_forward / ask_colleague): the host's D-100 flow does the work
  *   node scripts/persona/eval-padaria.mjs --scenarios [ids]       one round per RED scenario (the stub does ONE thing wrong): pronto-falso, pergunta-boba, jargao, jargao-tecnico, pesado
+ *                                                                 Its criterion is its OWN, not the checks': each scenario must be flagged by the rule it targets ("pego") or stopped by the product before the person
+ *                                                                 reads it ("barrado"); only "cego" (the wrong thing reached the person unflagged) exits 1. `--lenient` does not apply to it.
  *
  * The REAL round is not run from here: it needs Atlas's written OK with a ceiling and goes through the TEAM-10 gate (mandatory-team-round.spec.ts).
  * Output: packages/persona/persona-e2e/artifacts/eval-padaria/eval-<engine>-<stamp>/summary.{md,json} (+ each round's own proof and home for the fake).
@@ -33,7 +36,9 @@ const flag = (name) => {
   return true
 }
 
-const strict = flag('--strict')
+const lenient = flag('--lenient') // opt out of the strict default: report, exit 0
+flag('--strict') // the default now; accepted so the old command lines (and the docs that still say it) keep working
+const strict = !lenient
 const d100 = flag('--d100') // the stub makes no hand-off of its own: the host's D-100 flow does the work
 const scenarios = take('--scenarios') // undefined = not asked; '' = all of them; 'jargao,pesado' = those
 const engine = take('--engine') ?? 'fake'

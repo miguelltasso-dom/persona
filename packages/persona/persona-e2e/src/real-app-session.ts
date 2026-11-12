@@ -162,7 +162,13 @@ export async function completeOnboardingOverlay(page: Page): Promise<void> {
  * @param panelLabel - sidebar label from shell.pt locale.
  */
 export async function selectSidebarPanel(page: Page, panelLabel: string): Promise<void> {
-  await page.getByRole('button', { name: panelLabel, exact: true }).click()
+  const direct = page.getByRole('button', { name: panelLabel, exact: true })
+  // NAV-SPEC A-1 (navPlaces ON by default): the old "Quadros" rail item is the first tab of the "Projetos" place, which opens on the board.
+  if (await direct.count() === 0 && panelLabel === shell.kanban) {
+    await page.getByRole('button', { name: shell.projects, exact: true }).click()
+    return
+  }
+  await direct.click()
 }
 
 /**

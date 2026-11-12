@@ -143,13 +143,28 @@ function attachmentsOf(input: Readonly<Record<string, unknown>>): string[] | und
   return undefined
 }
 
+/** The lists of a call (what a delete or a move names), in the order the card looks for them. */
+const LIST_FIELDS: readonly string[] = ['items', 'ids', 'files', 'paths', 'targets', 'names']
+/**
+ * P0-06b: fields that mean the SAME thing (`to` / `recipient`, `body` / `html`, `attachments` / `anexos`, `items` / `ids`…). The card shows ONE value per group (the first filled); a second
+ * synonym with a DIFFERENT value would go out unseen, so it counts as hidden.
+ */
+const ALIAS_GROUPS: readonly (readonly string[])[] = [...FIELD_CAPS.map(([names]) => names), ATTACHMENT_FIELDS, LIST_FIELDS]
+const comparable = (value: unknown): string => JSON.stringify(Array.isArray(value) ? value.map(item => (typeof item === 'string' ? item.trim() : item)) : typeof value === 'string' ? value.trim() : value)
+function aliasCollision(input: Readonly<Record<string, unknown>>): boolean {
+  return ALIAS_GROUPS.some((group) => {
+    const present = group.filter(key => filled(input[key]))
+    return present.length > 1 && present.some(key => comparable(input[key]) !== comparable(input[present[0]!]))
+  })
+}
+
 /**
  * What the card does NOT show of the real call. `masked`: a field the card cannot display (an unknown one, or a known one with a shape it cannot
- * write). `truncated`: a field the card shows CUT. Either one means the preview is not all of what would go out: it cannot be approved blind.
+ * write, or two synonyms filled with different values). `truncated`: a field the card shows CUT. Either one means the preview is not all of what would go out: it cannot be approved blind.
  */
 function visibility(doc: ExternalActionDoc): { readonly truncated: boolean; readonly masked: boolean } {
   const input = doc.requestedInput
-  const masked = Object.entries(input).some(([key, value]) => {
+  const masked = aliasCollision(input) || Object.entries(input).some(([key, value]) => {
     if (!filled(value)) return false
     if (!SHOWN_FIELDS.has(key)) return true
     if (ATTACHMENT_FIELDS.includes(key)) return !Array.isArray(value) || value.some(item => attachmentName(item) === undefined)

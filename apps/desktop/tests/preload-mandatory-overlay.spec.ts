@@ -47,6 +47,21 @@ function setup() {
   return { publish, view, root, frame, focus, host: root.host as HTMLElement }
 }
 
+it('asks for the status and draws NOTHING when updates are off and main answers "no policy" (null)', async () => {
+  dom = new JSDOM('<html><body><button>Product action</button></body></html>', { url: 'dsh-app://app/' })
+  vi.stubGlobal('window', dom.window)
+  vi.stubGlobal('document', dom.window.document)
+  vi.stubGlobal('HTMLElement', dom.window.HTMLElement)
+  vi.spyOn(dom.window.document, 'readyState', 'get').mockReturnValue('complete')
+  const shadow = vi.spyOn(dom.window.HTMLElement.prototype, 'attachShadow')
+  ipc.invoke.mockImplementation((async (name: string) => (name === MANDATORY_IPC.status ? null : undefined)) as never)
+  installMandatoryUpdateOverlay()
+  await new Promise<void>((resolve) => { setTimeout(resolve, 0) })
+  expect(ipc.invoke).toHaveBeenCalledWith(MANDATORY_IPC.status)
+  expect(shadow).not.toHaveBeenCalled()
+  expect(dom.window.document.querySelector('iframe')).toBeNull()
+})
+
 it('uses an in-page frame below the caption and reuses it on updates', () => {
   const f = setup()
   expect(f.host.style.top).toBe('40px')

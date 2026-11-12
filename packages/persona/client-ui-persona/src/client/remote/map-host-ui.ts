@@ -82,6 +82,8 @@ export function mapTaskToKanbanCard(
     assigneeState: deriveCardAssigneeState(task, column),
     ...(task.question === undefined || task.question.trim() === '' ? {} : { question: task.question.trim() }),
     ...(task.questionStreamId === undefined || task.questionStreamId === '' ? {} : { questionStreamId: task.questionStreamId }),
+    // Keel 12/11: why a stopped card stopped (the host's plain line); only in Bloqueado, and gone when empty.
+    ...(column !== 'blocked' || task.blockedReason === undefined || task.blockedReason.trim() === '' ? {} : { blockedReason: task.blockedReason.trim() }),
   }
 }
 

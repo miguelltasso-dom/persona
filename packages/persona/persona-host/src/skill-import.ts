@@ -58,6 +58,8 @@ export interface SkillImportPreview {
 export const SKILL_ARCHIVE_MAX_BYTES = 8 * 1024 * 1024
 export const SKILL_FILE_MAX_BYTES = 512 * 1024
 export const SKILL_ARCHIVE_MAX_FILES = 200
+/** Carbon P0-03: the DECOMPRESSED size of the tar. A gzip bomb is a few KB that unpack to gigabytes: the unzip stops here, before the memory is taken. */
+export const SKILL_TAR_MAX_BYTES = 16 * 1024 * 1024
 
 const SCRIPT = /\.(?:sh|bash|zsh|ps1|bat|cmd|py|js|mjs|cjs|ts|rb|pl|exe|dll)$/iu
 
@@ -91,10 +93,11 @@ export function readArchive(bytes: Uint8Array, link: SkillLink): { files: Archiv
   const ignored: IgnoredFile[] = []
   let tar: Buffer
   try {
-    tar = gunzipSync(bytes)
+    tar = gunzipSync(bytes, { maxOutputLength: SKILL_TAR_MAX_BYTES })
   } catch (error) {
-    void error
-    return { files: [], ignored: [{ path: '*', reason: 'O arquivo não é um pacote do GitHub.' }] }
+    // A bomb (the unpacked size passes the limit) is a different sentence from a file that is not a package at all.
+    const tooBig = error instanceof RangeError || (error as { code?: string }).code === 'ERR_BUFFER_TOO_LARGE'
+    return { files: [], ignored: [{ path: '*', reason: tooBig ? 'O pacote é grande demais para trazer uma skill.' : 'O arquivo não é um pacote do GitHub.' }] }
   }
   let offset = 0
   let count = 0
@@ -105,6 +108,9 @@ export function readArchive(bytes: Uint8Array, link: SkillLink): { files: Archiv
     const prefix = cString(header, 345, 155)
     const full = prefix === '' ? name : `${prefix}/${name}`
     const size = octal(header, 124, 12)
+    // Carbon P0-03: a size that is not plain octal (a sign, letters, a base-256 marker) is a hostile or broken archive. It used to be read as a negative number and the offset stopped
+    // advancing (an endless loop on the host's thread): nothing of such an archive is trusted.
+    if (size === undefined) return { files: [], ignored: [{ path: full === '' ? '*' : full, reason: 'O pacote está malformado (tamanho inválido num cabeçalho).' }] }
     const type = String.fromCharCode(header[156] ?? 0)
     offset += 512 + Math.ceil(size / 512) * 512
     if (type !== '0' && type !== '') continue // directories (5), symlinks (2), pax headers (x/g): never read
@@ -123,7 +129,9 @@ export function readArchive(bytes: Uint8Array, link: SkillLink): { files: Archiv
       ignored.push({ path: relative, reason: 'O arquivo é grande demais.' })
       continue
     }
-    const body = tar.subarray(offset - Math.ceil(size / 512) * 512, offset - Math.ceil(size / 512) * 512 + size)
+    const bodyStart = offset - Math.ceil(size / 512) * 512
+    if (bodyStart + size > tar.length) return { files: [], ignored: [{ path: relative, reason: 'O pacote está incompleto.' }] }
+    const body = tar.subarray(bodyStart, bodyStart + size)
     if (body.includes(0)) {
       ignored.push({ path: relative, reason: 'O arquivo não é texto.' })
       continue
@@ -227,10 +235,11 @@ function cString(header: Buffer, start: number, length: number): string {
   return slice.subarray(0, end < 0 ? slice.length : end).toString('utf8')
 }
 
-function octal(header: Buffer, start: number, length: number): number {
+/** @returns The octal field as a number (an empty field is 0), or undefined when it is anything but 1-12 octal digits: the old parser took "-1000" as -512. */
+function octal(header: Buffer, start: number, length: number): number | undefined {
   const text = cString(header, start, length).trim()
-  const value = Number.parseInt(text === '' ? '0' : text, 8)
-  return Number.isFinite(value) ? value : 0
+  if (text === '') return 0
+  return /^[0-7]{1,12}$/u.test(text) ? Number.parseInt(text, 8) : undefined
 }
 
 /** A path that would leave the archive (absolute, `..`, drive letter) is never read. */

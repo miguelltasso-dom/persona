@@ -111,6 +111,40 @@ const onData = async (chunk) => {
           notes.push(`[${tag}] depois do clique: "enviar" ligada? ${await sendSwitch.getAttribute('aria-checked')}`)
           saved.push(await shot(zoom.name === '100' ? card : page, `travas-ligada-${tag}`))
           if (lockOn) { await sendSwitch.click({ timeout: 8000 }); await page.waitForTimeout(1200); lockOn = false }
+
+          // Janela de silêncio (Muse 07:07): vazio → formulário → lista com "Agora em silêncio" → desligada com Desfazer → confirmar apagar → vazio de novo (o host fica limpo).
+          const quiet = page.locator('[data-quiet-windows]').first()
+          await quiet.waitFor({ timeout: 15_000 })
+          const quietCard = quiet.locator('xpath=ancestor::section[1]')
+          const quietFrame = zoom.name === '100' ? quietCard : page
+          await quietCard.scrollIntoViewIfNeeded()
+          await page.waitForTimeout(300)
+          saved.push(await shot(quietFrame, `janela-vazia-${tag}`))
+          await page.getByRole('button', { name: '+ Nova janela de silêncio' }).click()
+          const around = (offsetHours) => {
+            const at = new Date(Date.now() + offsetHours * 3_600_000)
+            return `${String(at.getHours()).padStart(2, '0')}:${String(at.getMinutes()).padStart(2, '0')}`
+          }
+          await page.getByLabel('Das').fill(around(-1))
+          await page.getByLabel('às').fill(around(1))
+          await quietCard.scrollIntoViewIfNeeded()
+          saved.push(await shot(quietFrame, `janela-formulario-${tag}`))
+          await page.getByRole('button', { name: 'Salvar', exact: true }).click()
+          await page.locator('[data-quiet-window]').first().waitFor({ timeout: 10_000 })
+          await page.waitForTimeout(500)
+          notes.push(`[${tag}] janela salva; chip "Agora em silêncio" visível? ${await page.getByText(/Agora em silêncio até/u).count() > 0}`)
+          saved.push(await shot(quietFrame, `janela-lista-${tag}`))
+          await page.locator('[data-quiet-window] [role="switch"]').first().click()
+          await page.getByText('Janela desligada').waitFor({ timeout: 10_000 })
+          saved.push(await shot(quietFrame, `janela-desligada-${tag}`))
+          await page.getByRole('button', { name: 'Desfazer' }).click()
+          await page.waitForTimeout(700)
+          await page.getByRole('button', { name: 'Apagar', exact: true }).first().click()
+          await page.getByText('Apagar esta janela?').waitFor({ timeout: 5000 })
+          notes.push(`[${tag}] foco em "Manter"? ${await page.getByRole('button', { name: 'Manter' }).evaluate(node => node === document.activeElement)}`)
+          saved.push(await shot(quietFrame, `janela-apagar-${tag}`))
+          await page.getByRole('button', { name: 'Apagar', exact: true }).click()
+          await page.waitForTimeout(700)
         } catch (error) {
           notes.push(`[${tag}] FALHOU: ${error instanceof Error ? error.message.slice(0, 220) : String(error)}`)
           await page.screenshot({ path: `${outDir}/debug-${tag}.png` }).catch(() => undefined)

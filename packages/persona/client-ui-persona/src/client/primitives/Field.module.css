@@ -22,7 +22,7 @@
   border-radius: var(--persona-radius-m);
   background: var(--persona-card);
   color: var(--persona-ink);
-  font: 500 16px/22px var(--persona-font-text);
+  font: 400 16px/22px var(--persona-font-text);
   box-shadow: inset 0 2px 0 rgb(52 36 63 / 0.06);
   transition:
     border-color var(--motion-fast) var(--ease-standard),

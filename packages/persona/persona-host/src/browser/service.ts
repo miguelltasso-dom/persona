@@ -59,6 +59,8 @@ export interface BrowserServiceDeps {
    * person has the window.
    */
   readonly onTakeover?: (previous: TurnHolder) => void
+  /** Carbon P0-05a: a profile's Chrome was closed (one profile, or all of them at shutdown): whatever the host held about its traffic can be let go. */
+  readonly onClosed?: (profileId: string) => void
 }
 
 /** What the screen shows for one profile. */
@@ -208,7 +210,13 @@ export class BrowserService {
       throw new BrowserDeniedError('sem-vez', 'outra pessoa ou persona está usando este perfil agora')
     }
     const current = this.sessions.get(profileId)
-    if (current !== undefined) return { port: current.port, version: current.version }
+    if (current !== undefined) {
+      // P0-01: a Task that finds the Chrome already open is its opener now (the previous Task's pin went back with its turn): the live session pins the turn again, or it would lapse after
+      // the idle time and another persona could take the page in the middle of her work.
+      const turn = this.turns.get(profileId)
+      if (turn !== undefined) this.openers.set(profileId, turn)
+      return { port: current.port, version: current.version }
+    }
     const chrome = (this.deps.chrome ?? findChrome)()
     if (chrome === undefined) throw new BrowserDeniedError('sem-chrome', 'o Google Chrome não está instalado neste computador')
     const dir = profileFolder(this.deps.dataRoot, profileId)
@@ -292,7 +300,11 @@ export class BrowserService {
     if (session === undefined) return
     this.sessions.delete(profileId)
     this.openers.delete(profileId)
-    await session.close()
+    try {
+      await session.close()
+    } finally {
+      this.deps.onClosed?.(profileId)
+    }
   }
 
   /** What the screen shows. */
@@ -305,10 +317,16 @@ export class BrowserService {
 
   /** Stop every Chrome (host shutdown). */
   async closeAll(): Promise<void> {
-    const sessions = [...this.sessions.values()]
+    const sessions = [...this.sessions.entries()]
     this.sessions.clear()
     this.openers.clear()
-    await Promise.all(sessions.map(session => session.close()))
+    await Promise.all(sessions.map(async ([profileId, session]) => {
+      try {
+        await session.close()
+      } finally {
+        this.deps.onClosed?.(profileId)
+      }
+    }))
   }
 
   private now(): number {

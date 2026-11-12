@@ -106,4 +106,9 @@ describe('harness MCP tools (board, sprints, routines)', () => {
     const move = harnessMcpTools(run, wired(['board_card_move']), 'write')[0]!
     expect(move.inputSchema.required).toEqual(['ticketId', 'columnId'])
   })
+
+  it('Carbon P1-02: ask_vault_code REQUIRES the login (the code is typed later only into the page of that login)', () => {
+    const ask = harnessMcpTools(run, wired(['ask_vault_code']), 'read')[0]!
+    expect(ask.inputSchema.required).toEqual(['reason', 'login'])
+  })
 })

@@ -1,0 +1,108 @@
+{
+  "geradoEm": "2026-11-12T12:19:14.629Z",
+  "why": "Dívida de lint conhecida (Carbon P2-01): o gate perdoa ATÉ estes números por arquivo e regra; erro a mais é novo e reprova. Só pode descer: regere depois de pagar (node scripts/persona/check-lint-staged.mjs --write-baseline ...).",
+  "allow": {
+    "apps/desktop/src/main.ts": {
+      "eslint(prefer-const)": 2,
+      "@stylistic(max-len)": 3
+    },
+    "apps/desktop/scripts/runtime-lockfile-drift.ts": {
+      "@stylistic(max-len)": 2
+    },
+    "apps/desktop/src/quit-watchdog.ts": {
+      "@stylistic(max-len)": 5
+    },
+    "apps/desktop/tests/computer-use-bind.spec.ts": {
+      "@stylistic(max-len)": 1
+    },
+    "apps/desktop/src/tray.ts": {
+      "eslint(no-unused-expressions)": 1
+    },
+    "apps/desktop/scripts/runtime-patch-policy.ts": {
+      "@stylistic(max-len)": 1
+    },
+    "apps/desktop/src/preload-app.ts": {
+      "@stylistic(max-len)": 1
+    },
+    "apps/desktop/tests/teach-ipc.spec.ts": {
+      "@stylistic(max-len)": 1
+    },
+    "apps/desktop/tests/runtime-lockfile-drift.spec.ts": {
+      "@stylistic(max-len)": 1
+    },
+    "apps/desktop/tests/quit-watchdog.spec.ts": {
+      "@stylistic(max-len)": 3
+    },
+    "packages/boot/hmr/tests/node-internals-cache.spec.ts": {
+      "typescript(no-dynamic-delete)": 1
+    },
+    "packages/boot/app-boot/src/profile-resolution/node-internals.ts": {
+      "@stylistic(max-len)": 1
+    },
+    "packages/boot/app-boot/tests/node-internals-cache.spec.ts": {
+      "typescript(no-dynamic-delete)": 1
+    },
+    "packages/boot/hmr/src/node-internals.ts": {
+      "@stylistic(max-len)": 1
+    },
+    "packages/persona/client-ui-persona/src/client/bring-context/BringYourContextBlock.tsx": {
+      "eslint(no-restricted-properties)": 1
+    },
+    "packages/persona/client-ui-persona/src/client/kanban/use-sprint-planning-state.ts": {
+      "eslint(no-restricted-properties)": 1
+    },
+    "packages/persona/client-ui-persona/src/client/importers/ImportWizard.tsx": {
+      "eslint(no-restricted-properties)": 1
+    },
+    "packages/persona/client-ui-persona/src/client/kanban/WorkflowEditorModal.tsx": {
+      "eslint(no-unused-vars)": 2
+    },
+    "packages/persona/client-ui-persona/src/client/data/vault-documents-remote.ts": {
+      "eslint(no-restricted-properties)": 1
+    },
+    "packages/persona/client-ui-persona/src/client/kanban/workflow-editor-draft.ts": {
+      "eslint(no-restricted-properties)": 2
+    },
+    "packages/persona/client-ui-persona/src/client/review/simple/patch-to-changes.ts": {
+      "sonarjs(no-duplicated-branches)": 2
+    },
+    "packages/persona/client-ui-persona/tests/host-queue.client.spec.tsx": {
+      "@stylistic(member-delimiter-style)": 5
+    },
+    "packages/persona/client-ui-persona/tests/use-working-queue.client.spec.tsx": {
+      "@stylistic(arrow-parens)": 1
+    },
+    "packages/persona/persona-host/tests/bug-crash-1.host.spec.ts": {
+      "@stylistic(arrow-parens)": 1
+    },
+    "packages/persona/persona-runners/scripts/ht0-codex-spike.ts": {
+      "@stylistic(member-delimiter-style)": 3
+    },
+    "packages/persona/persona-runners/scripts/ht0-claude-spike.ts": {
+      "@stylistic(member-delimiter-style)": 3
+    },
+    "scripts/test-dom-environment.ts": {
+      "@stylistic(max-len)": 2
+    },
+    "scripts/persona/muse-accept-gallery/conversas.tsx": {
+      "typescript(no-non-null-assertion)": 8,
+      "@stylistic(max-len)": 4
+    },
+    "scripts/persona/muse-accept-gallery/baloes.tsx": {
+      "@stylistic(max-len)": 1,
+      "sonarjs(no-all-duplicated-branches)": 1
+    },
+    "scripts/persona/prism-accept-gallery/entry.tsx": {
+      "typescript(no-non-null-assertion)": 17,
+      "@stylistic(max-len)": 10
+    },
+    "scripts/persona/lumen-sheet-fit/entry.tsx": {
+      "typescript(no-non-null-assertion)": 1,
+      "@stylistic(max-len)": 2
+    },
+    "scripts/persona/lumen-review-gallery/entry.tsx": {
+      "typescript(no-non-null-assertion)": 11,
+      "@stylistic(max-len)": 5
+    }
+  }
+}

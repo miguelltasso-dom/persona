@@ -55,7 +55,7 @@ import { TurnStepSummary } from './work-step/TurnStepSummary.tsx'
 import { StickerComposeBar } from './StickerComposeBar.tsx'
 import { VoiceComposeButton } from './voice-compose/VoiceComposeButton.tsx'
 import { AudioAttachmentSlot } from './voice-compose/AudioAttachmentSlot.tsx'
-import { sendVoiceMessage } from '../voice/voice-send.ts'
+import { sendVoiceAfterTranscription, type VoiceTranscribe } from '../voice/voice-send.ts'
 import { typingPersona } from './typing-indicator.ts'
 import { bubbleNeedsWidth, groupPositions, type GroupPosition } from './message-grouping.ts'
 import { SubjectBar, type SubjectBarProps } from './SubjectBar.tsx'
@@ -103,6 +103,7 @@ import { FanoutBlock } from './fanout/FanoutBlock.tsx'
 import { OpinionBlock, type OpinionActions } from './opinion/OpinionBlock.tsx'
 import { buildOpinionBlocks } from './opinion/opinion-model.ts'
 import type { RunErrorHandlerContext } from './run-error-handlers.ts'
+import type { ChannelHeaderUi } from './channel-header.ts'
 import styles from './GeneralChannelView.module.css'
 
 export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
@@ -125,6 +126,8 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly onFanoutChoiceChange?: ((choice: FanoutChoice | undefined) => void) | undefined
   readonly fanoutEstimate?: FanoutEstimateUi | undefined
   readonly uploadAttachment?: ((file: File) => Promise<{ readonly id: string; readonly name: string }>) | undefined
+  /** P1-03 (Carbon): o transcritor da voz. Sem ele o microfone não aparece (nada de voz pela metade). */
+  readonly voiceTranscriber?: VoiceTranscribe | undefined
   /** Empty-team CTA in the banner (Prism wires: open onboarding/team builder). */
   readonly onBuildTeam?: (() => void) | undefined
   /** Header ? → Ajuda (guide canais). */
@@ -166,6 +169,8 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   readonly onOpenPersonaDm?: ((personaId: string) => void) | undefined
   /** CV-6 (host): o nome da equipe para a qual o canal nasceu; mostra "Canal criado para a equipe de {team}" no começo do fio. */
   readonly createdForTeam?: string | undefined
+  /** Item 22 (atrás de `persona.flag.channelSections`): o cabeçalho de OUTRO canal ("#vendas" e "Respondem aqui: Lia e Téo"); ausente = o do #geral, como sempre. */
+  readonly channelHeader?: ChannelHeaderUi | undefined
   readonly memberId?: string | undefined
   readonly onToggleReaction?: ((messageId: string, stickerId: ReactionId) => void) | undefined
   /** WAVE2 assuntos (Prism data; Muse styles SubjectBar). */
@@ -275,11 +280,13 @@ export function GeneralChannelView({
   taskProposals,
   asideSlot,
   uploadAttachment,
+  voiceTranscriber,
   team = null,
   personaCard,
   openPersonaProfile,
   onOpenPersonaDm,
   createdForTeam,
+  channelHeader,
   memberId,
   onToggleReaction,
   subjectBar,
@@ -328,26 +335,43 @@ export function GeneralChannelView({
   // COLHEITA §14 (Quill): a figurinha armada no composer; a dica aparece só no primeiro envio desta sessão.
   const [armedSticker, setArmedSticker] = useState<ReactionId | null>(null)
   const [stickerHintPending, setStickerHintPending] = useState(true)
-  // COLHEITA-S1 P1-05: o microfone do composer sobe o áudio pelo mesmo caminho das imagens (sendVoiceMessage) e posta com o anexo.
-  const renderVoiceSlot = (empty: boolean): ReactNode => (
-    <VoiceComposeButton
-      t={shellT}
-      empty={empty}
-      onSendVoice={async (recording) => {
-        if (uploadAttachment === undefined || onSendMessage === undefined) return
-        await sendVoiceMessage(
-          {
-            uploadChannelAttachment: uploadAttachment,
-            uploadDmAttachment: uploadAttachment,
-            postChannelMessage: async (body, ids) => { onSendMessage(body, ids) },
-            postDmMessage: async (body, ids) => { onSendMessage(body, ids) },
-          },
-          recording,
-          'channel',
-        )
-      }}
-    />
-  )
+  // COLHEITA-S1 P1-03 (Carbon; Keel 09:53): sem transcritor pronto não há microfone na tela. Com ele, o áudio é transcrito ANTES de
+  // enviar; se a transcrição falhar, nada é postado e o aviso aparece no composer (rede de segurança).
+  const [voiceWarning, setVoiceWarning] = useState<string | undefined>(undefined)
+  // Keel 10:29: enquanto o transcritor prepara (1º uso baixa o modelo), a frase da Persona; sem o aviso de download, "Preparando…".
+  const [voiceStatus, setVoiceStatus] = useState<string | undefined>(undefined)
+  const renderVoiceSlot = (empty: boolean): ReactNode => {
+    if (voiceTranscriber === undefined) return null
+    const transcribe = voiceTranscriber
+    return (
+      <>
+        <VoiceComposeButton
+          t={shellT}
+          empty={empty}
+          onSendVoice={async (recording) => {
+            if (uploadAttachment === undefined || onSendMessage === undefined) return
+            setVoiceStatus(shellT('voice.downloadingFirstUse'))
+            const outcome = await sendVoiceAfterTranscription(
+              {
+                uploadChannelAttachment: uploadAttachment,
+                uploadDmAttachment: uploadAttachment,
+                postChannelMessage: async (body, ids) => { onSendMessage(body, ids) },
+                postDmMessage: async (body, ids) => { onSendMessage(body, ids) },
+              },
+              recording,
+              'channel',
+              transcribe,
+              { onDownloading: () => { setVoiceStatus(shellT('voice.downloadingFirstUse')) } },
+            )
+            setVoiceStatus(undefined)
+            setVoiceWarning(outcome.status === 'unavailable' ? shellT('voice.transcribeUnavailable') : undefined)
+          }}
+        />
+        {voiceStatus === undefined ? null : <span role="status" className={styles.voiceWarning}>{voiceStatus}</span>}
+        {voiceWarning === undefined ? null : <span role="alert" className={styles.voiceWarning}>{voiceWarning}</span>}
+      </>
+    )
+  }
   /** P0-19: "A cota voltou · N mensagens saíram da fila". */
   const [quotaBackCount, setQuotaBackCount] = useState<number | null>(null)
   const queueSeq = useRef(nextQueueSeq(localQueued))
@@ -648,13 +672,15 @@ export function GeneralChannelView({
           // CV-2: a barra única já diz onde a pessoa está ("Conversas" deixou de ser um lugar): sem eyebrow; "# nome",
           // a equipe do canal e os rostos empilhados.
           <div className={styles.headerTitles}>
-            <h1 className={styles.channelTitle}>{t('header.channelGeneral')}</h1>
+            <h1 className={styles.channelTitle}>{channelHeader?.title ?? t('header.channelGeneral')}</h1>
             <p className={styles.subtitle}>
-              {members.length === 0
-                ? t('header.subtitle')
-                : createdForTeam === undefined
-                  ? t(members.length === 1 ? 'header.teamLine.one' : 'header.teamLine', { count: members.length })
-                  : t(members.length === 1 ? 'header.teamLineFor.one' : 'header.teamLineFor', { team: createdForTeam, count: members.length })}
+              {channelHeader !== undefined && channelHeader.respondem !== ''
+                ? channelHeader.respondem
+                : members.length === 0
+                  ? t('header.subtitle')
+                  : createdForTeam === undefined
+                    ? t(members.length === 1 ? 'header.teamLine.one' : 'header.teamLine', { count: members.length })
+                    : t(members.length === 1 ? 'header.teamLineFor.one' : 'header.teamLineFor', { team: createdForTeam, count: members.length })}
             </p>
           </div>
         ) : (
@@ -1297,7 +1323,8 @@ export function MessageList({ t, team = null, messages: allMessages, gestorPlans
           className={styles.messagesVirtual}
           rowCount={messages.length}
           rowHeight={CHAT_MESSAGE_ROW_PX}
-          ariaLabel={t('stream.today')}
+          ariaLabel={t('stream.messagesLabel')}
+          listRole
           getRowKey={index => messages[index]?.id ?? `msg-row-${index}`}
           renderRow={index => (
             <div className={styles.messageVirtualSlot}>

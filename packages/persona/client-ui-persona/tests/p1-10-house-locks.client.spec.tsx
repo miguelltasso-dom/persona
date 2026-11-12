@@ -112,6 +112,8 @@ describe('Regras ligada ao host (RemoteRulesPanel)', () => {
       getRuleKinds: vi.fn(ok(KINDS)),
       putTriageRule: vi.fn(ok({})),
       deleteTriageRule: vi.fn(ok(true)),
+      putQuietWindow: vi.fn(ok({})),
+      deleteQuietWindow: vi.fn(ok(true)),
       ...extra,
     }
     render(
@@ -127,7 +129,42 @@ describe('Regras ligada ao host (RemoteRulesPanel)', () => {
     expect((await screen.findByRole('switch', { name: 'Nunca gastar sem mim' })).getAttribute('aria-checked')).toBe('true')
     expect(screen.getByRole('switch', { name: 'Nunca enviar sem mim' }).getAttribute('aria-checked')).toBe('false')
     expect(screen.getByText('Barrou 2 vezes esta semana · última: pagar pelo Gmail')).toBeTruthy()
-    expect(screen.getByText('Noite: 22:00–07:00')).toBeTruthy()
+    expect(screen.getByText('Toda noite · 22h às 7h · Toda a equipe')).toBeTruthy()
+  })
+
+  it('pagar e apagar vêm LIGADAS e TRAVADAS (sempre pedem a você): a chave não desliga e a linha diz por quê (Muse 07:07)', async () => {
+    const persona = mount({}, []) // nem regra salva: a tela diz a verdade, pagar e apagar sempre pedem
+    for (const name of ['Nunca gastar sem mim', 'Nunca apagar sem mim']) {
+      const lock = await screen.findByRole('switch', { name })
+      expect(lock.getAttribute('aria-checked')).toBe('true')
+      expect((lock as HTMLButtonElement).disabled).toBe(true)
+      fireEvent.click(lock)
+    }
+    expect(screen.getAllByText('Sempre ligada: pagar e apagar sempre pedem a você.')).toHaveLength(2)
+    expect(persona.deleteTriageRule).not.toHaveBeenCalled()
+    expect(persona.putTriageRule).not.toHaveBeenCalled()
+    // as outras três seguem livres
+    expect((screen.getByRole('switch', { name: 'Nunca enviar sem mim' }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  it('a janela de silêncio: desligar apaga no host SEM recarregar a tela (o rascunho e o "Desfazer" ficam), e Desfazer grava de volta com os mesmos campos', async () => {
+    const persona = mount()
+    const row = await screen.findByText('Toda noite · 22h às 7h · Toda a equipe')
+    const quiet = row.closest('[data-quiet-window]') as HTMLElement
+    fireEvent.click(quiet.querySelector('[role="switch"]')!)
+    await waitFor(() => { expect(persona.deleteQuietWindow).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'proj', id: 'q1' }) })
+    expect(await screen.findByText('Janela desligada')).toBeTruthy()
+    expect(persona.listQuietWindows).toHaveBeenCalledTimes(1) // nada de recarregar: a tela de "carregando" levaria o Desfazer junto
+    fireEvent.click(screen.getByRole('button', { name: 'Desfazer' }))
+    await waitFor(() => { expect(persona.putQuietWindow).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'proj', id: 'q1', label: 'Noite', start: '22:00', end: '07:00' }) })
+  })
+
+  it('"+ Nova janela de silêncio" grava com início e fim e a janela entra na lista', async () => {
+    const persona = mount({ listQuietWindows: vi.fn(async () => ({ ok: true as const, value: [] })) })
+    fireEvent.click(await screen.findByRole('button', { name: '+ Nova janela de silêncio' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }))
+    await waitFor(() => { expect(persona.putQuietWindow).toHaveBeenCalledWith(expect.objectContaining({ workspaceId: 'ws', projectId: 'proj', start: '22:00', end: '07:00', label: 'Silêncio da equipe' })) })
+    expect(await screen.findByText('Toda noite · 22h às 7h · Toda a equipe')).toBeTruthy()
   })
 
   it('ligar uma trava grava a regra com o tipo (o host só obedece com `kind`), e a lista recarrega', async () => {
@@ -142,15 +179,15 @@ describe('Regras ligada ao host (RemoteRulesPanel)', () => {
   })
 
   it('desligar uma trava apaga a regra que a guarda', async () => {
-    const persona = mount()
-    fireEvent.click(await screen.findByRole('switch', { name: 'Nunca gastar sem mim' }))
-    await waitFor(() => { expect(persona.deleteTriageRule).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'proj', id: 'rule-77' }) })
+    const persona = mount({}, [RULE_SPEND, { ...RULE_SPEND, id: 'rule-88', gateText: 'Nunca enviar sem mim', kind: 'never-send', applied: undefined }])
+    fireEvent.click(await screen.findByRole('switch', { name: 'Nunca enviar sem mim' }))
+    await waitFor(() => { expect(persona.deleteTriageRule).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'proj', id: 'rule-88' }) })
   })
 
   it('um host que não conhece o contrato (sem getRuleKinds): a tela segue como antes, sem travas e sem janela', async () => {
     mount({ getRuleKinds: undefined })
     await screen.findByText('Nunca gastar sem mim') // a regra salva continua na lista
     expect(screen.queryByRole('switch', { name: 'Nunca enviar sem mim' })).toBeNull()
-    expect(screen.queryByText('Noite: 22:00–07:00')).toBeNull()
+    expect(screen.queryByText('Toda noite · 22h às 7h · Toda a equipe')).toBeNull()
   })
 })

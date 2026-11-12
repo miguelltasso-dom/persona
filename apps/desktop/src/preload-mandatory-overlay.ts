@@ -67,8 +67,9 @@ export function installMandatoryUpdateOverlay(): void {
     frame.focus()
   }
   ipcRenderer.on(MANDATORY_IPC.state, receive)
-  void ipcRenderer.invoke(MANDATORY_IPC.status).then((initial: MandatoryUpdateView) => {
-    if (!disposed && state === undefined) { state = initial; render() }
+  void ipcRenderer.invoke(MANDATORY_IPC.status).then((initial: MandatoryUpdateView | null) => {
+    // `null`: updates are off, so there is no mandatory policy to show (main answers it instead of leaving the call without a handler).
+    if (initial !== null && initial !== undefined && !disposed && state === undefined) { state = initial; render() }
   }, () => {
     // Development may omit policy configuration; a later main-frame load still resynchronizes configured policy.
   })

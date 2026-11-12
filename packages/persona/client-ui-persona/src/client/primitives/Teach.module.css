@@ -59,7 +59,7 @@
 
 .timer {
   min-width: 4ch;
-  font: 800 14px/1 var(--persona-font-text);
+  font: 600 14px/1 var(--persona-font-text);
   font-variant-numeric: tabular-nums;
 }
 

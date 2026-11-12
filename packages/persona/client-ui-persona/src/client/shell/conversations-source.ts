@@ -17,10 +17,14 @@ import { isRemoteResult } from '../remote/persona-remote-unwrap.ts'
 import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
 import type { ConversationChannel, ConversationPerson } from './conversations-model.ts'
 import type { RailPersona } from './RailTeam.tsx'
+import { mapChannelLayout, type ChannelLayoutWire } from './channel-sections.ts'
+import { isChannelSectionsEnabled } from './channel-sections-flag.ts'
 
 export interface ConversationsSource {
   readonly channels: readonly ConversationChannel[]
   readonly people: readonly ConversationPerson[]
+  /** Item 22 (atrás de `persona.flag.channelSections`): a barra como o host a arruma (canais sem seção, depois uma seção por equipe). Ausente = a lista de canais de sempre. */
+  readonly layout?: ChannelLayoutWire | undefined
 }
 
 export const EMPTY_CONVERSATIONS: ConversationsSource = { channels: [], people: [] }
@@ -218,13 +222,16 @@ export function createConversationsObservable(input: ConversationsObservableInpu
         lastLive = live
         lastRail = rail
         lastSectors = sectors
-        const next = mapConversationsSource({
+        const base = mapConversationsSource({
           rail,
           dms: live.dms,
           channelId: live.tenant?.channelId ?? null,
           generalName: input.generalName(),
           sectorByPersonaId: sectors,
         })
+        // Item 22: só com a flag ligada e o layout lido do host (um valor ruim vira `undefined`: a barra segue com os canais que tinha).
+        const layout = isChannelSectionsEnabled() ? mapChannelLayout(live.channelLayout) : undefined
+        const next: ConversationsSource = layout === undefined ? base : { ...base, layout }
         // O live muda a cada mensagem; a barra só precisa re-renderizar quando o que ela mostra mudou.
         const key = JSON.stringify(next)
         if (key !== lastKey) {

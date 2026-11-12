@@ -94,3 +94,17 @@ it('after a restart a bubble left open (`coord-<id>-reply`, type partial) is set
   expect(left?.type).not.toBe('partial')
   expect(left?.body ?? '').toContain('O pão francês custa R$ 0,90')
 })
+
+it('Carbon P1-04 + Muse: after a restart an EMPTY bubble (the host takes back a rejected first turn and was gone before the correction answered) is settled "Resposta cancelada.", never left spinning', async () => {
+  const h = host()
+  seed(h)
+  h.events.append({
+    id: 'coord-m-empty-reply', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral', type: 'partial',
+    body: '', actorId: 'coord', subjectId: 's', occurredAt: '2026-11-03T15:00:00.000Z',
+  })
+  h.events.append({ id: 'm-empty', workspaceId: 'ws', projectId: 'pp', streamKind: 'channel', ownerId: 'geral', type: 'message', body: 'Qual o preço do pão?', actorId: 'ana', subjectId: 's', occurredAt: '2026-11-03T14:59:00.000Z' })
+  await (h.orchestration as unknown as { recoverPartials(rt: unknown, projectId: string): Promise<void> }).recoverPartials(h.orchestration.runtime('pp'), 'pp')
+  const left = h.events.get('coord-m-empty-reply')
+  expect(left?.type).not.toBe('partial')
+  expect(left?.body).toBe('Resposta cancelada.')
+})

@@ -37,7 +37,7 @@
 .lead {
   margin: 2px 0 0;
   color: var(--persona-ink-soft);
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
 }
 
 .hint {
@@ -187,7 +187,7 @@
 .dropHint {
   margin: 0;
   color: var(--persona-ink-soft);
-  font: 500 13px/19px var(--persona-font-text);
+  font: 400 13px/19px var(--persona-font-text);
 }
 
 .ignored {
@@ -333,7 +333,7 @@
 .itemText {
   margin: 0;
   color: var(--persona-ink);
-  font: 500 15px/22px var(--persona-font-text);
+  font: 400 15px/22px var(--persona-font-text);
   overflow-wrap: anywhere;
 }
 
@@ -365,7 +365,7 @@
   flex: 1;
   min-width: 0;
   color: var(--persona-ink);
-  font: 500 15px/22px var(--persona-font-text);
+  font: 400 15px/22px var(--persona-font-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

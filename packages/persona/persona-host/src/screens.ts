@@ -34,6 +34,7 @@ import { canSaveFiles } from './file-tools.ts'
 import { resolveHireIdentity, type HireIdentity } from './hire-identity.ts'
 import { HouseRules, KIND_QUIET, KIND_RULE, isHouseRuleKind } from './house-rules.ts'
 import { memoryProofOf } from './owner-memory.ts'
+import { mayReadPrivateRecord } from './private-records.ts'
 import { declinePlaybookOffer } from './playbook.ts'
 import type { Orchestration } from './orchestration.ts'
 import type {
@@ -600,6 +601,8 @@ export class ScreensHost {
         if (record.kind !== 'memory' && proof === undefined) return []
         // "Revisão aceita: <id do ticket>" (written by the review, not by anyone): a technical receipt, not a memory. The playbook notes what matters, quietly.
         if (record.authorId === 'review') return []
+        // P1-NOVO: what was said to ONE persona (a DM) is private to who said it: no other member, not even the owner of the space, and nobody when the viewer is unknown.
+        if (!mayReadPrivateRecord(record, viewerId, proof?.byId)) return []
         return [{
           id: record.id, body: record.body,
           status: record.status === 'revoked' ? 'revoked' as const : 'active' as const,
@@ -1016,5 +1019,6 @@ function toSkillView(skill: StoredSkill): SkillView {
     sharedWithTeam: skill.sharedWithTeam,
     ...(skill.source === undefined ? {} : { source: skill.source }),
     ...(skill.untrusted === true ? { untrusted: true } : {}),
+    ...(skill.personaId === undefined ? {} : { personaId: skill.personaId }),
   }
 }

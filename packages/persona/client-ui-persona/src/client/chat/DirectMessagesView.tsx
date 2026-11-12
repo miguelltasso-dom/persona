@@ -18,6 +18,8 @@ import { typingPersona } from './typing-indicator.ts'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import type { ChannelMessageUi } from '../remote/map-host-ui.ts'
 import { ChannelComposer } from './ChannelComposer.tsx'
+import { VoiceComposeButton } from './voice-compose/VoiceComposeButton.tsx'
+import { sendVoiceAfterTranscription, type VoiceTranscribe } from '../voice/voice-send.ts'
 import { SubjectBar, type SubjectBarProps } from './SubjectBar.tsx'
 import { DEFAULT_CONVERSATION_SUBJECT_ID } from './conversation-subjects.ts'
 import { MessageList } from './GeneralChannelView.tsx'
@@ -46,6 +48,8 @@ export interface DmRowUi {
   readonly draftFiles?: number | undefined
   readonly quiet?: boolean | undefined
   readonly paused?: boolean | undefined
+  /** A frase do passo ("Procurando fotos da padaria"), só com a persona trabalhando e quando o host a sabe (`ChannelPersonaMember.step`). */
+  readonly step?: string | undefined
   /** CV-2: a tarefa em que a persona trabalha agora (título real, ao vivo); ausente = sem tarefa em andamento. */
   readonly workingOn?: string | undefined
   readonly unread?: number | undefined
@@ -70,6 +74,8 @@ export interface DirectMessagesViewProps {
   readonly onSelect: (dmId: string) => void
   readonly onSend: (body: string, attachmentIds?: readonly string[]) => void
   readonly uploadAttachment?: ((file: File) => Promise<{ readonly id: string; readonly name: string }>) | undefined
+  /** P1-03 (Carbon): o transcritor da voz. Sem ele o microfone da DM não aparece. */
+  readonly voiceTranscriber?: VoiceTranscribe | undefined
   readonly onNewConversation?: (() => void) | undefined
   /** "Contexto usado" for a task cited in the DM (same drawer as #geral). */
   readonly turnContext?: TurnContextUi | null | undefined
@@ -145,7 +151,7 @@ function portraitFor(row: DmRowUi): string | undefined {
 /** Mensagens diretas: conversation list + thread with persona header, shared stream and composer. */
 export function DirectMessagesView({
   listInRail: listInRailProp,
-  t, shellT, loading, dms, selectedId, messages, onSelect, onSend, uploadAttachment, onNewConversation, turnContext, turnActivityLabels, onLoadTurnContext, onOpenTaskOnBoard, memberId, onToggleReaction,
+  t, shellT, loading, dms, selectedId, messages, onSelect, onSend, uploadAttachment, voiceTranscriber, onNewConversation, turnContext, turnActivityLabels, onLoadTurnContext, onOpenTaskOnBoard, memberId, onToggleReaction,
   subjectBar, composerSubjectPlaceholder, composerSubjectColorIndex,
   subjectMoveTargets, onMoveMessageSubject, onUndoMoveMessage,
   subjectsLoadError = null,
@@ -191,8 +197,52 @@ export function DirectMessagesView({
   const lampRef = useLampLight<HTMLElement>(lamp, `${selected?.id ?? ''}:${String(messages.length)}`)
   // FL-11: a persona da conversa é o único "responder" (o seletor não existe na DM); só com o controle de trabalho ligado ela entra no composer.
   const [editingQueuedId, setEditingQueuedId] = useState<string | null>(null)
+  // COLHEITA-S1 P1-03 (Carbon; Keel 09:53): sem transcritor pronto não há microfone na DM. Com ele, transcreve ANTES de enviar;
+  // sem transcrição, nada é postado e o aviso aparece (rede de segurança).
+  const [dmVoiceWarning, setDmVoiceWarning] = useState<string | undefined>(undefined)
+  // Keel 10:29: enquanto o transcritor prepara (1º uso baixa o modelo), a frase da Persona.
+  const [dmVoiceStatus, setDmVoiceStatus] = useState<string | undefined>(undefined)
+  const renderVoiceSlot = (empty: boolean): ReactNode => {
+    if (voiceTranscriber === undefined) return null
+    const transcribe = voiceTranscriber
+    return (
+      <>
+        <VoiceComposeButton
+          t={shellT}
+          empty={empty}
+          onSendVoice={async (recording) => {
+            if (uploadAttachment === undefined) return
+            setDmVoiceStatus(shellT('voice.downloadingFirstUse'))
+            const outcome = await sendVoiceAfterTranscription(
+              {
+                uploadChannelAttachment: uploadAttachment,
+                uploadDmAttachment: uploadAttachment,
+                postChannelMessage: async (body, ids) => { onSend(body, ids) },
+                postDmMessage: async (body, ids) => { onSend(body, ids) },
+              },
+              recording,
+              'dm',
+              transcribe,
+              { onDownloading: () => { setDmVoiceStatus(shellT('voice.downloadingFirstUse')) } },
+            )
+            setDmVoiceStatus(undefined)
+            setDmVoiceWarning(outcome.status === 'unavailable' ? shellT('voice.transcribeUnavailable') : undefined)
+          }}
+        />
+        {dmVoiceStatus === undefined ? null : <span role="status" className={styles.voiceWarning}>{dmVoiceStatus}</span>}
+        {dmVoiceWarning === undefined ? null : <span role="alert" className={styles.voiceWarning}>{dmVoiceWarning}</span>}
+      </>
+    )
+  }
   const peer: ChannelPersonaMember | undefined = selected !== null && selected.characterId !== undefined && (hostQueue !== undefined || turnControls !== undefined)
-    ? { id: selected.characterId as ChannelPersonaMember['id'], name: selected.peerName, role: selected.role ?? '', state: selected.state ?? 'resting' }
+    ? {
+      id: selected.characterId as ChannelPersonaMember['id'], name: selected.peerName, role: selected.role ?? '', state: selected.state ?? 'resting',
+      // P1-11: the facts that narrow her state and the phrase of her step (the line under "escrevendo…") come with the row.
+      ...(selected.draftFiles === undefined ? {} : { draftFiles: selected.draftFiles }),
+      ...(selected.quiet === true ? { quiet: true } : {}),
+      ...(selected.paused === true ? { paused: true } : {}),
+      ...(selected.step === undefined ? {} : { step: selected.step }),
+    }
     : undefined
   // O Toast do Tirar e o aviso do host somem sozinhos (a mensagem é do host, o tempo é nosso).
   const hostRemoved = hostQueue?.removed ?? null
@@ -459,6 +509,7 @@ export function DirectMessagesView({
                 {...(responderEngine === undefined ? {} : { responderEngine })}
                 // O histórico (↑) e o rascunho guardado (Ctrl+S) são de CADA conversa, não de todas as DMs juntas.
                 conversationKey={`dm:${selected.id}`}
+                voiceSlot={renderVoiceSlot}
                 {...(slashActions === undefined ? {} : { slashActions })}
                 {...(engineLimits === undefined ? {} : { engineLimits })}
                 {...(onOpenLimits === undefined ? {} : { onOpenLimits })}

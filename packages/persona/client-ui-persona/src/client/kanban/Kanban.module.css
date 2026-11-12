@@ -211,16 +211,30 @@
   gap: var(--persona-space-2);
 }
 
-/* Muse (12/11): why a card in Bloqueado stopped: one line, 13 px, muted, under the title. */
+/* Muse (12/11): the state chip of a card breaks into 2 lines in a narrow column; it is never cut with an ellipsis. */
+.stateChip {
+  height: auto;
+  min-width: 0;
+  max-width: 100%;
+  padding-block: 2px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  overflow: visible;
+  text-overflow: clip;
+  text-align: left;
+}
+
+/* Muse (12/11): why a card in Bloqueado stopped: up to 2 lines, 13 px, muted, under the title (the whole text is in the title attribute and the card's label; the open card shows it whole). */
 .cardReason {
   margin: 0 0 var(--persona-space-1);
   font-size: 0.8125rem;
   line-height: 1.3;
   color: var(--persona-ink-soft);
   min-width: 0;
-  white-space: nowrap;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .cardTitle {

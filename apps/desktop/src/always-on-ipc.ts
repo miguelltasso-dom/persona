@@ -9,6 +9,8 @@ export const ALWAYS_ON_IPC = {
   needsYouCount: 'dsh-desktop:needs-you-count',
   catchUp: 'dsh-desktop:catch-up',
   openTask: 'dsh-desktop:open-task',
+  /** Main → renderer: a valid invitation link was opened (team id, token). The screen shows the team and a button; nothing joins alone. */
+  openInvite: 'dsh-desktop:open-invite',
   pauseTeam: 'dsh-desktop:pause-team',
 } as const
 

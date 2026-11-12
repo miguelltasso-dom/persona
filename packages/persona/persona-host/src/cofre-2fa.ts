@@ -185,6 +185,16 @@ export class CofreCodes {
   }
 
   /**
+   * The requests of ONE Task that still wait for the owner (nothing filled yet, not expired): while one is open the Task WAITS for it (Carbon P1-02), it is not done.
+   * @param projectId - Tenant.
+   * @param ticketId - The Task.
+   * @returns The pending requests of the Task, oldest first.
+   */
+  pendingFor(projectId: string, ticketId: string): readonly CofreCodeRequestView[] {
+    return this.list(projectId).filter(request => request.ticketId === ticketId && request.state === 'pending').sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  }
+
+  /**
    * The owner cancels a request: the digits she may already have filled do not stay sealed.
    * @param projectId - Tenant.
    * @param id - Request id.

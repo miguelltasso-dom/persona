@@ -78,7 +78,7 @@
 .fields dd {
   margin: 0;
   min-width: 0;
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   color: var(--persona-ink);
   overflow-wrap: anywhere;
 }
@@ -107,7 +107,7 @@
   padding: var(--persona-space-3);
   border-radius: var(--persona-radius-s);
   background: var(--persona-paper-sunken);
-  font: 500 14px/21px var(--persona-font-text);
+  font: 400 14px/21px var(--persona-font-text);
   color: var(--persona-ink);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -124,7 +124,7 @@
 .items {
   margin: 0 0 var(--persona-space-2);
   padding-left: var(--persona-space-5);
-  font: 500 14px/21px var(--persona-font-text);
+  font: 400 14px/21px var(--persona-font-text);
   color: var(--persona-ink);
 }
 

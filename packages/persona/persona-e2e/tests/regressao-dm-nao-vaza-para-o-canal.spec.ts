@@ -25,8 +25,7 @@ const CLOCK = '2026-11-03T15:00:00.000Z'
 const LATER = '2026-11-07T15:00:00.000Z'
 /** The shared project the scenarios live in. */
 const P = { workspaceId: 'ws', projectId: 'sh' } as const
-const SHOW_RED = process.env.PERSONA_SHOW_RED === '1'
-const expectedRed = SHOW_RED ? vitestIt : vitestIt.fails
+
 const ARTIFACTS = join(dirname(fileURLToPath(import.meta.url)), '..', 'artifacts', 'regressao')
 
 /** O veredito, PURO: onde o segredo da DM aparece no que um leitor de fora lê (vazio = em lugar nenhum). */
@@ -157,7 +156,7 @@ describe('DM → canal — o cartão "Bom dia" do #geral (Tarefa em andamento)',
     expect(JSON.stringify(card), 'o cartão não lista a Tarefa em andamento do #geral: um verde aqui não provaria nada').toMatch(/Téo|cartaz/u)
   }, 60_000)
 
-  expectedRed('VERMELHO (vazamento) — o cartão "Bom dia" NÃO cita o título da Tarefa que nasceu de uma DM privada', () => {
+  it('(vazamento fechado) — o cartão "Bom dia" NÃO cita o título da Tarefa que nasceu de uma DM privada', () => {
     const { h, card } = brief()
     keepEvidence('bom-dia', { card, dmVisivelAoGus: outsideDm(h).length })
     expect(dmLeakProblems('o cartão Bom dia do #geral', card)).toEqual([])
@@ -183,7 +182,7 @@ describe('DM → canal — a cobrança "esperando você" do #geral (Tarefa pront
     expect(lines.length, 'a cobrança não está no #geral que o Gus lê').toBeGreaterThan(0)
   }, 60_000)
 
-  expectedRed('VERMELHO (vazamento) — a cobrança NÃO cita o título da Tarefa que nasceu de uma DM privada', async () => {
+  it('(vazamento fechado) — a cobrança NÃO cita o título da Tarefa que nasceu de uma DM privada', async () => {
     const { h, lines } = await waitingLine()
     keepEvidence('cobranca', { lines, dmVisivelAoGus: outsideDm(h).length })
     expect(dmLeakProblems('a cobrança "esperando você" do #geral', lines)).toEqual([])
@@ -198,6 +197,10 @@ describe('DM → canal — a proposta de tarefa do #geral (a Bia perguntou na DM
     privateRequest(h)
     await h.orchestration.flush('sh')
     const attention = tasksOf(h, 'Bia')[0]?.attention?.question
+    // CONTROL (the writer must still run): a Task of the SHARED #geral, also Bia's, also stuck on a question, with words of its own. The DM Task is skipped, this one is proposed about.
+    reply.text = 'Qual o tamanho do cartaz do pão de queijo?'
+    sayOn(h, 'sh', 'g2', '@Bia monte o cartaz do pão de queijo')
+    await h.orchestration.flush('sh')
     h.orchestration.now = () => LATER
     h.setAutonomy({ ...P, personaId: 'bia', mode: 'propose', proposalBudget: 3, tokenBudget: 1, executionBudget: 1, silenceStart: '', silenceEnd: '' })
     const offered = h.taskProposals.offer({ ...P, personaId: 'bia', nowIso: LATER })
@@ -211,9 +214,10 @@ describe('DM → canal — a proposta de tarefa do #geral (a Bia perguntou na DM
     expect(offered, 'nenhuma proposta foi montada').toBeGreaterThan(0)
     expect(flushed).toBe(true)
     expect(cards.length, 'o cartão de proposta não está no #geral que o Gus lê').toBeGreaterThan(0)
+    expect(JSON.stringify(cards), 'o cartão não é sobre a Tarefa do PRÓPRIO #geral (o controle): o escritor não rodou para ela').toMatch(/cartaz/u)
   }, 60_000)
 
-  expectedRed('VERMELHO (vazamento) — a proposta ("Posso destravar “título”?" + a pergunta como motivo) NÃO traz o texto da DM privada', async () => {
+  it('(vazamento fechado) — a proposta ("Posso destravar “título”?" + a pergunta como motivo) NÃO traz o texto da DM privada', async () => {
     const { h, cards } = await proposal()
     keepEvidence('proposta', { cards, dmVisivelAoGus: outsideDm(h).length })
     expect(dmLeakProblems('a proposta de tarefa do #geral', cards)).toEqual([])

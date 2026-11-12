@@ -232,3 +232,19 @@ it('authorizeRecall admits channel events only in the actor projects', async () 
   expect(await gate(event, scope)).toBe(true)
   expect(await gate({ ...event, projectId: 'ops' }, scope)).toBe(false)
 })
+
+/**
+ * Carbon round 2 (Anvil's finding, Keel 09:13): a REVOKED record is read by the owner only when the same record would also be read ACTIVE. The revoked branch used to answer `isOwner` before looking
+ * at the visibility, so the owner read a private memory of a persona or of named members (the forgotten DM memory of another member) that every human was refused while it was active.
+ */
+it('a revoked record private to a persona or to named members is NOT read by the owner; one the owner could read active still is (the audit of what the team forgot)', () => {
+  const revoked = (visibility: Extract<AclResource, { type: 'vault' }>['visibility']): AclResource => ({ type: 'vault', workspaceId: 'ws', visibility, status: 'revoked', kind: 'memory' })
+  expect(can(owner, 'read', revoked({ kind: 'persona', personaId: 'bento' })), 'revoked, private to a persona').toBe(false)
+  expect(can(owner, 'read', revoked({ kind: 'members', memberIds: ['ana'] })), 'revoked, private to named members (the owner is not one)').toBe(false)
+  expect(can(owner, 'read', revoked({ kind: 'workspace' })), 'control: revoked, workspace: the owner audits it').toBe(true)
+  expect(can(owner, 'read', revoked({ kind: 'project', projectId: 'ops' })), 'control: revoked, a project of the owner').toBe(true)
+  expect(can(owner, 'read', revoked({ kind: 'members', memberIds: ['miguel'] })), 'control: revoked, the owner is a named member').toBe(true)
+  expect(can(worker, 'read', revoked({ kind: 'persona', personaId: 'bento' })), 'a persona never reads a revoked record, not even her own').toBe(false)
+  expect(can(member, 'read', revoked({ kind: 'workspace' })), 'a member never reads a revoked record').toBe(false)
+  expect(can(guest, 'read', revoked({ kind: 'workspace' })), 'a guest never reads a revoked record').toBe(false)
+})

@@ -65,7 +65,7 @@
   align-items: baseline;
   gap: var(--persona-space-2);
   margin: 0;
-  font: 500 13px/18px var(--persona-font-text);
+  font: 400 13px/18px var(--persona-font-text);
   color: var(--persona-ink-muted);
 }
 

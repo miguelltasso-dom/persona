@@ -105,7 +105,12 @@ export interface ConnectorCatalogState {
   readonly granted: readonly string[]
   /** Connectors of the person's own account (names as the bridge lists them). */
   readonly account: readonly string[]
+  /** Token providers (`imap`, `telegram`, `slack`, `discord`) whose sealed slot in the Cofre holds a secret: their cards are linked (P1-07). */
+  readonly tokens?: readonly string[]
 }
+
+/** The card each token provider turns on. */
+const TOKEN_CARDS: Readonly<Record<string, string>> = { imap: 'email-imap', telegram: 'telegram', slack: 'slack', discord: 'discord' }
 
 /**
  * Build the catalog the screen shows.
@@ -114,15 +119,19 @@ export interface ConnectorCatalogState {
  */
 export function connectorCatalog(state: ConnectorCatalogState): ConnectorCatalogView {
   const names = [...state.granted, ...state.account].map(normalize)
+  const byToken = new Set((state.tokens ?? []).map(provider => TOKEN_CARDS[provider]))
   return {
     categories: CONNECTOR_CATEGORIES,
     cards: CONNECTOR_CATALOG.map(entry => ({
       ...entry,
       promised: entry.via !== 'unconfirmed',
-      linked: names.some(name => name.includes(normalize(entry.name)) || normalize(entry.name).includes(name)),
+      linked: names.some(name => name.includes(normalize(entry.name)) || normalize(entry.name).includes(name)) || byToken.has(entry.id),
     })),
   }
 }
+
+/** The one rule that matches a tool's name (accent, case and punctuation do not count): the catalog's `linked` and `grantConnectorByName` use it. */
+export const normalizeToolName = (value: string): string => normalize(value)
 
 function normalize(value: string): string {
   return value

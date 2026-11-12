@@ -27,7 +27,7 @@ const MODE = process.argv.includes('--verify-identity')
           : 'check'
 
 const MIGUEL_PHRASE = [
-  'Para empacotar o Persona no Windows (sem assinatura, sem instalador admin):',
+  'Para empacotar a Persona no Windows (sem assinatura, sem instalador admin):',
   '1) Instale Visual Studio Build Tools + Windows SDK: winget install --id Microsoft.VisualStudio.2022.BuildTools -e --override "--wait --passive --add Microsoft.VisualStudio.Workload.VCTools --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Windows11SDK.22621 --includeRecommended"',
   '2) Ative caminhos longos (admin): New-ItemProperty -Path HKLM:\\SYSTEM\\CurrentControlSet\\Control\\FileSystem -Name LongPathsEnabled -Value 1 -PropertyType DWORD -Force',
   '3) Ative o Modo de Desenvolvedor em Configurações → Sistema → Para desenvolvedores.',

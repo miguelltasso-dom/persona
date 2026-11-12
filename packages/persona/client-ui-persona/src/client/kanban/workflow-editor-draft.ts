@@ -1,5 +1,6 @@
 /** Pure helpers for the workflow editor (BOARDS-SPEC §5). */
 
+import { randomUuid } from '../remote/random-id.ts'
 import type { WorkflowColumnView, WorkflowFieldView } from '@deepseek-ai/dsh-persona-host/types'
 import type { FlowColumnModel, FlowCardModel } from './flow-types.ts'
 
@@ -95,7 +96,7 @@ export function reorderEditorColumn(
 export function newEditorColumnId(existing: ReadonlySet<string>): string {
   let attempt = 0
   while (attempt < 8) {
-    const id = `col-${crypto.randomUUID()}`
+    const id = `col-${randomUuid()}`
     if (!existing.has(id)) return id
     attempt += 1
   }
@@ -135,7 +136,7 @@ export function editorFieldsFromHost(fields: readonly WorkflowFieldView[]): Edit
 export function newEditorFieldId(existing: ReadonlySet<string>): string {
   let attempt = 0
   while (attempt < 8) {
-    const id = `field-${crypto.randomUUID()}`
+    const id = `field-${randomUuid()}`
     if (!existing.has(id)) return id
     attempt += 1
   }

@@ -3,6 +3,7 @@
  * `backgroundWork.run` — so a normal request NEVER went to the background past the threshold: the persona stayed busy in the channel until it ended; and once a Task IS in the background the persona
  * is free, yet every new message was still met with "Estou terminando …" as if she were busy. No real CLI: the runner is a fake whose Task turn we hold open.
  */
+import { workerSessionId } from '@deepseek-ai/dsh-persona-engine'
 import { createFakeRunner, type Runner } from '@deepseek-ai/dsh-persona-runners'
 import { expect, vi } from 'vitest'
 import { backgroundWorkOf } from '../src/background-work.ts'
@@ -167,4 +168,73 @@ it('P1-02(b): while a Task of Bia runs in the background on the shared warm runn
   // nobody is in the background now: a new Task is served by the warm runner Bia already has, not a runner of its own
   const fourth = await resolveTask(h, 'fourth')
   expect(keysOf(h, fourth).some(key => key.includes(':fourth:'))).toBe(false)
+})
+
+/** Every Task runner the host opens, with what each was asked to run (session + request id). Each runner's turn stays open until `release(its index)`; `startMs` is how long a runner takes to open (a real CLI spawn). */
+function recordedTasks(h: PersonaHost, startMs = 0): { release: (run: number) => void; runs: { readonly delivered: string[] }[] } {
+  const releases: (() => void)[] = []
+  const runs: { readonly delivered: string[] }[] = []
+  h.orchestration.runnerFactory = async (request?: HostRunnerRequest) => {
+    const inner = createFakeRunner()
+    if (request?.purpose !== 'task') return inner
+    const delivered: string[] = []
+    const gate = Promise.withResolvers<undefined>()
+    releases.push(() => { gate.resolve(undefined) })
+    runs.push({ delivered })
+    if (startMs > 0) await sleep(startMs)
+    return new Proxy(inner, {
+      get(target, prop, receiver) {
+        if (prop === 'whenIdle') return async (session: string) => { await gate.promise; return target.whenIdle(session) }
+        if (prop === 'deliver') {
+          const original = Reflect.get(target, 'deliver') as (...args: unknown[]) => unknown
+          return (...args: unknown[]) => { delivered.push(`${String(args[0])}|${String(args[1])}`); return original.apply(target, args) }
+        }
+        return Reflect.get(target, prop, receiver) as unknown
+      },
+    })
+  }
+  return { release: (run) => { releases[run]?.() }, runs }
+}
+
+it('P1-02(b): a Task the book moved to the background BEFORE its own turn opened (a slow runner start) is still launched by its own run', async () => {
+  const h = host()
+  seed(h)
+  const book = backgroundWorkOf(h.orchestration, { afterMs: 40, nowMs: () => Date.now() }) // the clock is shorter than the runner's start: the Task is "background" before its first deliver
+  const task = recordedTasks(h, 200)
+  h.postMessage({ id: 'u1', ...SCOPE, streamKind: 'channel', ownerId: 'geral', body: '@Bia monte o cardápio da semana com preços', actorId: 'ana', subjectId: 'u1' })
+  await sleep(500)
+  const first = h.orchestration.runtime('pp').repo.tickets.list().find(row => row.origin.triggerId === 'u1')!
+  expect(book.isBackground(first.id)).toBe(true)
+  // RED today: the run's own sweep skips every Task the book holds in the background, its own included, so nobody ever launched it (the Task sat "running" with no turn).
+  expect(task.runs[0]?.delivered.some(entry => entry.startsWith(`${workerSessionId(first.id)}|`))).toBe(true)
+  task.release(0)
+  await book.whenIdle()
+})
+
+it('P1-02(b): the message that starts the second Task does not run the Task that is already in the background again, on the runner of the second', async () => {
+  const h = host()
+  seed(h)
+  const book = backgroundWorkOf(h.orchestration, { afterMs: 40, nowMs: () => Date.now() })
+  const task = recordedTasks(h)
+  h.postMessage({ id: 'u1', ...SCOPE, streamKind: 'channel', ownerId: 'geral', body: '@Bia monte o cardápio da semana com preços', actorId: 'ana', subjectId: 'u1' })
+  await sleep(300)
+  const first = h.orchestration.runtime('pp').repo.tickets.list().find(row => row.origin.triggerId === 'u1')!
+  expect(book.isBackground(first.id)).toBe(true)
+  h.postMessage({ id: 'u2', ...SCOPE, streamKind: 'channel', ownerId: 'geral', body: '@Bia monte o cartaz da promoção de sexta', actorId: 'ana', subjectId: 'u2' })
+  await sleep(300)
+  const second = h.orchestration.runtime('pp').repo.tickets.list().find(row => row.origin.triggerId === 'u2')
+  expect(second, 'the second message started a Task of its own').toBeDefined()
+  expect(task.runs, 'the first Task has a runner and the second Task has another').toHaveLength(2)
+  const sessionOfFirst = workerSessionId(first.id)
+  expect(task.runs[0]!.delivered.some(entry => entry.startsWith(`${sessionOfFirst}|`)), 'the first Task runs on its own runner').toBe(true)
+  // The second Task's turn ends (or Parar stops it): the run of the second message goes on to whatever else is running in the project.
+  task.release(1)
+  await sleep(300)
+  // RED today: that run sweeps EVERY running Task of the project, so it also launches the first one (still in the background, on its own runner) on the runner it opened for the second:
+  // the same prompt twice, and when that runner is let go the copy ends "cancelled" and the sweep reports the FIRST Task as failed.
+  expect(task.runs[1]!.delivered.filter(entry => entry.startsWith(`${sessionOfFirst}|`))).toEqual([])
+  expect(task.runs[1]!.delivered.some(entry => entry.startsWith(`${workerSessionId(second!.id)}|`)), 'the second Task runs on its own runner').toBe(true)
+  expect(h.orchestration.runtime('pp').repo.tickets.get(first.id)?.ended, 'the first Task is still running, untouched by the second run').toBeUndefined()
+  task.release(0)
+  await book.whenIdle()
 })

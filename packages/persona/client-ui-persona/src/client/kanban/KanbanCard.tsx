@@ -87,10 +87,11 @@ export function KanbanCard({
   }
 
   // Muse (12/11): the chip says the state of the CARD ("Na fila de Bia", "Bia está fazendo", "Esperando o cliente"), never the persona's own state.
-  const stateChip = cardStateChipOf(card)
-  const stoppedReason = stoppedReasonOf(card) // Muse (12/11): a stopped card says WHY, in one muted line under the title, when the host sent it
   const reviewerName = card.reviewing === undefined ? undefined : teamwork?.personaFor(card.reviewing.personaId)?.name
-  const stateName = stateChip?.key === 'card.state.reviewing' ? (reviewerName ?? assigneeName) : assigneeName
+  const flowColumnName = flowMoveTargets?.find(target => target.id === currentFlowColumnId)?.label
+  const stateChip = cardStateChipOf(card, reviewerName, flowColumnName)
+  const stoppedReason = stoppedReasonOf(card) // Muse (12/11): a stopped card says WHY, in up to 2 muted lines under the title (the whole text in the title attribute and in the card's label), when the host sent it
+  const stateName = stateChip?.who === 'reviewer' ? (reviewerName ?? '') : assigneeName
 
   return (
     <Card
@@ -105,7 +106,7 @@ export function KanbanCard({
       onDragEnd={onDragEnd}
       aria-grabbed={dragging}
       tabIndex={0}
-      aria-label={card.title}
+      aria-label={stoppedReason === '' ? card.title : `${card.title}. ${stoppedReason}`}
       {...cardOpenHandlers(onOpenConversation, card.id)}
     >
       {card.carry !== undefined && (
@@ -200,7 +201,7 @@ export function KanbanCard({
         )}
         {card.column === 'done'
           ? (card.assignee === undefined ? null : <Chip tone="neutral" size="s" data-card-done-by="">{t('card.doneBy', { name: assigneeName })}</Chip>)
-          : (stateChip === undefined ? null : <Chip tone={stateChip.tone} size="s" data-card-state={stateChip.key}>{t(stateChip.key, { name: stateName })}</Chip>)}
+          : (stateChip === undefined ? null : <Chip tone={stateChip.tone} size="s" className={styles.stateChip} data-card-state={stateChip.key}>{t(stateChip.key, { name: stateName })}</Chip>)}
         <TaskThreadBadge dict={dict} thread={card.thread} />
         {showApprovalStamp && <Chip tone="success" size="s" data-card-approved="">{t('stamp.approved')}</Chip>}
         {(onMoveCard !== undefined || onMoveFlowColumn !== undefined) && (

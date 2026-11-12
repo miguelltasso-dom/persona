@@ -1,6 +1,6 @@
 .error {
   color: var(--persona-danger-ink, #b42318);
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
   margin: 0 0 var(--persona-space-3, 12px);
 }
 
@@ -224,13 +224,13 @@
 
 .effortHint {
   margin: 0;
-  font: 500 13px/19px var(--persona-font-text);
+  font: 400 13px/19px var(--persona-font-text);
   color: var(--persona-ink-soft);
 }
 
 .effortNone {
   margin: 0;
-  font: 500 13px/19px var(--persona-font-text);
+  font: 400 13px/19px var(--persona-font-text);
   color: var(--persona-ink-soft);
 }
 

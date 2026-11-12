@@ -120,6 +120,8 @@ export { sampleDocx, samplePdf } from './vault/samples.ts'
 export { TopicRepos, DEFAULT_TOPIC_NAMES } from './topic/repos.ts'
 export { ChannelRepos } from './channel/repos.ts'
 export type { ArchiveReason, ChannelKind, ChannelMember, TeamChannel } from './channel/repos.ts'
+export { CategoryRepos, EQUIPE_NAME_MAX, EquipeRepos, cleanEquipeName } from './channel/equipes.ts'
+export type { ChannelCategory, Equipe } from './channel/equipes.ts'
 export type { ConversationTopic } from './topic/repos.ts'
 
 export { AccountRepos } from './account/repos.ts'

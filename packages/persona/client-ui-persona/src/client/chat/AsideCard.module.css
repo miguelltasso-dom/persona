@@ -33,7 +33,7 @@
   flex: 1;
   min-width: 0;
   margin: 0;
-  font: 800 13px/18px var(--persona-font-text);
+  font: 600 13px/18px var(--persona-font-text);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--persona-ink-soft);
@@ -106,7 +106,7 @@
 
 .answerText {
   margin: var(--persona-space-1) 0 0;
-  font: 500 14px/21px var(--persona-font-text);
+  font: 400 14px/21px var(--persona-font-text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

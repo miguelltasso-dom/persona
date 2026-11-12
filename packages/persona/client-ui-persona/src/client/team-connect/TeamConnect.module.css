@@ -120,7 +120,7 @@
 }
 
 .status {
-  font: 500 13px/18px var(--persona-font-text);
+  font: 400 13px/18px var(--persona-font-text);
   color: var(--persona-ink-muted);
 }
 
@@ -150,7 +150,7 @@
   align-items: center;
   gap: var(--persona-space-3);
   min-height: 40px;
-  font: 500 15px/22px var(--persona-font-text);
+  font: 600 15px/22px var(--persona-font-text);
   color: var(--persona-ink);
   cursor: pointer;
 }
@@ -164,13 +164,13 @@
 
 .refused {
   margin: 0;
-  font: 500 13px/18px var(--persona-font-text);
+  font: 400 13px/18px var(--persona-font-text);
   color: var(--persona-ink);
 }
 
 .guide {
   margin: 0;
-  font: 500 13px/18px var(--persona-font-text);
+  font: 400 13px/18px var(--persona-font-text);
   color: var(--persona-ink);
 }
 

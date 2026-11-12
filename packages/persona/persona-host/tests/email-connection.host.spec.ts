@@ -7,6 +7,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { PersonaVaultProvider } from '@deepseek-ai/dsh-persona-vault'
 import { afterEach, expect } from 'vitest'
 import { connectorSlot } from '../src/cofre-migrate.ts'
+import { resolveMailHost } from '../src/mail-host-guard.ts'
 import PersonaHost from '../src/index.ts'
 import { bindHostFile, it } from './host-harness.ts'
 
@@ -88,7 +89,7 @@ it('reports the stored server and account, never the password', async () => {
 it('tests the typed credential read-only and counts the folder', async () => {
   const h = host()
   seed(h)
-  h.mailHostCheck = async () => true // the fake IMAP server is on loopback (the default check refuses it: P0-13b)
+  h.mailTarget = async mailHost => mailHost // the fake IMAP server is on loopback (the default check refuses it: P0-13b)
   const { port, commands } = await fakeImap({ messages: 128 })
   const result = await h.testEmailConnection({
     ...scope, host: '127.0.0.1', port, secure: false, user: 'vendas@loja.com.br', password: 'segredo',
@@ -101,7 +102,7 @@ it('tests the typed credential read-only and counts the folder', async () => {
 it('turns a refused login into the login category, without the secret', async () => {
   const h = host()
   seed(h)
-  h.mailHostCheck = async () => true // the fake IMAP server is on loopback (the default check refuses it: P0-13b)
+  h.mailTarget = async mailHost => mailHost // the fake IMAP server is on loopback (the default check refuses it: P0-13b)
   const { port } = await fakeImap({ failLogin: true })
   const result = await h.testEmailConnection({
     ...scope, host: '127.0.0.1', port, secure: false, user: 'vendas@loja.com.br', password: 'segredo',
@@ -112,7 +113,7 @@ it('turns a refused login into the login category, without the secret', async ()
 
 it('tests the stored credential when the form sends no password', async () => {
   const h = await hostWithVault()
-  h.mailHostCheck = async () => true // the fake IMAP server is on loopback (the default check refuses it: P0-13b)
+  h.mailTarget = async mailHost => mailHost // the fake IMAP server is on loopback (the default check refuses it: P0-13b)
   const { port } = await fakeImap({ messages: 3 })
   await h.cofreSecrets.put('pp', connectorSlot('imap'), JSON.stringify({
     host: '127.0.0.1', port, secure: false, user: 'vendas@loja.com.br', password: 'segredo',
@@ -127,4 +128,39 @@ it('says there is no credential when nothing is typed and nothing is stored', as
   const h = host()
   seed(h)
   expect(await h.testEmailConnection(scope)).toEqual({ ok: false, error: 'no-credential' })
+})
+
+it('P1-08 (round 2): a form that CHANGED the server and left the password blank does not test the stored server (another server needs its own password)', async () => {
+  const h = await hostWithVault()
+  h.mailTarget = async mailHost => mailHost // the fake IMAP server is on loopback
+  const { port, commands } = await fakeImap({ messages: 3 })
+  await h.cofreSecrets.put('pp', connectorSlot('imap'), JSON.stringify({ host: '127.0.0.1', port, secure: false, user: 'vendas@loja.com.br', password: 'segredo' }))
+  const result = await h.testEmailConnection({ ...scope, host: 'localhost', port, secure: false, user: 'vendas@loja.com.br', password: '' })
+  expect(result).toEqual({ ok: false, error: 'no-credential' })
+  expect(commands, 'nothing was sent to any server').toEqual([])
+})
+
+it('P1-08 (round 2): with the SAME server, a changed user (or port) is tested with the stored password, merged', async () => {
+  const h = await hostWithVault()
+  h.mailTarget = async mailHost => mailHost
+  const { port, commands } = await fakeImap({ messages: 3 })
+  await h.cofreSecrets.put('pp', connectorSlot('imap'), JSON.stringify({ host: '127.0.0.1', port, secure: false, user: 'vendas@loja.com.br', password: 'segredo' }))
+  const result = await h.testEmailConnection({ ...scope, host: '127.0.0.1', port, secure: false, user: 'outro@loja.com.br', password: '' })
+  expect(result).toEqual({ ok: true, messages: 3 })
+  expect(commands.some(line => /LOGIN "?outro@loja\.com\.br/u.test(line)), 'the edited user was the one logged in').toBe(true)
+  expect(JSON.stringify(result)).not.toContain('segredo')
+})
+
+it('MH-1 (round 2): saveConnectorSecret seals no mail credential for a host the probe would refuse (it used to seal ANY host for the poller to connect to)', async () => {
+  const h = host()
+  seed(h)
+  h.mailTarget = async mailHost => resolveMailHost(mailHost) // the real policy (an earlier test of this file replaced it on the shared host)
+  h.sessionMemberId = 'ana'
+  for (const mailHost of ['127.0.0.1', 'localhost', '10.0.0.5', '[::ffff:7f00:1]', 'mailserver', '169.254.169.254']) {
+    for (const provider of ['imap', 'smtp']) {
+      await expect(h.saveConnectorSecret({ ...scope, provider, secret: JSON.stringify({ host: mailHost, port: 993, user: 'u', password: 'p' }) }), `${provider} ${mailHost}`).rejects.toThrow('mail-host-refused')
+    }
+  }
+  h.mailTarget = async () => undefined // a public-looking name that does not resolve: refused too (fail closed)
+  await expect(h.saveConnectorSecret({ ...scope, provider: 'imap', secret: JSON.stringify({ host: 'imap.exemplo.com', port: 993, user: 'u', password: 'p' }) })).rejects.toThrow('mail-host-refused')
 })

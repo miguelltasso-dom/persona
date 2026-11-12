@@ -161,7 +161,7 @@
 }
 
 .hitText {
-  font: 500 14px/20px var(--persona-font-text);
+  font: 400 14px/20px var(--persona-font-text);
 }
 
 @media (prefers-reduced-motion: reduce) {

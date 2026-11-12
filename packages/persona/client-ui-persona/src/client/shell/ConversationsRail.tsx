@@ -11,6 +11,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
+import { roleAfterName } from '../chat/author-role.ts'
 import { Avatar, UiIcon } from '../primitives/index.ts'
 import { PERSONA_STATE_LABEL, personaStateOf } from '../team/persona-state.ts'
 import {
@@ -26,6 +27,8 @@ import {
 import { sameConversation, type ConversationTarget, type OpenConversation } from './conversation-selection.ts'
 import type { ConversationsSource } from './conversations-source.ts'
 import { rovingVerticalKey } from './rail-roving-focus.ts'
+import { buildChannelSections, NO_SECTION_KEY } from './channel-sections.ts'
+import { ChannelSections } from './ChannelSections.tsx'
 import styles from './ConversationsRail.module.css'
 
 export interface ConversationsRailProps {
@@ -63,6 +66,14 @@ function ConversationsFull({ t, source, active, openConversation, onOrganizeTeam
     })
   }
 
+  // Item 22 (atrás de `persona.flag.channelSections`): com o layout do host, os canais viram seções (sem seção primeiro, depois uma por equipe), lembradas como os outros grupos.
+  const sections = useMemo(() => (source.layout === undefined ? undefined : buildChannelSections({
+    layout: source.layout,
+    unreadByChannel: Object.fromEntries(source.channels.map(channel => [channel.id, channel.unread])),
+    open: Object.fromEntries(source.layout.sections.map(section => [section.id ?? NO_SECTION_KEY, remembered[`section:${section.id ?? NO_SECTION_KEY}`] !== true])),
+    activeChannelId: active?.kind === 'channel' ? active.id : null,
+  })), [source, remembered, active])
+
   useAltArrowConversations(model.order, active, openConversation)
 
   // ↑/↓/Home/End entre as linhas visíveis (as de grupo recolhido não existem no DOM).
@@ -95,7 +106,16 @@ function ConversationsFull({ t, source, active, openConversation, onOrganizeTeam
 
   return (
     <div className={styles.root} ref={rootRef} data-persona-conversations="">
-      {model.channels.length > 0 && (
+      {sections !== undefined && (
+        <ChannelSections
+          t={t}
+          layout={sections}
+          faceSrc={personaId => PORTRAITS[personaId]}
+          onToggleSection={(key, currentlyOpen) => { toggle(`section:${key}`, !currentlyOpen) }}
+          onOpenChannel={(id) => { openConversation({ kind: 'channel', id }) }}
+        />
+      )}
+      {sections === undefined && model.channels.length > 0 && (
         <section className={styles.section}>
           <SectionHead
             id={channelsId}
@@ -283,7 +303,8 @@ function PersonRow({ person, density, t, active, openConversation, onKeyDown }: 
       <span className={styles.text}>
         <span className={styles.title}>
           <span className={styles.name}>{person.name}</span>
-          <span className={styles.role}>{person.role}</span>
+          {/* Muse L2: quando a função é a mesma palavra do nome ("Probe Probe"), ela aparece uma vez só. */}
+          {roleAfterName(person.role, person.name) !== '' && <span className={styles.role}>{roleAfterName(person.role, person.name)}</span>}
         </span>
         {full && person.lastLine !== undefined && person.lastLine !== '' && <span className={styles.last}>{person.lastLine}</span>}
       </span>
@@ -297,7 +318,7 @@ function PersonRow({ person, density, t, active, openConversation, onKeyDown }: 
 function personLabel(t: T, person: ConversationPerson): string {
   return [
     t('sidebar.team.openDm', { name: person.name }),
-    person.role,
+    roleAfterName(person.role, person.name),
     t(PERSONA_STATE_LABEL[personaStateOf(person)]),
     person.unread > 0 ? t('sidebar.team.unread', { count: String(person.unread) }) : '',
   ].filter(Boolean).join(' · ')

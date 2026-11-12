@@ -3,7 +3,7 @@
 .article {
   max-width: 68ch;
   color: var(--persona-ink);
-  font: 500 16px/26px var(--persona-font-text);
+  font: 400 16px/26px var(--persona-font-text);
 }
 
 .h2 {

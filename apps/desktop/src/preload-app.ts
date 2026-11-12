@@ -163,6 +163,14 @@ if (location.protocol === `${SCHEME}:` && location.hostname === 'app') {
       ipcRenderer.on(ALWAYS_ON_IPC.openTask, handle)
       return () => { ipcRenderer.off(ALWAYS_ON_IPC.openTask, handle) }
     },
+    /** A valid invitation link was opened: the screen shows the team and a button. The host asks to join only from that button. */
+    onOpenInvite: (listener: (teamId: string, token: string) => void) => {
+      const handle = (_event: Electron.IpcRendererEvent, teamId: unknown, token: unknown): void => {
+        if (typeof teamId === 'string' && typeof token === 'string') listener(teamId, token)
+      }
+      ipcRenderer.on(ALWAYS_ON_IPC.openInvite, handle)
+      return () => { ipcRenderer.off(ALWAYS_ON_IPC.openInvite, handle) }
+    },
     onCatchUp: (listener: (limit: number) => void) => {
       const handle = (_event: Electron.IpcRendererEvent, payload: { limit?: number }): void => {
         listener(payload.limit ?? 3)

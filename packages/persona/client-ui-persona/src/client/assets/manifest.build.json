@@ -1,10 +1,10 @@
 {
   "summary": {
-    "generatedAt": "2026-11-12T08:11:50.051Z",
+    "generatedAt": "2026-11-12T14:34:33.094Z",
     "source": "persona-assets",
     "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
-    "files": 940,
-    "totalBytes": 14376797,
+    "files": 945,
+    "totalBytes": 14494207,
     "withinBudget": true
   },
   "files": [
@@ -1011,6 +1011,26 @@
     {
       "rel": "illustrations/categoria-gestao-96.webp",
       "bytes": 4288
+    },
+    {
+      "rel": "illustrations/acordando-luminaria.webp",
+      "bytes": 13786
+    },
+    {
+      "rel": "illustrations/quem-aqui-vazio.webp",
+      "bytes": 21238
+    },
+    {
+      "rel": "illustrations/acordando-primeira-vez.webp",
+      "bytes": 41006
+    },
+    {
+      "rel": "illustrations/categoria-criacao.webp",
+      "bytes": 37406
+    },
+    {
+      "rel": "illustrations/categoria-criacao-96.webp",
+      "bytes": 3974
     },
     {
       "rel": "illustrations/stamp-primeira-entrega.webp",

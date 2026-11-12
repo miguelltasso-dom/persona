@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import type { VoiceTranscribe } from '../voice/voice-send.ts'
 import type { HostObservable, InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { DirectMessagesView, type DmRowUi } from '../chat/DirectMessagesView.tsx'
 import { buildResponderEngine } from '../chat/responder-engine.ts'
@@ -17,6 +18,7 @@ import type { RunErrorHandlerContext } from '../chat/run-error-handlers.ts'
 import type { EngineRemoteWire } from './engine-status.ts'
 import { ConnectedEngineBanner } from './ConnectedEngineBanner.tsx'
 import { appendNotStartedRows } from './dm-team-rows.ts'
+import { dmRowOf } from './dm-rows.ts'
 import { workingOnFor } from './working-on.ts'
 import { useEngineLimits } from './use-engine-limits.ts'
 import { useConnectedPersonaAsks } from '../ask/use-connected-persona-asks.ts'
@@ -74,6 +76,15 @@ export function ConnectedDirectMessagesView({
 }: ConnectedDirectMessagesViewProps): ReactNode {
   const live = useLive(state => state)
   const dmId = live.selectedDmId
+  // COLHEITA-S1 P1-03 (Carbon; Keel 10:08): o microfone da DM também depende do transcritor real do host.
+  const [voiceTranscriber, setVoiceTranscriber] = useState<VoiceTranscribe | undefined>(undefined)
+  useEffect(() => {
+    let alive = true
+    void Promise.resolve(liveStore.voiceMicAvailable?.() ?? false).then((available) => {
+      if (alive && available) setVoiceTranscriber(() => liveStore.voiceTranscriber?.())
+    }, () => undefined)
+    return () => { alive = false }
+  }, [liveStore])
   const subjectStreamKey = dmId === null ? null : conversationStreamKey('dm', dmId)
   const subjectState = useHostConversationSubjects(liveStore, subjectStreamKey, live.dmMessages, {
     defaultName: n => chatT('subjects.defaultName', { n }),
@@ -81,20 +92,7 @@ export function ConnectedDirectMessagesView({
   const peerName = live.dms.find(row => row.id === dmId)?.peerName ?? ''
   const rows: DmRowUi[] = live.dms.map((row) => {
     const member = live.stripMembers.find(m => m.name === row.peerName)
-    const workingOn = member === undefined ? undefined : workingOnFor(live.nowRows, member)
-    return member === undefined
-      ? { id: row.id, peerId: row.peerId, peerName: row.peerName }
-      : {
-        id: row.id,
-        peerId: row.peerId,
-        peerName: row.peerName,
-        characterId: member.id,
-        role: member.role,
-        stateLabel: shellT(WORK_STATUS_KEY[member.state]),
-        stateTone: STATE_TONE[member.state],
-        state: member.state,
-        ...(workingOn === undefined ? {} : { workingOn }),
-      }
+    return dmRowOf(row, member, member === undefined ? undefined : workingOnFor(live.nowRows, member), shellT)
   })
   const availablePersonas: readonly SelectablePersonaOption[] = (live.team?.personas ?? []).map((p) => {
     const member = live.stripMembers.find(m => m.id === p.avatarRef || m.name === p.name)
@@ -192,6 +190,7 @@ export function ConnectedDirectMessagesView({
   return (
     <IndicatorsProvider remote={engineRemote} tenant={live.tenant}>
       <DirectMessagesView
+        voiceTranscriber={voiceTranscriber}
         t={chatT}
         shellT={shellT}
         slashActions={slashActions}

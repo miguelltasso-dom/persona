@@ -302,6 +302,7 @@ export function ConnectedGlobalKanban({
     persona,
     live.tenant === null ? null : { workspaceId: projectScope.workspaceId, projectId: projectScope.projectId, memberId: live.tenant.memberId },
     live.team,
+    live.stripMembers, // P1-01: o `@` do campo da conversa chama as mesmas personas do campo do canal
   )
 
   return (

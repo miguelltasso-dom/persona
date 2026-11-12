@@ -12,7 +12,7 @@
   border-radius: var(--persona-radius-pill);
   background: var(--persona-accent);
   color: var(--persona-accent-ink);
-  font: 800 13px/1 var(--persona-font-text);
+  font: 600 13px/1 var(--persona-font-text);
 }
 
 .balloon {

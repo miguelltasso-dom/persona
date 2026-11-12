@@ -1,4 +1,5 @@
-import { useEffect, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
+import type { VoiceTranscribe } from '../voice/voice-send.ts'
 import type { HostObservable, InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { GeneralChannelView } from '../chat/GeneralChannelView.tsx'
 import { buildResponderEngine } from '../chat/responder-engine.ts'
@@ -95,6 +96,15 @@ export function ConnectedGeneralChannelView({
   engineRemote,
 }: ConnectedGeneralChannelViewProps): ReactNode {
   const live = useLive(state => state)
+  // COLHEITA-S1 P1-03 (Carbon; Keel 10:08): o microfone só existe com o transcritor real (modelo pronto ou baixável no host).
+  const [voiceTranscriber, setVoiceTranscriber] = useState<VoiceTranscribe | undefined>(undefined)
+  useEffect(() => {
+    let alive = true
+    void Promise.resolve(liveStore.voiceMicAvailable?.() ?? false).then((available) => {
+      if (alive && available) setVoiceTranscriber(() => liveStore.voiceTranscriber?.())
+    }, () => undefined)
+    return () => { alive = false }
+  }, [liveStore])
   const composerHints = live.channelComposerHints
   const ownerId = live.tenant?.channelId ?? null
   const subjectStreamKey = ownerId === null ? null : conversationStreamKey('channel', ownerId)
@@ -267,6 +277,7 @@ export function ConnectedGeneralChannelView({
           {...(onOpenPersonaDm === undefined ? {} : { onOpenPersonaDm })}
           passThroughFollowers={live.passThroughFollowers}
           turnContext={live.turnContext}
+          voiceTranscriber={voiceTranscriber}
           onSendSticker={(stickerId) => { void liveStore.sendStickerMessage?.(stickerId) }}
           turnActivityLabels={turnActivityLabels}
           onLoadTurnContext={loadTurnContext}

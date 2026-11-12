@@ -5,6 +5,7 @@
 
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import { z } from 'zod'
+import { FEATURE_OFF_REASON, FEATURE_OFF_TEXT } from './surface-gates.ts'
 
 /** Reject bodies bigger than this (JSON bytes). */
 export const REMOTE_PAYLOAD_LIMIT = 256_000
@@ -55,7 +56,7 @@ export const RemoteRequestSchema = z.looseObject({
  * The closed vocabulary of `RemoteFault.details.reason`: a stable, kebab-case id the client keys on instead of reading the message (Anvil/Keel, CV-6).
  * Never a sentence for a person.
  */
-export type RemoteFaultReason = 'channel-archived'
+export type RemoteFaultReason = 'channel-archived' | 'feature-off' | 'connector-not-available' | 'connector-ambiguous'
 
 /** What a fault carries besides its code. */
 export interface RemoteFaultDetails {
@@ -103,6 +104,8 @@ export interface RemoteGuardOptions {
   readonly rateWindowMs?: number
   readonly now?: () => number
   readonly peerOf?: () => string
+  /** D-113: whether a call belongs to a surface that is OFF (refused first, with `feature-off`). Absent = nothing is off. */
+  readonly surfaceOff?: (method: string) => boolean
 }
 
 /**
@@ -116,6 +119,7 @@ export class RemoteGuard {
   readonly rateWindowMs: number
   readonly now: () => number
   readonly peerOf: () => string
+  readonly surfaceOff: (method: string) => boolean
   private readonly hits = new Map<string, number[]>()
 
   /**
@@ -129,6 +133,7 @@ export class RemoteGuard {
     this.rateWindowMs = options.rateWindowMs ?? REMOTE_RATE_WINDOW_MS
     this.now = options.now ?? Date.now
     this.peerOf = options.peerOf ?? (() => 'local')
+    this.surfaceOff = options.surfaceOff ?? (() => false)
   }
 
   /** Drop rate-limit buckets (host reset between tests). */
@@ -163,6 +168,8 @@ export class RemoteGuard {
    * @param args - Wire arguments.
    */
   admit(method: string, args: readonly unknown[]): void {
+    // D-113: a surface under construction that is OFF refuses its calls HERE, in the funnel of the ACL, before the size, the rate or the method itself: nothing runs.
+    if (this.surfaceOff(method)) throw new RemoteFault('forbidden', FEATURE_OFF_TEXT, { reason: FEATURE_OFF_REASON })
     let encoded = '[]'
     try {
       encoded = JSON.stringify(args)

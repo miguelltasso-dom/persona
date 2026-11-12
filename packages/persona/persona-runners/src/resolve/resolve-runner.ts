@@ -31,6 +31,7 @@ import type { ConnectorUnreached } from '../contract.ts'
 import { defaultIsolationRuntime, type IsolationDecision, type IsolationRuntime } from '../oar/isolation-gate.ts'
 import { withPermissionReport, type PermissionGate } from './permission-gate.ts'
 import { nativeGateFor, withNativeGate } from '../authority/native-gate.ts'
+import { registerRefusalSource } from './runner-refusals.ts'
 import { accountKeyOf, defaultAccountLimiter, withAccountLimit, type AccountLimiter } from './account-limit.ts'
 import { withEngineConnectorPolicy } from './engine-gate.ts'
 import { prepareIsolatedHome, type IsolatedHomeIo } from '../oar/isolated-home.ts'
@@ -772,6 +773,8 @@ export async function resolveRunner(options: ResolveRunnerOptions): Promise<Runn
         reread: () => withTimeout(PROBE_TIMEOUT_MS, readUsage(installation)),
       })
     }
+    // Carbon P1-04: what the gate this runner opened itself refuses is readable from the runner the host holds (no host gate exists for a Task without connectors).
+    if (native.own !== undefined) registerRefusalSource(resolved, native.own)
   }
   // D-096: a runner that fell back to native for one task is that task's alone: it never enters the pool, so the next task is decided again.
   if (!fellBackOnce && modelDropped === undefined) pool?.set(key, resolved)

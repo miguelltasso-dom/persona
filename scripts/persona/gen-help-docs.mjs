@@ -74,7 +74,9 @@ function parse(file) {
 
 const readme = readFileSync(join(DOCS, 'README.md'), 'utf8')
 const order = [...readme.matchAll(/\]\(\.\/([a-z0-9-]+)\.md\)/gu)].map(m => m[1])
-const files = readdirSync(DOCS).filter(f => f.endsWith('.md') && f !== 'README.md' && f !== 'novidades.md')
+// Guides for the people who BUILD the app (packaging, checks) live in docs/persona too, but they never go into the Help of the person who uses it.
+const BUILDER_GUIDES = new Set(['empacotar.md'])
+const files = readdirSync(DOCS).filter(f => f.endsWith('.md') && f !== 'README.md' && f !== 'novidades.md' && !BUILDER_GUIDES.has(f))
 const docs = files.map(parse).sort((a, b) => {
   const ia = order.indexOf(a.id); const ib = order.indexOf(b.id)
   return (ia < 0 ? 999 : ia) - (ib < 0 ? 999 : ib)

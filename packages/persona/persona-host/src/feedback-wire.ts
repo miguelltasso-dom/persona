@@ -42,7 +42,7 @@ export function learnFromAcceptedReview(
   try {
     const task = taskOf(deps, request.projectId, request.ticketId)
     if (task === undefined) return undefined
-    return notePlaybookWin({ screens: deps.screens, now: () => deps.orchestration.now() }, {
+    return notePlaybookWin({ screens: deps.screens, now: () => deps.orchestration.now(), offsetMinutes: iso => deps.orchestration.localOffsetMinutes(iso) }, {
       workspaceId: request.workspaceId, projectId: request.projectId, ticketId: request.ticketId, ...task,
     })
   } catch (error: unknown) {

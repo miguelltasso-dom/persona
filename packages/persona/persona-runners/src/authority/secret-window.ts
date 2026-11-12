@@ -33,6 +33,21 @@ export function secretWindowOpen(): boolean {
 }
 
 /**
+ * A text with every live typed secret masked (identity when no redactor is registered, and a redactor that throws masks the whole text). For what the model SAYS (the reply the host persists and posts) and
+ * for what the host keeps about a failed run, as the funnels of the tools already do for what the model READS.
+ * @param text - Any text that may reach a screen, the thread or a log.
+ */
+export function redactText(text: string): string {
+  if (redactor === undefined) return text
+  try {
+    return redactor(text)
+  } catch (error) {
+    void error
+    return '••••••'
+  }
+}
+
+/**
  * The output of a tool with every live secret masked, in whatever shape the CLI hands it (a string, content blocks, nested objects); only strings are touched.
  * @param value - The tool's response as the CLI posted it.
  * @returns The same shape, and whether anything was replaced. A redactor that throws masks the whole text it was given.

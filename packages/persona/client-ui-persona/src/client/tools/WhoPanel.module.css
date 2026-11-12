@@ -44,7 +44,7 @@
 
 .title {
   margin: 0;
-  font: 500 20px/1.2 var(--persona-font-display, var(--persona-font-text));
+  font: 600 20px/1.2 var(--persona-font-display, var(--persona-font-text));
   color: var(--persona-ink);
 }
 
@@ -73,7 +73,7 @@
 
 .sectionTitle {
   margin: 0;
-  font: 800 13px/1.2 var(--persona-font-text);
+  font: 600 13px/1.2 var(--persona-font-text);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--persona-ink-soft);

@@ -10,7 +10,11 @@
  *
  * O cenário pelo HOST em processo com o runner REAL e o CLI de mentira (0 IA; `PERSONA_REAL_CLI=1`): é o caminho do `resolveHostRunner` + `tapTurn`, onde mora a captura compartilhada; o runner falso
  * do `createFakeRunner` não a tem. O livro de segundo plano é criado com limiar curto (150 ms) para a Tarefa A ir ao fundo logo. Cada cenário tem antes um teste de OBSERVAÇÃO e há um CONTROLE
- * (a Tarefa A sozinha devolve a resposta dela). Os vermelhos ficam em `it.fails` (PERSONA_SHOW_RED=1 os roda como testes normais); o veredito é PURO e provado nos dois lados.
+ * (a Tarefa A sozinha devolve a resposta dela). O veredito é PURO e provado nos dois lados.
+ *
+ * ESTADO (12/11 07:15): o Parar derrubava a vizinha (12/11 06:36: ela fechava `blocked` com "O motor de Bia não está disponível") — vermelho que o Forge corrigiu às 06:53 (enquanto OUTRA Tarefa da
+ * persona está no livro de segundo plano, a nova ganha runner próprio, chave `pp:bia:task:<ticketId>:solo`): os três do Parar são testes NORMAIS agora. A mistura de resposta/status nunca reproduziu;
+ * fica a trava, com o stub de turno inteiro no fim e com o stub TRANSMITIDO (`stepMs`: texto e ferramentas durante o turno, as duas Tarefas ao mesmo tempo).
  */
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -22,8 +26,6 @@ import type PersonaHost from '../../persona-host/src/index.ts'
 import { openRemoteTeamHarness, type RemoteTeamHarness } from '../../persona-host/tests/remote-team-harness.ts'
 import { withFakeCliOnPath, type FakeCliPathScope } from '../src/fake-cli.ts'
 
-const SHOW_RED = process.env.PERSONA_SHOW_RED === '1'
-const expectedRed = SHOW_RED ? it : it.fails
 const ARTIFACTS = join(dirname(fileURLToPath(import.meta.url)), '..', 'artifacts', 'regressao')
 const SCOPE = { workspaceId: 'ws', projectId: 'pp' } as const
 const MARK_A = 'RESPOSTA-DO-CARTAZ-AZUL'
@@ -58,6 +60,15 @@ export function mixProblems(a: TaskSeen, b: TaskSeen): string[] {
   return out
 }
 
+/** O veredito dos turnos TRANSMITIDOS, PURO: o de {@link mixProblems} e mais: a narração (o "pensar em voz alta" entre ferramentas) de uma não pode estar nas palavras da outra, e nenhuma pode ter perdido o texto final. */
+export function streamedProblems(a: TaskSeen, b: TaskSeen): string[] {
+  const out = mixProblems(a, b)
+  if (/\(B\d\)/u.test(a.text)) out.push('a Tarefa A carrega a narração da B')
+  if (/\(A\d\)/u.test(b.text)) out.push('a Tarefa B carrega a narração da A')
+  for (const task of [a, b]) if (task.text.includes('Terminei a minha parte.')) out.push(`a Tarefa ${task.name} ficou sem as palavras finais (o texto dela foi zerado)`)
+  return out
+}
+
 /** O veredito do Parar, PURO: a Tarefa parada tem de ter terminado (parada) e a vizinha tem de terminar `ready` com a resposta DELA, sem ter sido parada nem marcada com erro de motor. */
 export function stopProblems(stopped: TaskSeen, other: TaskSeen, otherMark: string): string[] {
   const out: string[] = []
@@ -79,6 +90,12 @@ describe('P1-02(b) — vereditos do cenário (puros)', () => {
     expect(mixProblems(ok('A', MARK_A), { ...ok('B', MARK_B), text: '' })).toHaveLength(1)
     expect(mixProblems(ok('A', MARK_A), { ...ok('B', MARK_B), report: 'blocked' })).toHaveLength(1)
     expect(mixProblems(ok('A', MARK_A), { ...ok('B', MARK_B), text: '', report: undefined, stoppedOnPurpose: true })).toEqual([])
+  })
+  it('transmitidos: a narração da vizinha e o texto final zerado são acusados; o certo passa', () => {
+    expect(streamedProblems(ok('A', MARK_A), ok('B', MARK_B))).toEqual([])
+    expect(streamedProblems({ ...ok('A', MARK_A), text: `${MARK_A} Fechando (B6).` }, ok('B', MARK_B))).toHaveLength(1)
+    expect(streamedProblems(ok('A', MARK_A), { ...ok('B', MARK_B), text: `${MARK_B} Quase (A3).` })).toHaveLength(1)
+    expect(streamedProblems(ok('A', MARK_A), { ...ok('B', MARK_B), text: `${MARK_B} Terminei a minha parte.` })).toHaveLength(1)
   })
   it('Parar: a parada encerra a parada e deixa a vizinha terminar "ready" com a resposta dela; cada falha é acusada', () => {
     const stopped: TaskSeen = { name: 'B', text: '', ended: true, report: undefined, stoppedOnPurpose: true }
@@ -115,13 +132,20 @@ describe('P1-02(b) — duas Tarefas da mesma persona no mesmo runner quente, uma
     vi.unstubAllEnvs()
   })
 
-  /** A host whose Bia (claude, the coordination) is warm, with a short background threshold and a 4 s turn: two requests 'ask' by the same persona overlap. */
+  /**
+   * A host whose Bia (claude, the coordination) is warm. The stub WRITES AND CALLS TOOLS DURING each turn (a step every second, 6 steps each, ~7 s): the first tool call of A's turn moves A to the background
+   * through the product's own trigger (`afterToolCalls: 1`; the book frees the work chain then), and B's own CLI process (its `:solo` runner) takes seconds to start, so the two turns' streams overlap
+   * (with a stub that answers everything at the end of a 4 s turn, A could end before B's turn opened, and a time threshold detached A before its first `deliver`).
+   */
   function open(): PersonaHost {
     const dir = mkdtempSync(join(tmpdir(), 'regressao-p102b-'))
     dirs.push(dir)
     cli = withFakeCliOnPath({
-      turnMs: 4000,
-      rules: [{ match: ASK_A, reply: `Segue o cartaz azul. ${MARK_A}.` }, { match: ASK_B, reply: `Segue o cartaz verde. ${MARK_B}.` }],
+      stepMs: 1000,
+      rules: [
+        { match: ASK_A, reply: `Segue o cartaz azul. ${MARK_A}.`, narration: ['Vou olhar a pasta (A1).', 'Agora o azul (A2).', 'Quase (A3).', 'Outro (A4).', 'Falta pouco (A5).', 'Fechando (A6).'] },
+        { match: ASK_B, reply: `Segue o cartaz verde. ${MARK_B}.`, narration: ['Vou olhar a pasta (B1).', 'Agora o verde (B2).', 'Mais um (B3).', 'Outro (B4).', 'Falta pouco (B5).', 'Fechando (B6).'] },
+      ],
       needles: [ASK_A, ASK_B],
     })
     harness = openRemoteTeamHarness(join(dir, 'p.db'))
@@ -133,14 +157,19 @@ describe('P1-02(b) — duas Tarefas da mesma persona no mesmo runner quente, uma
       avatarKind: 'gallery', avatarRef: 'luna', runnerKind: 'cli', runnerCli: 'claude', runnerModel: 'haiku', canRecruit: false, createdBy: 'ana', systemRoles: ['coordination'],
     })
     h.createChannel({ id: 'geral', ...SCOPE, name: 'geral', topic: '' })
+    // The stub calls a READ tool (Glob) between its words; a text-only persona has tool level "none" and the product refuses it ("Ferramenta Glob recusada no nível none"). A FILE grant only counts inside a
+    // Task's draft folder (`toolsForTask`; these Tasks have none), so the grant is a non-file one (`bash: read`), which keeps the CLI tool level at "read" without making the runner a file runner (no `:files` key).
+    h.product.updatePersona({ ...h.product.getPersona('bia')!, tools: { bash: 'read' } }, 'pp')
     h.orchestration.engineReadinessOf = () => ({ state: 'ready', reason: null })
     h.orchestration.scripted = false
-    backgroundWorkOf(h.orchestration, { afterMs: 150, nowMs: () => Date.now() }) // created ONCE per host, before the first run
+    // Created ONCE per host, before the first run: no time threshold (10 min); the FIRST tool call of a turn moves its Task to the background (the product's 20-tool trigger, lowered to 1).
+    backgroundWorkOf(h.orchestration, { afterMs: 600_000, afterToolCalls: 1, nowMs: () => Date.now() })
     return h
   }
 
   const ask = (h: PersonaHost, id: string, body: string): void => {
-    h.postMessage({ id, ...SCOPE, streamKind: 'channel', ownerId: 'geral', body, actorId: 'ana', subjectId: id, occurredAt: new Date().toISOString() })
+    // The composer sends the OPEN subject of the conversation, the same for every message typed in it (a subject per message is not what the app does, and made the Task's own lines land under another subject).
+    h.postMessage({ id, ...SCOPE, streamKind: 'channel', ownerId: 'geral', body, actorId: 'ana', subjectId: 'assunto-geral', occurredAt: new Date().toISOString() })
   }
   const ticketOf = (h: PersonaHost, trigger: string) => h.orchestration.runtime('pp').repo.tickets.list().find(item => item.origin.triggerId === trigger)
   const waitFor = async (check: () => boolean, ms: number): Promise<boolean> => {
@@ -155,7 +184,7 @@ describe('P1-02(b) — duas Tarefas da mesma persona no mesmo runner quente, uma
   function wordsOf(h: PersonaHost, trigger: string): string {
     const ticket = ticketOf(h, trigger)
     const lines = h.listMessages({ ...SCOPE, streamKind: 'channel', ownerId: 'geral', actorId: 'ana', afterSeq: 0, limit: 200 }).events
-      .filter(event => event.actorId === 'bia' && (event.subjectId === trigger || event.id.includes(trigger))).map(event => event.body)
+      .filter(event => event.actorId === 'bia' && ticket !== undefined && event.id.includes(ticket.id)).map(event => event.body) // the Task's own lines carry its id (`exec-<id>-…`, `coord-<id>-…`, `background-<id>`), whatever subject they sit under
     return JSON.stringify({ assignments: ticket?.assignments, lines })
   }
   const seenOf = (h: PersonaHost, name: 'A' | 'B', trigger: string, stoppedOnPurpose = false): TaskSeen => ({
@@ -174,7 +203,8 @@ describe('P1-02(b) — duas Tarefas da mesma persona no mesmo runner quente, uma
     ask(h, 'u1', `@Bia monte o cartaz azul da promoção, ${ASK_A}`)
     expect(await waitFor(() => ticketOf(h, 'u1') !== undefined, 15_000), 'a Tarefa A não nasceu').toBe(true)
     const a = ticketOf(h, 'u1')!.id
-    expect(await waitFor(() => backgroundWorkOf(h.orchestration).isBackground(a), 15_000), 'a Tarefa A não foi para o segundo plano').toBe(true)
+    // A's first tool call (a second into its turn) moves it to the background and frees the work chain, so B is taken at once.
+    expect(await waitFor(() => backgroundWorkOf(h.orchestration).isBackground(a), 30_000), 'a Tarefa A não foi para o segundo plano (o gatilho de ferramentas)').toBe(true)
     ask(h, 'u2', `@Bia monte o cartaz verde da promoção, ${ASK_B}`)
     expect(await waitFor(() => ticketOf(h, 'u2') !== undefined, 15_000), 'a Tarefa B não nasceu (a persona devia estar livre com a A no fundo)').toBe(true)
     const b = ticketOf(h, 'u2')!.id
@@ -186,9 +216,16 @@ describe('P1-02(b) — duas Tarefas da mesma persona no mesmo runner quente, uma
   it('CONTROLE: a Tarefa A sozinha termina com a resposta DELA (o stub, o runner real e a leitura do texto funcionam)', async () => {
     const h = open()
     ask(h, 'u1', `@Bia monte o cartaz azul da promoção, ${ASK_A}`)
-    expect(await waitFor(() => finished(h, 'u1'), 40_000), 'a Tarefa A não terminou').toBe(true)
+    const done = await waitFor(() => finished(h, 'u1'), 40_000)
+    // What the host and the stub say when the Task does not end (written whatever the result, so a failure explains itself).
+    keepEvidence('controle', {
+      done, ticket: ticketOf(h, 'u1'), background: backgroundWorkOf(h.orchestration).isBackground(ticketOf(h, 'u1')?.id ?? ''),
+      errors: (h.orchestration as unknown as { lastErrors?: string[] }).lastErrors ?? [], warm: [...h.orchestration.warmRunners.keys()],
+      stub: (cli?.invocations() ?? []).map(call => `${call.event}:${String(call.proc ?? call.pid)}`),
+      thread: h.listMessages({ ...SCOPE, streamKind: 'channel', ownerId: 'geral', actorId: 'ana', afterSeq: 0, limit: 50 }).events.map(event => `${event.actorId}: ${event.body.slice(0, 100)}`),
+    })
+    expect(done, 'a Tarefa A não terminou').toBe(true)
     const seen = seenOf(h, 'A', 'u1')
-    keepEvidence('controle', { seen, ticket: ticketOf(h, 'u1') })
     expect(seen.text, 'a Tarefa A sozinha não devolveu a resposta dela: o cenário não prova nada').toContain(MARK_A)
   }, 120_000)
 
@@ -196,27 +233,37 @@ describe('P1-02(b) — duas Tarefas da mesma persona no mesmo runner quente, uma
     const h = open()
     const { a, b } = await bothRunning(h)
     expect(a).not.toBe(b)
+    // Forge's fix (06:53): while ANOTHER Task of the persona is in the background book, the new Task gets a runner of its own (key `pp:bia:task:<ticketId>:solo`); before it, both shared `pp:bia:task`.
     const warm = [...h.orchestration.warmRunners.keys()].filter(key => key.startsWith('pp:bia:task'))
-    expect(warm.length, `as duas Tarefas devem dividir UM runner quente de tarefa: ${JSON.stringify(warm)}`).toBe(1)
+    keepEvidence('observacao-estado', {
+      warm, background: backgroundWorkOf(h.orchestration).ids(), a, b, aFinished: finished(h, 'u1'),
+      turns: (cli?.invocations() ?? []).filter(call => call.event === 'turn').map(call => ({ proc: call.proc, needles: call.needles, at: call.at })),
+    })
+    expect(warm.length, `as duas Tarefas devem ter um runner quente CADA: ${JSON.stringify(warm)}`).toBe(2)
+    expect(warm.some(key => key.startsWith(`pp:bia:task:${b}:`) && key.endsWith(':solo')), `o runner da Tarefa B devia ser o :solo dela: ${JSON.stringify(warm)}`).toBe(true)
     const running = h.orchestration.runningTicketOf('pp', 'bia')
     expect([a, b], 'runningTicketOf devia devolver uma das duas Tarefas que rodam').toContain(running?.id)
     await waitFor(() => finished(h, 'u1') && finished(h, 'u2'), 60_000)
     keepEvidence('observacao', { warm, running: running?.id, a: seenOf(h, 'A', 'u1'), b: seenOf(h, 'B', 'u2') })
   }, 180_000)
 
-  // NÃO reproduziu (12/11 06:36): com o stub, que escreve a resposta inteira só no FIM do turno, o texto não se mistura. Trava verde. LIMITE: um modelo que escreve ao longo do turno (e chama
-  // ferramentas) abriria a corrida na captura compartilhada (`tapTurn` zera `last`/`tools`/`report` no começo de CADA turno); o stub de hoje não faz isso (ver o relatório).
-  it('TRAVA — as duas Tarefas terminam, cada uma com a resposta DELA, sem a da vizinha e "ready"', async () => {
+  // Turnos TRANSMITIDOS (Forge pediu, 07:08): a persona escreve e chama ferramentas DURANTE o turno, nas duas Tarefas ao mesmo tempo (a mistura de resposta/status nunca reproduziu com o stub que responde
+  // tudo no FIM do turno; este é o caso que abriria a corrida na captura compartilhada — `tapTurn` zera `last`/`tools`/`report` no começo de CADA turno — e que protege o contador de ferramentas novo,
+  // `setRunnerToolSink`, chamado a cada ferramenta do turno de Tarefa).
+  it('TRAVA — com texto e ferramentas durante o turno nas duas Tarefas ao mesmo tempo, cada uma termina "ready" com a resposta DELA, sem a narração nem o texto da vizinha', async () => {
     const h = open()
     await bothRunning(h)
-    expect(await waitFor(() => finished(h, 'u1') && finished(h, 'u2'), 40_000), 'as duas Tarefas não terminaram').toBe(true)
+    expect(finished(h, 'u1'), 'os turnos não se sobrepuseram: a A já tinha terminado quando o CLI abriu o turno da B (o cenário não prova nada)').toBe(false)
+    expect(await waitFor(() => finished(h, 'u1') && finished(h, 'u2'), 60_000), 'as duas Tarefas não terminaram').toBe(true)
     const a = seenOf(h, 'A', 'u1')
     const b = seenOf(h, 'B', 'u2')
-    keepEvidence('mistura', { a, b })
-    expect(mixProblems(a, b)).toEqual([])
+    const lines = h.listMessages({ ...SCOPE, streamKind: 'channel', ownerId: 'geral', actorId: 'ana', afterSeq: 0, limit: 200 }).events.map(event => ({ id: event.id, actor: event.actorId, subject: event.subjectId, topic: event.topicId, body: event.body.slice(0, 80) }))
+    keepEvidence('transmitido', { a, b, lines })
+    expect(streamedProblems(a, b), JSON.stringify({ a: a.text.slice(0, 400), b: b.text.slice(0, 400) })).toEqual([])
   }, 240_000)
 
-  expectedRed('VERMELHO (se perder o Parar) — Parar na Tarefa B (da frente): a B para e a A (do fundo) termina com a resposta dela', async () => {
+  // Os três do Parar eram vermelhos (a vizinha fechava "blocked" com "O motor de Bia não está disponível"): a correção do Forge (runner próprio por Tarefa enquanto há outra em fundo) os põe verdes.
+  it('CORRETO — Parar na Tarefa B (da frente): a B para e a A (do fundo) termina "ready" com a resposta dela', async () => {
     const h = open()
     const { b } = await bothRunning(h)
     const stop = await h.stopTurn({ ...SCOPE, personaId: 'bia', ticketId: b })
@@ -228,7 +275,7 @@ describe('P1-02(b) — duas Tarefas da mesma persona no mesmo runner quente, uma
     expect(stopProblems(seenB, seenA, MARK_A)).toEqual([])
   }, 240_000)
 
-  expectedRed('VERMELHO (se perder o Parar) — Parar na Tarefa A (do fundo): a A para e a B (da frente) termina com a resposta dela', async () => {
+  it('CORRETO — Parar na Tarefa A (do fundo): a A para e a B (da frente) termina "ready" com a resposta dela', async () => {
     const h = open()
     const { a } = await bothRunning(h)
     const stop = await h.stopTurn({ ...SCOPE, personaId: 'bia', ticketId: a })
@@ -240,7 +287,7 @@ describe('P1-02(b) — duas Tarefas da mesma persona no mesmo runner quente, uma
     expect(stopProblems(seenA, seenB, MARK_B)).toEqual([])
   }, 240_000)
 
-  expectedRed('VERMELHO — Parar SEM dizer a Tarefa (o botão da persona): para a que `runningTicketOf` apontou e `runningTicketOf` passa a apontar a OUTRA, que termina com a resposta dela', async () => {
+  it('CORRETO — Parar SEM dizer a Tarefa (o botão da persona): para a que `runningTicketOf` apontou e `runningTicketOf` passa a apontar a OUTRA, que termina "ready" com a resposta dela', async () => {
     const h = open()
     const { a, b } = await bothRunning(h)
     const target = h.orchestration.runningTicketOf('pp', 'bia')!.id

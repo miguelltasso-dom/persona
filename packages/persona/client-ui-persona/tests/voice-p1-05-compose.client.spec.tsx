@@ -3,8 +3,8 @@
  * COLHEITA-S1 · P1-05 (Carbon): o microfone não aparece em nenhuma tela. Vermelho primeiro: o botão de gravar só existe
  * com o composer vazio; gravando, a barra de gravação toma o lugar do composer.
  */
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
-import { afterEach, describe, expect, it } from 'vitest'
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { VoiceComposeButton } from '../src/client/chat/voice-compose/VoiceComposeButton.tsx'
 import { bindLocale } from '../src/client/preview/locale-bind.ts'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
@@ -59,5 +59,15 @@ describe('P1-05 · microfone no composer', () => {
       fireEvent.click(screen.getByRole('button', { name: bindLocale(shellPt, 'voice.record') }))
     })
     expect(screen.getByRole('button', { name: bindLocale(shellPt, 'voice.send') })).toBeTruthy()
+  })
+
+  // COLHEITA-S1 P1-03 (Carbon): o teto (2 min; aqui 30 ms) encerra a gravação sozinho e o áudio tem de chegar ao envio, não descartado.
+  it('P1-03 · no teto a gravação não se perde: o microfone entrega o áudio ao envio', async () => {
+    const onSendVoice = vi.fn()
+    render(<VoiceComposeButton t={t} empty onSendVoice={onSendVoice} captureOptions={{ ...captureOptions, maxMs: 30 }} />)
+    await act(async () => {
+      fireEvent.click(screen.getByRole('button', { name: bindLocale(shellPt, 'voice.record') }))
+    })
+    await waitFor(() => { expect(onSendVoice).toHaveBeenCalledTimes(1) }, { timeout: 2000 })
   })
 })

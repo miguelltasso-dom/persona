@@ -4,7 +4,8 @@ name = "persona-edge"
 main = "src/index.ts"
 compatibility_date = "2025-10-01"
 compatibility_flags = ["nodejs_compat"]
-workers_dev = true
+# No public *.workers.dev address (P2-03a): the operator chooses a route when the account is released.
+workers_dev = false
 
 # Filled at first real deploy. Leave commented for dry-run / local.
 # account_id = "REPLACE_AFTER_LOGIN"
@@ -24,12 +25,11 @@ new_sqlite_classes = ["WorkspaceHub"]
 binding = "BLOBS"
 bucket_name = "persona-edge-blobs"
 
-# Plain vars only. Real secrets: `wrangler secret put` — never commit values.
+# Plain, non-secret vars only. Secrets never live in this file: locally they are in .dev.vars (git-ignored; see .dev.vars.example), in production `wrangler secret put`.
 [vars]
-GITHUB_WEBHOOK_SECRET = "dev-only-local-secret"
 ENVIRONMENT = "local"
 
-# Secrets the operator must set before a real deploy (see CLOUDFLARE-DEPLOY.md):
+# Secrets (.dev.vars locally, `wrangler secret put` before a real deploy; see CLOUDFLARE-DEPLOY.md):
 #   GITHUB_WEBHOOK_SECRET
 #   PERSONA_SYNC_WRAP_KEY   (optional; payload encryption)
 #   PERSONA_INVITE_PEPPER   (optional; invite token hash)

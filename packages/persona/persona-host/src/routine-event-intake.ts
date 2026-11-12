@@ -25,6 +25,13 @@ import {
 /** The most event runs one routine starts in a rolling hour. */
 export const EVENT_RUNS_PER_HOUR = 6
 const HOUR_MS = 3_600_000
+/**
+ * Sources that are read WITH A CURSOR: the offset moves past an update the moment it is read, so an event dropped here is gone for good (P1-07). A mailbox is not one: unread mail stays unread and is
+ * taken again after the hour. Above the limit a cursor source POSTPONES the run instead of dropping it.
+ */
+const CURSOR_SOURCES: ReadonlySet<EventSource> = new Set<EventSource>(['telegram'])
+/** The most postponed runs one routine keeps waiting; past that the rest is dropped, and said. */
+const MAX_WAITING = 50
 
 /** The Cofre slot (provider key) each source's credential lives in: a routine listens only to a source the person connected. */
 export const SOURCE_PROVIDER: Readonly<Record<EventSource, string>> = {
@@ -107,7 +114,24 @@ export class RoutineEventIntake {
     const runs = this.deps.routines.listRuns(listener.id)
     if (runs.some(run => run.id === runId)) return false
     const lately = runs.filter(run => isEventRunId(run.id) && Date.parse(run.scheduledFor) > nowMs - HOUR_MS).length
-    if (lately >= EVENT_RUNS_PER_HOUR) {
+    let opensAt = nowMs
+    if (lately >= EVENT_RUNS_PER_HOUR && CURSOR_SOURCES.has(source)) {
+      // P1-07: this event is not coming back (the cursor moved past it): it WAITS for the hour to have room instead of being dropped.
+      const waiting = runs.filter(run => isEventRunId(run.id) && Date.parse(run.scheduledFor) > nowMs + 1_000).length // (the few-ms stagger of runs that start now does not count)
+      if (waiting >= MAX_WAITING) {
+        this.deps.audit({
+          projectId, id: `sched:routine_skipped:${listener.id}:full:${String(Math.floor(nowMs / HOUR_MS))}`, at: nowIso, subjectId: listener.id,
+          detail: `A rotina “${listener.name}” já tem ${String(MAX_WAITING)} eventos esperando a vez: os que não cabem foram perdidos (perdi mensagens). Aumente o limite ou chame menos eventos.`,
+        })
+        return false
+      }
+      const recent = runs.filter(run => isEventRunId(run.id) && Date.parse(run.scheduledFor) > nowMs - HOUR_MS).map(run => Date.parse(run.scheduledFor)).sort((a, b) => a - b)
+      opensAt = Math.max(nowMs, (recent[lately - EVENT_RUNS_PER_HOUR] ?? nowMs) + HOUR_MS) // the hour has room once enough of the oldest runs age out
+      this.deps.audit({
+        projectId, id: `sched:routine_skipped:${listener.id}:wait:${String(Math.floor(nowMs / HOUR_MS))}`, at: nowIso, subjectId: listener.id,
+        detail: `A rotina “${listener.name}” já começou ${String(EVENT_RUNS_PER_HOUR)} vezes na última hora: os eventos a mais ficaram adiados e rodam quando a hora tiver vaga (nenhum foi perdido).`,
+      })
+    } else if (lately >= EVENT_RUNS_PER_HOUR) {
       this.deps.audit({
         projectId, id: `sched:routine_skipped:${listener.id}:cap:${String(Math.floor(nowMs / HOUR_MS))}`, at: nowIso, subjectId: listener.id,
         detail: `A rotina “${listener.name}” já começou ${String(EVENT_RUNS_PER_HOUR)} vezes na última hora: os eventos a mais não rodaram.`,
@@ -116,7 +140,7 @@ export class RoutineEventIntake {
     }
     // One run per (routine, instant): two events in the same millisecond must not swallow each other.
     const taken = new Set(runs.map(run => run.scheduledFor))
-    let at = nowMs
+    let at = Math.max(nowMs, opensAt)
     while (taken.has(new Date(at).toISOString())) at += 1
     const doc: RoutineEventDoc = { source, eventId, text }
     this.deps.screens.put(projectId, EVENT_DOC_KIND, runId, doc)

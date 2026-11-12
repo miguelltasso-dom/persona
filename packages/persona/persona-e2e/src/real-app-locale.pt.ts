@@ -16,6 +16,8 @@ export const onboarding = {
 
 export const shell = {
   kanban: 'Quadros',
+  /** NAV-SPEC A-1 (navPlaces, ON by default in v1.1): the rail place that opens on the board; "Quadros" is its first tab, no longer a rail item. */
+  projects: 'Projetos',
   channels: 'Canais',
   team: 'Equipe',
 } as const

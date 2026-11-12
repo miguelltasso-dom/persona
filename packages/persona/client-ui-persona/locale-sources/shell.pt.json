@@ -266,6 +266,8 @@
   "sounds.medium": "Médio",
   "voice.record": "Gravar áudio",
   "voice.discard": "Descartar",
+  "voice.downloadingFirstUse": "Baixando o ouvido da Persona (1ª vez)…",
+  "voice.transcribeUnavailable": "Não consegui transcrever o áudio agora, então a mensagem não foi enviada. Grave de novo quando a voz estiver disponível.",
   "voice.send": "Enviar áudio",
   "voice.limit": "Máximo de 2 minutos",
   "voice.play": "Tocar",

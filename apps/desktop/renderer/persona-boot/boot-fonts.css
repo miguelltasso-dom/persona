@@ -1,3 +1,6 @@
+/* The document paints the theme paper from the very first frame, before any script (COLHEITA-MUSE §30): never a white frame. */
+html { background: #faf3e4; }
+@media (prefers-color-scheme: dark) { html { background: #1e1526; } }
 /* Font faces are document-owned; Chromium does not activate these from the shadow stylesheet. */
 @font-face { font-family: 'Persona Fredoka'; src: url(assets/fredoka-latin.woff2) format('woff2'); font-weight: 300 700; font-display: swap; }
 @font-face { font-family: 'Persona Nunito'; src: url(assets/nunito-latin.woff2) format('woff2'); font-weight: 200 1000; font-display: swap; }

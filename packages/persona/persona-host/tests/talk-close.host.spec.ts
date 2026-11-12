@@ -120,11 +120,15 @@ it('if she says it again, her words are NOT posted: ONE honest sentence is, and 
   expect(got.log).toEqual(['continuar:sem-prova', 'cartao-continuar:sem-prova'])
 })
 
-it('the host acts for her in a conversation: "já encaminhei" is not called a lie, one turn, her words as written', async () => {
-  const got = await run([turn(say('Já encaminhei o pedido do cartaz para o Téo, ele volta com a arte ainda hoje.'))])
-  expect(got.prompts).toHaveLength(1)
-  expect(got.reply).toContain('Já encaminhei o pedido do cartaz para o Téo')
-  expect(got.log).toEqual(['feito'])
+it('a talk reply has no tools and the host sends/forwards nothing for it (Carbon P1-04): "já encaminhei" is a claim nothing backs, so she is sent back once and what she says next is posted', async () => {
+  const got = await run([
+    turn(say('Já encaminhei o pedido do cartaz para o Téo, ele volta com a arte ainda hoje.')),
+    turn(say('Ainda não encaminhei nada. O pedido do cartaz está aqui para você revisar: fundo claro, preço grande e o prazo de sexta.')),
+  ])
+  expect(got.prompts).toHaveLength(2)
+  expect(got.reply).not.toContain('Já encaminhei o pedido do cartaz')
+  expect(got.reply).toContain('Ainda não encaminhei nada')
+  expect(got.log[0]).toMatch(/^continuar:/u)
 })
 
 it('a secret asked in the chat is corrected once; asked again it never reaches the thread: the Cofre sentence goes instead', async () => {

@@ -184,7 +184,7 @@ async function main(): Promise<void> {
     }
     // D-101 (item 20): the pinned on-demand component manifest the app ships. The generator owns the stt entry (official zip,
     // sha256) and merges the archives a release publishes; without it the Host's persona-components plugin stays inert.
-    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:components', () => {
+    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:components', async () => {
       execFileSync(process.execPath, [
         join(APP_ROOT, '..', '..', 'scripts', 'persona', 'gen-components-json.mjs'),
         '--out', join(BUILD_PATHS.root, 'components.json'),

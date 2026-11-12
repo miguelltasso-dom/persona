@@ -430,7 +430,7 @@ Versão final, que junta a proposta do Anvil (00:08) e a minha (00:08).
 **Não é** um painel de 3 telas: é a Casa da §29, com os mesmos componentes, adaptada a 360–430 px.
 1. **A gaveta** (o rail da Casa, aberta pelo botão do topo, com o pontinho âmbar quando algo espera você):
    - a empresa: `Padaria Lua · 2 pessoas · 4 personas no ar`;
-   - **os 2 atalhos no topo**, em cartões de 56 px: `Esta noite · 9 tarefas` e `Espera você · 2` (contagem âmbar);
+   - **os 2 atalhos no topo**, em cartões de 56 px: `Esta noite · 9 tarefas` e `Espera você · 2 aprovações` (com a contagem âmbar);
    - `Ir para…`;
    - os canais por equipe (§29);
    - **`Personas no ar`**: só as que estão com o computador LIGADO, com o rosto R2 e a linha do que fazem;
@@ -445,7 +445,7 @@ Versão final, que junta a proposta do Anvil (00:08) e a minha (00:08).
    - a pílula `Coordenação decide` acima do compositor;
    - o compositor em pílula de 52 px (`+`, o texto, o microfone e enviar). `@` chama alguém.
 3. **Gente com gente:** a conversa direta com uma pessoa é igual. Um `@Nina` no meio chama a persona, e ela responde ali (`chamada por você`).
-4. **A persona fora do ar:** dá para LER o histórico, **sem compositor**. No lugar dele, a arte `pc-sem-ligacao` com `Sol está fora do ar. O computador dela está desligado. A conversa volta quando ele ligar.`
+4. **A persona fora do ar:** dá para LER o histórico, **sem compositor**. No lugar dele, a arte `pc-sem-ligacao` com `Sol está fora do ar. O computador onde Sol trabalha está desligado. A conversa volta quando ele ligar.` (os textos por motivo, sem gênero: o recado da Muse ao Bolt de 12/11 14:36: computador-desligado, pausada, sem-motor e sem-ficha)
 5. **`Esta noite` e `Espera você` são folhas por cima da Casa** (bottom sheet, 74 % da altura, o scrim sólido do §2.7, arrastar para baixo fecha), e não um app separado:
    - em `Esta noite`, o resumo e os eventos;
    - em `Espera você`, os cartões de aprovação.
@@ -454,6 +454,59 @@ Versão final, que junta a proposta do Anvil (00:08) e a minha (00:08).
   - mover cartão do quadro só no PC;
   - fora do celular na 1ª versão: Configurações, o Cofre, contratar e as Regras.
 - **O pareamento (1ª vez):** a tela `Ligar ao PC` com o código `XXXX-XXXX` de 10 min (a prancha `celular-*` anterior; o componente da Estação, §28).
+
+---
+
+## 32 · D-116: onde a persona roda (Miguel/Atlas 12/11 14:40; telas: Prism no desktop, Cobalt no web/celular; host: Flint/Onyx/Bolt)
+**O texto final** está em `persona-spec/contracts/marco-dogfood-onde-roda.md` (a parte da Muse, M0 a M7), que vale sobre este resumo. **A prancha:** `.maestri/tmp/shots/design/onde-roda/` (`criar-*`, `computadores-*` e `levar-*`, claro e escuro), com a fonte em `.maestri/tmp/muse/casa-equipe/onde-roda.html?tela=…`.
+
+**As regras de texto:**
+- sem jargão: nem "host", nem "RAM" sozinho, nem "E2EE";
+- sem artigo antes do nome da persona;
+- a conta de IA é sempre dita **com o nome de quem a entrou** naquele computador.
+
+1. **"Onde roda" ao CRIAR a persona** (um passo do contratar, antes da revisão):
+   - o título `Onde Nina vai trabalhar?` e a linha `Nina só fica no ar enquanto esse computador estiver ligado. A equipe toda pode conversar com ela.`;
+   - **2 ChoiceCards:**
+     - `Neste computador` (`Notebook do Miguel · fica no ar quando o seu notebook está ligado.`);
+     - `Num computador da equipe` (o Select dos computadores cadastrados, com a bolinha ligado/desligado).
+     - Sem computador cadastrado, o 2º cartão diz `Nenhum computador da equipe ainda.` com o link `Cadastrar computador`.
+   - **A frase da conta**, num bloco abaixo, em 14,5 px peso 600: `Roda no PC da padaria, com a conta Claude de quem o configurou (Miguel).`, mais a nota com o glifo `lock`: `Nenhum login sai do seu computador. O acesso de Nina é o menor entre o que você deu e o que esse computador permite.`
+   - **O padrão:** `Neste computador` (o seguro), sem selo "Recomendado" (a regra 1).
+2. **No perfil da persona** (Visão geral), o bloco `Onde roda`:
+   - o glifo `estacao`, o nome do computador e `Ligado · roda 3 personas · conta Claude de Miguel`;
+   - o botão `Levar para outro computador` (32 px);
+   - embaixo, a nota `Nina só fica no ar enquanto o PC da padaria estiver ligado. Desligado, a equipe lê as conversas, mas não manda mensagem.`
+3. **"Computadores da equipe"** (Configurações):
+   - o primário `+ Cadastrar computador`, que abre o pareamento por código XXXX-XXXX de 10 min (o mesmo componente da Estação, §28);
+   - **uma tabela com 5 colunas:**
+     | Coluna | Conteúdo |
+     |---|---|
+     | 1 | o glifo |
+     | Computador | o nome (com o chip `este` no próprio), mais a linha do papel e da conta |
+     | Estado | o chip `Ligado` (verde) ou `Desligado desde 14:30` (neutro) |
+     | Folga | em palavras: `Cabem mais 3` / `Apertado` / `Cheio`, com `16 GB · 6 GB livres` em 12 px muted embaixo; nunca só o número |
+     | Personas | a pilha de rostos de 24 |
+   - O desligado fica a 65 %.
+   - O rodapé: `Cada computador usa a conta de IA que está entrada nele. Nenhum login passa de um computador para o outro.`
+   - Só o dono (ou quem ele autorizar) vê `Cadastrar` e `Desligar este computador` (no `⋯` da linha).
+4. **"Levar para outro computador"** (modal de 560 px):
+   - **Os destinos:**
+     - os computadores com o rádio;
+     - **o desligado fica desabilitado**, com `Desligado: só dá para levar a um computador ligado`;
+     - o cheio NÃO fica desabilitado (folga é de turnos ao mesmo tempo: o cheio só faz esperar a vez), com a linha âmbar `Cheio agora: as tarefas de Nina podem esperar a vez`.
+   - **Dois blocos:**
+     - `VAI JUNTO, CIFRADO`: `As memórias, as regras e as skills de Nina`;
+     - `MUDA`: `Nina passa a usar a conta Claude entrada no PC da padaria (de Miguel)`.
+   - **A nota** com o glifo `clock`: `Leva alguns minutos. Nesse tempo, Nina fica fora do ar.`
+   - **O botão** diz o destino: `Levar para o PC da padaria` (primário). Sem "segure": não sai da empresa e dá para levar de volta.
+   - **O estado "mudando"**, no perfil e no topo da conversa com ela:
+     - o rosto pensando;
+     - `Levando Nina para o PC da padaria…` mais `Nina fica fora do ar até terminar. Pode fechar esta tela.`;
+     - 3 passos reais (`Guardando as memórias, as regras e as skills` → `Levando, cifrado, para o PC da padaria` → `Ligando Nina lá`), com o check, o spinner e a espera;
+     - a barra de progresso **só se o host mandar a fração real**.
+   - **O fim:** `Nina agora trabalha no PC da padaria.`
+   - **A falha:** `Não deu para levar. Nina continua no seu computador, como antes.` com `Tentar de novo`. Nunca uma persona em dois lugares; na dúvida, ela fica onde estava.
 
 ---
 
@@ -604,7 +657,7 @@ Versão final, que junta a proposta do Anvil (00:08) e a minha (00:08).
    - Reduced-motion: sem pulo.
 9. **O bicho trabalhando no rail:**
    - na linha da persona, o rosto troca para o humor **pensando** enquanto trabalha (item 21, crossfade por cima) e a bolinha verde respira;
-   - **o rosto que respira é só UM na tela inteira**: o maior visível (a regra do §21);
+   - **o rosto que respira é só UM na tela inteira**: o cabeçalho da DM ou o perfil aberto (decisão de 12/11 14:35; a faixa e o rail nunca respiram);
    - no rail, só o rosto troca, sem respiração;
    - ao terminar uma entrega, o humor **feliz** por 4 s.
 10. **Os atalhos:**
@@ -1057,7 +1110,7 @@ Os outros estados não ganham humor novo. `Descansando` e `Fora até` usam as po
 ### 3. A respiração e a piscada
 - **A respiração:**
   - `scaleY 1 → 1,012` com `transform-origin: 50% 100%`, num ciclo de 4,2 s com `--ease-glow`, `alternate`;
-  - **no máximo 1 avatar respirando na tela**: o maior visível (o cabeçalho da DM ou o perfil);
+  - **no máximo 1 avatar respirando na tela**: o cabeçalho da DM ou o perfil aberto, e nada mais (a faixa e o rail nunca respiram; decisão de 12/11 14:35);
   - junto com a bolinha de quem trabalha, isso dá as **2 contínuas** do teto da regra 5 do §2.7;
   - **ajuste à regra 4:** a regra dizia "sem respiração em quem está parado". O Miguel pediu a respiração; ela fica, mas só nesse 1 avatar e com a pausa tripla.
 - **A piscada:** troca para o `-blink` por 140 ms a cada 7 a 11 s (aleatório), só com a janela focada (já é a regra 4).

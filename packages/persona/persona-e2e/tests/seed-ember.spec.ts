@@ -4,14 +4,16 @@
  *   2  `openSeededEmberApp` reabre uma CÓPIA do home no app real e os estados estão NA TELA (as 3 falas no #geral; o cartão "Precisa de um código" com o site; a entrega pendente), com capturas e `proof.json`.
  * Rodar: `node scripts/persona/seed-ember.mjs [--out <pasta>]` (pela trava build) — ele imprime como o Ember liga.
  */
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import type { Page } from 'playwright'
 import { describe, expect, it } from 'vitest'
 import { ARTIFACTS_DIR } from '../src/paths.ts'
+import { hostRpcOk } from '../src/gauge-sb-ges.ts'
 import { ensureGeralComposer } from '../src/real-app-session.ts'
-import { copySeededHome, deliveryProblems, EMBER_SITE, EMBER_TEXT, groupOfThreeProblems, openSeededEmberApp, seedEmberHome, twoFactorProblems, type EmberSeedProof } from '../src/seed-ember.ts'
+import { copySeededHome, deliveryProblems, EMBER_SITE, EMBER_TEXT, groupOfThreeProblems, openSeededEmberApp, renewTwoFactor, seedEmberHome, twoFactorProblems, type EmberSeedProof } from '../src/seed-ember.ts'
+import { until, v11Tenant } from '../src/v11-helpers.ts'
 
 const run = process.env.PERSONA_SEED === '1'
 const HOME = process.env.PERSONA_SEED_HOME ?? join(ARTIFACTS_DIR, 'seed-ember', 'home')
@@ -60,6 +62,11 @@ describe.skipIf(!run)('seed do Ember — a rodada real (app real, CLI de mentira
   let proof: EmberSeedProof | undefined
 
   it('semeia o home: conversa com o grupo de 3, entrega em revisão e 2FA com o site (o host prova)', async () => {
+    // `PERSONA_SEED_REUSE=1`: the home is already seeded and proven (proof.json): only the on-screen check below runs again (a seed takes ~3 min).
+    if (process.env.PERSONA_SEED_REUSE === '1' && existsSync(join(out, 'proof.json'))) {
+      proof = JSON.parse(readFileSync(join(out, 'proof.json'), 'utf8')) as EmberSeedProof
+      return
+    }
     rmSync(HOME, { recursive: true, force: true })
     mkdirSync(out, { recursive: true })
     proof = await seedEmberHome({ home: HOME })
@@ -79,6 +86,13 @@ describe.skipIf(!run)('seed do Ember — a rodada real (app real, CLI de mentira
       await ensureGeralComposer(page)
       // 1) the group of 3, as the person wrote it
       for (const body of EMBER_TEXT.group) await page.getByText(body, { exact: true }).first().waitFor({ state: 'visible', timeout: 30_000 })
+      // "visible" only says the line has a box: the 1st run's capture was taken mid-load and showed none of the three. Bring the last one into view, let the screen settle and PROVE it is inside the viewport.
+      const lastOfGroup = page.getByText(EMBER_TEXT.group[2], { exact: true }).first()
+      await lastOfGroup.scrollIntoViewIfNeeded()
+      await page.waitForTimeout(2_000)
+      const box = await lastOfGroup.boundingBox()
+      const viewport = page.viewportSize()
+      const groupInView = box !== null && viewport !== null && box.y >= 0 && box.y + box.height <= viewport.height
       await page.screenshot({ path: join(out, 'geral.png') })
       // 3) the 2FA card with the site (thread or Aprovações)
       const geral = { name: '#geral', open: async () => { await ensureGeralComposer(page) } }
@@ -87,11 +101,41 @@ describe.skipIf(!run)('seed do Ember — a rodada real (app real, CLI de mentira
       const siteAt = await visibleOn(page, [geral, aprovacoes], EMBER_SITE)
       await page.screenshot({ path: join(out, '2fa.png') })
       // 2) the delivery waiting for "Aceitar": where the card is varies (thread, Aprovações, Quadro): the capture and the note say where; the Task being in review is proven in the host above
-      const acceptAt = await visibleOn(page, [geral, aprovacoes], /^Aceitar/u)
+      // Aprovações lists the delivery as its own row ("Monte o cartaz…", Equipe): open it and write down which buttons its detail offers (the capture shows them).
+      await aprovacoes.open()
+      await page.getByText(/Monte o cartaz da promoção/u).first().click()
+      await page.waitForTimeout(1_000)
+      const deliveryButtons = (await page.getByRole('button').allInnerTexts()).map(text => text.trim()).filter(text => text !== '')
       await page.screenshot({ path: join(out, 'entrega.png') })
-      writeFileSync(join(out, 'ui.json'), `${JSON.stringify({ cartaoDoCodigoEm: codeAt ?? null, siteEm: siteAt ?? null, aceitarEm: acceptAt ?? null }, null, 2)}\n`)
+      writeFileSync(join(out, 'ui.json'), `${JSON.stringify({ grupoNaTela: groupInView, cartaoDoCodigoEm: codeAt ?? null, siteEm: siteAt ?? null, botoesDaEntrega: deliveryButtons }, null, 2)}\n`)
+      expect(groupInView, 'as 3 falas do grupo não estão dentro da tela do #geral (ver geral.png)').toBe(true)
       expect(codeAt, 'o cartão "Precisa de um código" não aparece na tela (nem no #geral nem em Aprovações)').toBeDefined()
       expect(siteAt, `o site "${EMBER_SITE}" não aparece no rótulo do cartão`).toBeDefined()
+    } finally {
+      await session.close()
+      rmSync(copy, { recursive: true, force: true })
+    }
+  }, 600_000)
+
+  it('o pedido de código vence em 10 min: sem nenhum pendente, a abertura/renovação abre outro (o cartão volta para o Ember)', async () => {
+    expect(proof, 'o seed não rodou').toBeDefined()
+    const copy = copySeededHome(HOME, mkdtempSync(join(tmpdir(), 'seed-ember-renew-')).concat('-home'))
+    const session = await openSeededEmberApp({ home: copy })
+    try {
+      const { page } = session
+      const tenant = await v11Tenant(page)
+      const scope = { workspaceId: tenant.workspaceId, projectId: tenant.projectId }
+      const states = async (): Promise<string[]> => (await hostRpcOk<Array<{ state: string }>>(page, 'listCofreCodes', scope)).map(row => row.state)
+      expect(await states(), 'a abertura deixa UM pedido pendente').toContain('pending')
+      // Cancel the pending card as the person would (what 10 minutes of the clock do to it: no pending request is left) …
+      await page.getByRole('button', { name: 'Aprovações', exact: true }).click()
+      await page.getByRole('button', { name: 'Cancelar', exact: true }).first().click()
+      const gone = await until(page, async () => ((await states()).includes('pending') ? undefined : true), 20_000, 500)
+      expect(gone, 'o pedido continuou pendente depois do Cancelar').toBe(true)
+      // … and the renewal opens another one, with the site, on the same screen.
+      const renewed = await renewTwoFactor(page)
+      expect(renewed.state).toBe('pending')
+      expect(renewed.site ?? '').toContain(EMBER_SITE)
     } finally {
       await session.close()
       rmSync(copy, { recursive: true, force: true })

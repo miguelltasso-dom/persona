@@ -47,7 +47,7 @@ Uma persona aposentada/removida deixa o doc "velho": a leitura cai no padrão e 
 
 **Idempotência e queda (costuras C2/C5/E10 do Gauge).** O laço NÃO tem timer próprio e NÃO lê `Date.now()`: roda dentro de `proactivityScheduler.cycle()`, com o relógio único `host.orchestration.now`. Repetir o mesmo instante não duplica nada porque **todo estado do laço está no disco**, nunca na memória: `lead_chase` (acima), `lead_pull:<ticket>` (o cartão já foi puxado/entregue a quem), `lead_summary:<AAAA-MM-DD>` (o resumo do dia já saiu; o id do evento também é determinístico: `day-summary-<projectId>-<AAAA-MM-DD>`) e o último motivo de espera (`lead_hold`, para gravar "pausei: …" uma vez). Fechar o host no meio do ciclo e reabrir o MESMO arquivo retoma do que está no disco: nenhum cartão perdido, nenhuma entrega/cobrança duplicada (E10).
 
-**Rastro legível por ação (C3) e contadores (C7).** Cada ação do laço grava UMA linha de auditoria própria (`watchdog_audit`, tipos `lead:pull`, `lead:assign`, `lead:chase`, `lead:escalate`, `lead:move`, `lead:summary`, `lead:hold`, `lead:refused`) com `projectId`, `ticketId?`, `personaId?`, `origin: 'quadro'` e o PORQUÊ em frase ("pausei: cota 95%", "puxei «X» e entreguei ao Téo: menor carga"). Leitura só-leitura para o e2e e para o relatório do soak, sem espiar interno:
+**Rastro legível por ação (C3) e contadores (C7).** Cada ação do laço grava UMA linha de auditoria própria (`watchdog_audit`, tipos `lead:pull` (puxar E entregar a quem: uma linha só), `lead:chase`, `lead:escalate`, `lead:move`, `lead:summary`, `lead:hold`, `lead:refused`) com `projectId`, `ticketId?`, `personaId?`, `origin: 'quadro'` e o PORQUÊ em frase ("pausei: cota 95%", "puxei «X» e entreguei ao Téo: menor carga"). Leitura só-leitura para o e2e e para o relatório do soak, sem espiar interno:
 - `getLeadTrail({workspaceId, projectId, limit?})` → `LeadTraceView[] = { at, kind, projectId, ticketId?, personaId?, origin: 'quadro', detail }` (mais recentes primeiro; só do projeto pedido — a cerca vale na leitura também).
 - `getLeadStats({workspaceId, projectId})` → `{ cycles, actions: Record<kind, number>, refusals: number, lastHold?: string }` (derivado do rastro; sem dado novo guardado).
 
@@ -68,10 +68,12 @@ ProjectCareView = {
   autopilot: boolean,                 // o laço está ligado neste projeto?
   lead: { state: 'working' | 'resting' | 'paused' | 'holding' | 'capped', note?: string },   // o que a responsável está fazendo agora, em palavras
   personas: [{ id, name, title, state, sentence?, currentTask?, queueCount, paused? }],        // o que cada persona faz agora (item 6): reaproveita overviewNow
-  waitingForYou: { approvals: n, reviews: n, questions: n, items: [{ kind, taskId?, title }] } // ≤ 5 itens: o que espera o Miguel
+  waitingForYou: { approvals: n, reviews: n, questions: n, items: [{ kind, taskId?, title }] }, // ≤ 5 itens: o que espera o Miguel
+  counts: { done: n, doing: n, queued: n, cap: n, pulled: n },     // done = cartões feitos HOJE; cap = teto de cartões puxados por dia; pulled = quantos o laço já puxou hoje (o "ritmo" do quadro)
+  companyName: string                                              // o nome do workspace (para o topo da tela "quem cuida de quê")
 }
 ```
-+ `getCareOverview({workspaceId})` → `ProjectCareView[]` de **todos os projetos que a sessão lê** (para "por projeto, em 1 olhar"). Reaproveita `overviewNow`, `listApprovals`/"Enquanto você estava fora" e o estado do laço; nada de dado novo guardado.
++ `pauseBoard`/`resumeBoard` do Prism = `setProjectAutopilot({workspaceId, projectId, on})` (só dono; desligar = o laço para, nada mais muda). + `getCareOverview({workspaceId})` → `ProjectCareView[]` de **todos os projetos que a sessão lê** (para "por projeto, em 1 olhar"). Reaproveita `overviewNow`, `listApprovals`/"Enquanto você estava fora" e o estado do laço; nada de dado novo guardado.
 
 ## 4. Testes (vermelho primeiro, em staging; "IA falsa", relógio acelerado)
 - **Puros (`project-lead.spec.ts`, portas falsas):** puxa o próximo respeitando WIP e ordem; não puxa com equipe pausada / janela de silêncio / sem motor / teto / cota ≥ 95%; distribui para a menor carga não pausada (e cai na responsável quando ninguém serve); cobra com backoff e na 4ª escala para a pessoa (e para); resumo 1 vez por dia, idempotente, "dia vazio" não posta; autor técnico (não pré-autoriza); 2 projetos não se tocam.
@@ -79,7 +81,7 @@ ProjectCareView = {
 - **M7 (Probe/Gauge)** reaproveita as portas com relógio acelerado (o `ProjectLead` não lê `Date.now()`, só o relógio injetado).
 
 ## 5. Ordem de entrega (cada passo com vermelho→verde, depois do aviso "candidato validado")
-1. M1 doc + `setProjectResponsible`/`getProjectResponsible` + specs (arquivos novos: `project-responsible.ts`, spec) — **o módulo puro e o spec já estão prontos em staging** (`.maestri/tmp/flint/marco/stage/`). 2. M6 `getProjectCare`/`getCareOverview` (só leitura; destrava o desenho do Prism cedo). 3. `ProjectLead` puro (puxar → distribuir → cobrar → resumo) + rastro (`getLeadTrail`/`getLeadStats`), cada um com seu teste. 4. Gancho no scheduler + flag + opt-in por projeto + host spec com 2 projetos. 5. Regerar o Typert (pela trava, ≥ 8 GB, ANTES de declarar pronto) e provar no app (Remotes novos, tipos planos).
+1. M1 doc + `setProjectResponsible`/`getProjectResponsible` + specs (arquivos novos: `project-responsible.ts`, spec) — **o módulo puro e o spec já estão prontos em staging** (`.maestri/tmp/flint/marco/stage/`: `project-responsible.ts` 6 testes, `lead-trail.ts` + `project-lead.ts` 12 testes; 18/18 verdes, mutações de `waitsForPerson` e de escalada sem janela ficam vermelhas). 2. M6 `getProjectCare`/`getCareOverview` (só leitura; destrava o desenho do Prism cedo). 3. `ProjectLead` puro (puxar → distribuir → cobrar → resumo) + rastro (`getLeadTrail`/`getLeadStats`), cada um com seu teste. 4. Gancho no scheduler + flag + opt-in por projeto + host spec com 2 projetos. 5. Regerar o Typert (pela trava, ≥ 8 GB, ANTES de declarar pronto) e provar no app (Remotes novos, tipos planos).
 Nomes finais para o e2e do Gauge (marco-dogfood-e2e.md §3): C1 `setProjectResponsible`/`getProjectResponsible`; C2 `ProjectLead.step` chamado por `ProactivityScheduler.runProject`; C3 `getLeadTrail`; C5 id `day-summary-<projectId>-<AAAA-MM-DD local>` (contrato do Anvil); C7 `getLeadStats`. C4 (Forge: teto/cota) e C6 (Tally/Lumen: cerca e origem `quadro`) entram pelas portas descritas em §2.
 
 ## 6. Perguntas ao Keel / dependências

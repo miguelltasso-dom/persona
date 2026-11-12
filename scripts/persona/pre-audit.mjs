@@ -74,12 +74,22 @@ export function statusOf(parsed, exitCode) {
   return 'PASSOU'
 }
 
+/**
+ * O comando de UM arquivo. A trava (`with-lock.mjs`) roda o que vem depois do `--` por um SHELL no Windows: um caminho absoluto com espaço
+ * (`C:\Program Files\nodejs\node.exe`) quebra ali ("'C:\Program' não é reconhecido"). Por isso depois do `--` só vão `node` (do PATH) e caminhos
+ * RELATIVOS à raiz (a pasta de trabalho é a raiz); o processo de fora, sem shell, usa o `process.execPath` sem problema.
+ */
+export function commandFor({ file, lock = true }) {
+  const vitest = ['node', 'node_modules/vitest/vitest.mjs', 'run', file]
+  if (!lock) return { command: process.execPath, args: vitest.slice(1) }
+  return { command: process.execPath, args: ['scripts/persona/with-lock.mjs', `pre-audit ${file.split('/').pop()}`, '--lock', 'check', '--', ...vitest] }
+}
+
 /** Roda UM arquivo pela trava `check` (ou sem trava com `lock: false`). */
 export function runFile({ root = REPO_ROOT, file, lock = true, timeoutMin = 30 }) {
-  const vitest = [process.execPath, join(root, 'node_modules', 'vitest', 'vitest.mjs'), 'run', file]
-  const args = lock ? [join(root, 'scripts', 'persona', 'with-lock.mjs'), `pre-audit ${file.split('/').pop()}`, '--lock', 'check', '--', ...vitest.slice(0)] : vitest.slice(1)
+  const { command, args } = commandFor({ file, lock })
   const started = Date.now()
-  const result = spawnSync(lock ? process.execPath : vitest[0], args, { cwd: root, encoding: 'utf8', maxBuffer: 128 * 1024 * 1024, timeout: timeoutMin * 60_000 })
+  const result = spawnSync(command, args, { cwd: root, encoding: 'utf8', maxBuffer: 128 * 1024 * 1024, timeout: timeoutMin * 60_000 })
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
   return { exitCode: result.status ?? (result.error !== undefined ? 124 : 1), output, ms: Date.now() - started, timedOut: result.error?.code === 'ETIMEDOUT' }
 }
@@ -172,11 +182,13 @@ function main() {
     run: (row) => runFile({ root: REPO_ROOT, file: row.file, lock, timeoutMin }),
     onRow: (row) => console.log(`[pre-audit] ${pad(row.status, 7)} ${row.file.split('/').pop()} (${String(row.tests.passed)}/${String(row.tests.total)})${row.detail === '' ? '' : ` — ${row.detail}`}`),
   })
-  const at = new Date().toISOString().slice(0, 16).replace('T', ' ')
+  const now = new Date()
+  const two = (value) => String(value).padStart(2, '0')
+  const at = `${String(now.getFullYear())}-${two(now.getMonth() + 1)}-${two(now.getDate())} ${two(now.getHours())}:${two(now.getMinutes())}` // hora LOCAL (a UTC saía 3 h à frente)
   const report = renderReport({ rows: done, notes, head, at })
   const outDir = resolve(args.out ?? join(REPO_ROOT, '.maestri', 'tmp', 'pre-audit'))
   mkdirSync(outDir, { recursive: true })
-  const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/gu, '')
+  const stamp = at.replace(/[-: ]/gu, '')
   writeFileSync(join(outDir, `pre-audit-${stamp}.md`), `${report}\n`)
   writeFileSync(join(outDir, `pre-audit-${stamp}.json`), `${JSON.stringify({ at, head, rows: done.map(({ label, ...rest }) => rest) }, null, 2)}\n`)
   console.log(`\n${report}`)

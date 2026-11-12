@@ -131,3 +131,9 @@ O app no celular e no navegador não é um painel reduzido de 3 telas: é a mesm
 - Continuam valendo: senha e Cofre só pelo PC; o "segure para aprovar" funciona no toque; "Esta noite" e "Espera você" viram atalhos no topo da Casa no celular, e não um app separado.
 - Pessoas no mesmo Tailscale já conversam por este caminho. Convidar alguém de fora da rede continua sendo o item 23/25 (relay Cloudflare).
 - Reforço do time (Miguel, 14:30): Onyx e Cobalt deixam de ser DeepSeek e passam a ser Sonnet 5.5 xhigh, agora. Onyx = M4 (computador 24 h) com o Rivet. Cobalt = M5 (cliente web/celular estilo Discord) com o Bolt (host, pareamento) e o Prism (UI compartilhada da Casa). Zinc e Jade (DeepSeek) seguem pausados.
+
+### Onde a persona roda (Miguel, 12/11 14:40): D-116
+Qualquer computador pode rodar personas. Quem cria escolhe onde a persona roda: no próprio PC ou num computador cadastrado pela equipe. A persona fica no ar só enquanto esse computador estiver ligado. Detalhes, regras de conta e acesso, e donos: DECISIONS.md D-116.
+
+### Mexer no computador, também à distância (Miguel, 12/11 15:00): D-117 (entra no MARCO DOGFOOD como M9)
+Persona PRIVADA (só eu, no meu PC, mexe no meu PC) ou DA EQUIPE (num PC da equipe ou VPS, compartilhada, mexe naquele PC). Pelo celular: pedir, assistir ao vivo e Parar. Base: a Onda 3 do PLAN.md (W3-1..6). Regras e UX: DECISIONS.md D-117.

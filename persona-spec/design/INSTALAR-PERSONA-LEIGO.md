@@ -54,3 +54,20 @@ A Persona ainda **não se atualiza sozinha**. Quando chegar uma versão nova, ab
 - **A equipe não responde:** confira se o Claude está com a sua conta entrada (Configurações › Conexões mostra "Pronto").
 - **Dúvidas de uso:** a **Ajuda** (o **?** embaixo, à esquerda) tem o guia.
 - **Para contar um problema:** diga a quem lhe mandou a Persona o que você fez e o que apareceu na tela. Uma foto da tela ajuda muito.
+
+## Roteiro de teste do Setup: trocar de conta no limite (para quem testa; precisa de contas de verdade)
+1. Abra **Configurações › Conexões**.
+2. No **Claude**, clique em **+ Adicionar outra conta Claude** e siga os passos:
+   - dê um nome à conta (por exemplo "Trabalho");
+   - entre na conta pela janela que abrir.
+   No fim, o Claude tem **2 contas**.
+3. No cartão **Codex**, entre com **1 conta** da mesma forma (é a sua conta do ChatGPT).
+4. Em **Quando a conta chegar ao limite**:
+   - escolha **Vale para: Uma persona**;
+   - escolha a persona (por exemplo Nina);
+   - marque **Trocar sozinha para a próxima conta**.
+   Aparece **Regra salva.**
+5. Peça uma tarefa a Nina numa conta que já está perto do limite do dia, ou peça uma tarefa longa e espere a conta chegar ao limite.
+6. **O que olhar:** na conversa com Nina entra uma linha dizendo para qual conta Nina passou, com **Desfazer** ao lado. A tarefa continua sem você fazer nada. **Anote para qual conta foi a troca.**
+7. Clique em **Desfazer** logo: ele pode vir com os segundos contando (`Desfazer · 28 s`). Confira se a linha mostra que a troca foi desfeita. Anote o que aconteceu com a tarefa.
+8. Tire uma foto da tela com a linha da troca e outra depois do **Desfazer**.

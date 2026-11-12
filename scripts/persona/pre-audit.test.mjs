@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { GROUPS, parseArgs, parseVitest, plan, renderReport, renderTable, runPlan, statusOf, summarize } from './pre-audit.mjs'
+import { GROUPS, commandFor, parseArgs, parseVitest, plan, renderReport, renderTable, runPlan, statusOf, summarize } from './pre-audit.mjs'
 
 const CLI = join(dirname(fileURLToPath(import.meta.url)), 'pre-audit.mjs')
 const RM = { recursive: true, force: true }
@@ -120,6 +120,18 @@ test('CLI de verdade: --list mostra o plano e sai 0 quando tudo existe; --only f
   assert.equal(spawnSync(process.execPath, [CLI, '--only'], { encoding: 'utf8' }).status, 2) // valor faltando
   assert.throws(() => parseArgs(['--only']), /precisa de um valor/u)
   assert.throws(() => parseArgs(['solto']), /argumento inesperado/u)
+})
+
+test('o comando de UM arquivo: depois do "--" (que a trava roda por um SHELL no Windows) só vão "node" e caminhos relativos, nunca um caminho absoluto com espaço', () => {
+  // O defeito real (12/11 15:03): process.execPath = "C:\\Program Files\\nodejs\\node.exe" depois do "--" => "'C:\\Program' não é reconhecido" em TODOS os 33 arquivos.
+  const { command, args } = commandFor({ file: 'packages/persona/persona-host/tests/remote-acl.spec.ts' })
+  assert.equal(command, process.execPath, 'o processo de fora (sem shell) pode usar o caminho absoluto')
+  const afterSeparator = args.slice(args.indexOf('--') + 1)
+  assert.equal(afterSeparator[0], 'node')
+  for (const part of afterSeparator) assert.ok(!/^[A-Za-z]:[\\/]/u.test(part) && !part.startsWith('/'), `depois do -- não pode haver caminho absoluto: ${part}`)
+  assert.ok(!afterSeparator.some((part) => part.includes(' ')), 'e nenhuma parte com espaço (o shell a quebraria)')
+  assert.deepEqual(args.slice(0, 5), ['scripts/persona/with-lock.mjs', 'pre-audit remote-acl.spec.ts', '--lock', 'check', '--'])
+  assert.deepEqual(commandFor({ file: 'x.spec.ts', lock: false }).args, ['node_modules/vitest/vitest.mjs', 'run', 'x.spec.ts'])
 })
 
 test('as notas existem, e o arquivo de notas é o que o relatório cola', () => {

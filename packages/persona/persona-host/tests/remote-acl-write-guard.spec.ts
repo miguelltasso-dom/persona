@@ -19,6 +19,7 @@ const READ_LEVEL_ON_PURPOSE: Readonly<Record<string, string>> = {
   connectorSecretState: 'it only says whether a slot holds a secret (a state read, the secret never leaves)',
   dismissWhileAway: 'the reader own window of Enquanto voce estava fora (a view state of the reader, not project data)',
   syncRemoteTeam: 'a read of the remote state of the team (the surface is OFF in the product; the owner connects it)',
+  ackChannelRead: 'it only moves the CALLER\'s own read pointer, keyed by the session member (houseMember, never request.actorId), on a channel that must belong to the project (ownChannel); the surface `channels` is OFF in the product',
 }
 
 it('every write-named Remote asks for more than reading the project', () => {

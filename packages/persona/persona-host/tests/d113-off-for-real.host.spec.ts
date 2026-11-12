@@ -85,9 +85,9 @@ describe('o host REAL no padrão do produto', () => {
     expect(byEnv.h.surfaces.invite, 'e não mexe nas outras').toBe(false)
   })
 
-  it('as listas têm o tamanho que o Keel/Tally aprovaram: invite 17, channels 5, skillImport 4, station 4', () => {
+  it('as listas têm o tamanho que o Keel/Tally aprovaram: invite 17, channels 10 (5 do layout + 5 da Casa da Equipe), skillImport 4, station 4 = 35', () => {
     expect(LISTS.invite).toHaveLength(17)
-    expect(LISTS.channels).toHaveLength(5)
+    expect(LISTS.channels).toHaveLength(10)
     expect(LISTS.skillImport).toHaveLength(4)
     expect(LISTS.station).toHaveLength(4)
   })
@@ -135,7 +135,7 @@ describe('o espelho: ligar UMA superfície liga só as chamadas dela', () => {
     })
   }
 
-  it('sob o Vitest (sem production) NENHUMA das 30 está desligada: as suítes continuam provando o código', () => {
+  it('sob o Vitest (sem production) NENHUMA das 35 está desligada: as suítes continuam provando o código', () => {
     const { h } = bootHost({ production: false })
     for (const surface of SURFACES_WITH_LISTS) for (const name of LISTS[surface]) expect(h.remoteGuard.surfaceOff(name), name).toBe(false)
   })

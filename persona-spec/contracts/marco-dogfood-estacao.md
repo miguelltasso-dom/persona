@@ -19,31 +19,32 @@ Critério 4 de `PLANO-COLHEITA.md` ("MARCO DOGFOOD"); `PLAN.md` §13 linha M4; D
 |---|---|---|---|
 | G1 | Fila "sem vaga" só na RAM | `StationGate.waiting` é um `Map`; reiniciar esquece os cartões parados pela Estação | Derivar do disco no boot: ticket `blocked` com falha `station_busy` e assignment mais recente = linha de espera. Reinício não perde cartão. |
 | G2 | Acordado só com turno rodando | `PowerKeeper` solta quando `working.size == 0`; entre turnos (backoff da Vigia, retentativa, espera de 30 s) o Windows pode dormir | Estação **pareada** segura acordado enquanto houver **trabalho aberto**: turno rodando OU cartão `doing` OU fila de espera OU retentativa agendada; solta quando o quadro inteiro está parado esperando a pessoa. |
-| G3 | Duas trancas de energia sem dono | renderer (`DesktopPower`) e host (`PowerKeeper`) pedem independentes; com a janela fechada no tray o renderer não informa | O host é a fonte da verdade (G2). O `DesktopPower` fica como cinto-e-suspensório e passa a ser ligado também pelo estado do host. |
-| G4 | Login-item desligado por padrão | `DesktopLoginItem` começa `false` | Estação pareada → `openAtLogin: true` por padrão (a pessoa pode desligar em Configurações; escolha explícita dela vence). |
-| G5 | Queda não tem decisão | `reportFatal` mostra erro; nada relança | Decisão pura `decideRecovery` (abaixo); o `main.ts` do Rivet a chama. |
+| G3 | Duas trancas de energia sem dono | renderer (`DesktopPower`) e host (`PowerKeeper`) pedem independentes; com a janela fechada no tray o renderer não informa | **Decisão do Keel (14:44): um só bloqueio de sono, o `PowerKeeper` do host**, só com Estação pareada e `rodando`. O `DesktopPower` deixa de segurar para qualquer usuário (vira no-op ou só consulta o estado da Estação); mantém o `onResume`/catch-up. |
+| G4 | Login-item desligado por padrão | `DesktopLoginItem` começa `false` | **Decisão do Keel:** ao parear, o app **oferece** "abrir com o Windows" (1 confirmação, desfazível em Configurações); nada liga sozinho. O modo `--background` abre só o host, sem janela. (Rivet.) |
+| G5 | Queda não tem decisão | `reportFatal` mostra erro; nada relança | Decisão pura `decideRecovery` (abaixo) para o que o app consegue tratar (renderer morto, host falho); para o processo inteiro morrer, um **watchdog fora do app** (tarefa agendada por usuário "ao iniciar sessão" + reinício em falha), instalado só com Estação pareada. (Rivet.) |
 | G6 | Atualização termina em "sair e instalar" | `quitAndInstall(true, true)` já pede relançar; falta provar que o board retoma e que a estação não vira "desligada" | Teste: reinício pós-atualização encontra `running` como a pessoa deixou e retoma. |
-| G7 | Reinício em rajada | nada limita | Backoff e teto de relançamentos (abaixo). |
+| G7 | Reinício em rajada | nada limita | Backoff e teto (abaixo); o orçamento **reenche** depois de 10 min estável (24 h não pode ter "a 4ª queda da vida do app"). |
 
 ## 2. Decisão de recuperação (pura, `persona-host/src/station/recovery.ts`, arquivo NOVO)
 ```ts
 type RecoveryReason = 'crash' | 'renderer-gone' | 'host-failed' | 'update' | 'user-quit'
-decideRecovery(input: { reason; crashesInWindow: number; windowMs?: number; now: number; paired: boolean }):
-  { action: 'relaunch' | 'wait' | 'giveup'; delayMs: number; note: string }
+decideRecovery(input: { reason; crashesInWindow: number; previousRunMs?: number; stableMs?: number /* 10 min */; maxCrashes?: number /* 5 */; now: number; paired: boolean }):
+  { action: 'relaunch' | 'giveup'; delayMs: number; pauseStation: boolean; note: string }
 ```
 Regras:
 1. `user-quit` → **nunca** relança (a pessoa fechou de propósito). `giveup` com nota "saiu de propósito".
 2. `update` → relança em 0 ms, não conta como queda.
-3. `crash`/`renderer-gone`/`host-failed` em estação **pareada**: relança com backoff exponencial 2 s, 4 s, 8 s … teto 60 s; a janela padrão é 10 min.
-4. Mais de 5 quedas na janela → `giveup` (não vira loop de reinício; o `main.ts` mostra a tela de erro e a pessoa decide). Estação **não pareada**: nunca relança sozinha em queda (computador comum não surpreende a pessoa), só `giveup` com nota.
-5. Função pura: relógio e contador entram; o contador vive no `station.json` (campo aditivo `crashes: number[]` com timestamps, podado pela janela) para sobreviver ao próprio relançamento.
+3. `crash`/`renderer-gone`/`host-failed` em estação **pareada**: relança com backoff exponencial 2 s, 4 s, 8 s … teto 60 s.
+4. **Orçamento:** 5 quedas seguidas. Ao chegar ao teto → `giveup` **e a Estação é pausada** (`running:false`, motivo `queda`) com aviso claro na tela e no tray ("A equipe parou: o app caiu 5 vezes em 10 min. Ligue de novo quando quiser."); a pessoa religa com 1 clique. Estação **não pareada**: nunca relança sozinha em queda (computador comum não surpreende a pessoa), só `giveup` com nota.
+5. **Reenchimento:** quem decide é o tempo estável, não a data da queda. Se a execução anterior durou ≥ 10 min (`stableMs`, parâmetro), `crashesInWindow` volta a 0. Assim a 3ª queda de uma semana não herda as de ontem.
+6. Função pura: relógio e contador entram; o estado vive no `station.json` (campos aditivos `crashes: number` e `lastStartAt`), para sobreviver ao próprio relançamento. O watchdog externo do Rivet lê o mesmo arquivo, para os dois não relançarem em dobro: o watchdog só age se **não há** `Persona.exe` rodando.
 
 ## 3. Admissão por RAM (já existe; o M4 só prova)
 Sem mudar `admit()`. Provas novas: (a) RAM sobe de novo → a fila "sem vaga" anda sozinha sem a pessoa; (b) RAM cai com N CLIs → evicta o mais ocioso, nunca um que está rodando; (c) estação **desligada** pela pessoa continua desligada depois de reinício/queda/atualização (`running:false` persistido; reinício nunca religa a equipe nem a desliga).
 
 ## 4. Fronteira com o Rivet (proposta por mensagem às 14:29; vale se o Rivet não discordar)
 - **Onyx:** `recovery.ts`, derivação do disco (G1), política de acordado (G2), campo `crashes` no `station.json`, specs.
-- **Rivet:** `apps/desktop` e instalador: ligar o login-item quando a estação está pareada (G4), chamar `decideRecovery` no `main.ts` (G5/G7), flag de relançar após atualização (G6), aviso/guia de auto-login do Windows (sem login automático o "sobe com o Windows" só vale depois da pessoa entrar).
+- **Rivet:** `apps/desktop` e instalador: oferecer "abrir com o Windows" ao parear e o modo `--background` (G4), tarefa agendada de watchdog só com Estação pareada (G5), chamar `decideRecovery` no `main.ts`, `DesktopPower` sem bloqueio próprio (G3), flag de relançar após atualização (G6), **guia** de auto-login do Windows (nada automático) e aviso/guia de Tailscale e firewall no pareamento (nunca regra do instalador).
 - Eu não mexo em `apps/desktop` sem ele.
 
 ## 5. Testes vermelhos (em staging; relógio e energia falsos)
@@ -53,7 +54,7 @@ Sem mudar `admit()`. Provas novas: (a) RAM sobe de novo → a fila "sem vaga" an
 3. `station-awake.host.spec.ts`: estação pareada segura acordado com cartão `doing` e sem turno rodando; solta quando só resta cartão esperando a pessoa; estação não pareada nunca segura.
 4. `station-restart.host.spec.ts`: `running:false` sobrevive a queda e a atualização; `running:true` idem; 2 projetos andam de novo sem duplicar entrega (idempotência: id de assignment).
 
-## 6. Perguntas
-1. **Auto-login do Windows** é por conta do Miguel (configuração do PC dedicado, `netplwiz`) ou o instalador oferece? Recomendo: guia na tela da Estação, nada automático (mexe em segurança do PC).
-2. **Teto de 5 quedas / 10 min** está bom para o soak (M7)? Fica configurável por parâmetro, não constante solta.
+## 6. Decisões do Keel (14:44) e o que ainda pende
+Decididas: bloqueio de sono único no host (G3); orçamento reenche após 10 min estável (G7); watchdog externo só com Estação pareada (G5); autostart oferecido ao parear, 1 confirmação, desfazível (G4); Tailscale/firewall só aviso e guia; auto-login do Windows só guia; teto de 5 quedas em 10 min pausa a Estação e avisa. O teto e o tempo estável ficam como parâmetros (o soak do M7 usa outros), não constantes soltas.
+Pendente (para o Miguel, 1 linha): nada por enquanto. Na tela da Estação o guia de auto-login precisa dizer que o PC dedicado só "sobe com o Windows" depois que alguém entrar na conta, a menos que ele configure o login automático por conta própria.
 3. **Hibernação/suspensão manual** do Windows (botão de desligar) fora do nosso controle: ao acordar, o `onResume` já pede *catch-up* limitado (burst 3); o teste G6 cobre a volta.

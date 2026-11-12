@@ -34,6 +34,8 @@ NÃO prova (fica para o pack de ensaio e para o aceite do Miguel): sono do Windo
 | C6 | Cerca: toda ação do laço leva o projeto dele e `origin: 'quadro'`; o host recusa `moveTicket`/cobrar/criar cartão com persona de A em projeto B (código estável de recusa); origem `quadro` NUNCA pré-autoriza enviar, pagar ou apagar | Tally (ACL), Lumen (autoridade) | teste de cerca, teste de autoridade |
 | C7 | Contadores observáveis do laço (ciclos, ações por tipo, recusas) por projeto, via API ou rastro de C3 | Flint | invariantes do soak |
 
+Respostas do Forge (14:36) que o teste usa: vagas fixas por `host.orchestration.budget.setLimits({ global: 1, perProject: 1 })` (porta de teste nova; a admissão por RAM é o StationGate do Prism e não existe no host de teste); o dia da janela é o dia LOCAL por `h.timezoneOffsetMinutes(nowIso)` (o teste fixa `h.timezoneOffsetMinutes = () => -180`, virada = 03:00Z); `events(projectId)` vem de um diário DURÁVEL (ordem de ocorrência, sobrevive a reabrir o host no mesmo arquivo, "told once" também durável, o `resume` é derivado do diário no 1º olhar do dia novo); o laço do Flint chama `admit(projectId, 'quadro')` antes de CADA turno de modelo e a pausa grava no rastro dele (LeadTrail.record), então C3 é um lugar só.
+
 Se o desenho dos donos mudar os nomes, adapto os testes aos nomes deles; o que não pode mudar é o COMPORTAMENTO descrito aqui. Peço que cada dono me diga o nome final da sua costura quando a tiver em staging.
 
 ## 4. E2E do marco (M3 + critério 2), em processo, sem Chrome nem CLI real
@@ -97,3 +99,25 @@ Antes de tudo isso: a pré-auditoria do corte 3 (já pronta: `node scripts/perso
 2. Teto padrão de turnos por dia e por projeto, e cota máxima por projeto no teste: existe número decidido (Forge)? Se não, uso valores pequenos de teste e o teste não depende deles.
 3. A cobrança vira `needs_you` depois de quantas cobranças e quanto tempo parado? (Flint decide; o teste lê da configuração.)
 4. Onde roda o soak: só manual/pré-auditoria (recomendo, ~5 min) ou também no gate do corte?
+
+## 8. E2E REMOTO (M5, pedido do Bolt e do Lumen 14:57): o pacote de regressão rodando COMO o celular de OUTRO membro
+
+Fonte do desenho: `marco-dogfood-remoto.md` (§3b, §10; T1..T8) e `marco-dogfood-seguranca-remoto.md` (Lumen, A..F). Aqui só o que é MEU: a prova independente, de fora dos donos, do que o celular consegue e NÃO consegue. Tudo em staging até o "candidato validado"; as provas nascem vermelhas porque o portão (`remote-web/`) ainda não existe.
+
+Ideia central: o mesmo ataque que eu já faço direto no host (`cross-project-reads`: marcas únicas, ids alheios, 3 papéis) passa a ser disparado PELO CELULAR: um `Caller` plugável (`directAs(h, member)` hoje; `phoneAs(gate, deviceCookie)` depois). A matriz não muda; muda só por onde a chamada entra. Assim os vazamentos R2-01..R2-05 e o de `connector-id-surfaces` viram um pacote que roda nos dois caminhos e prova que o celular não abriu uma porta nova.
+
+| # | Prova (vermelha até o portão existir) | Vem de |
+|---|---|---|
+| R1 | Fluxo completo por HTTP de verdade, com o "tailnet" sendo o alias `127.0.0.2`: código no PC → `POST /remote/pair` (202) → o dono APROVA no PC → cookie → chamada permitida funciona → o MESMO cookie não serve em outra porta/IP; a porta no `127.0.0.1` recusa | T1, T2, B4 |
+| R2 | `paired` recusa TODO `@Remote` fora de `PHONE_ALLOW` (lista gerada de `remoteMethods(h)`, não da minha cabeça): motivo estável `remote-not-allowed`; cada permitido responde (controle positivo); Remote novo sem classificação falha (como `surface-table-complete`) | T4, D1, D2 |
+| R3 | A matriz de `cross-project-reads` COMO celular do membro Bob (membro só de 'sa'): ids do projeto pessoal e DM alheia dentro de 'sa' por TODA leitura permitida e todo stream; nenhuma marca vaza; controles positivos (ele lê o que é dele) | T5, D3, R2-01..05 |
+| R4 | Autor: `request.actorId` ≠ membro do aparelho = `forbidden`; trocar `memberId` pelo fio é ignorado; "lido/visita" gravam POR MEMBRO DA SESSÃO | A7, T5 |
+| R5 | Revogação com stream aberto: `revokeDevice` no PC => o stream do celular recebe `{type:'revoked'}` e fecha em ≤ 1 s MEDIDO (relógio de parede, não o injetado); depois qualquer chamada = 401 | T3, C2 |
+| R6 | 2º gesto: `decideApproval` pelo celular em item de envio/pagamento/exclusão SEM `confirm: true` = recusado; com `confirm: true` = 1 efeito e `approvedVia: 'celular'` no cartão; item que pede senha/segredo = `pc-only` | D4 |
+| R7 | Persona fora do ar (pausada, sem ficha, sem motor): `listPersonas` diz `fora-do-ar` com o código; `postMessage` a ela = `persona-offline` e NÃO nasce Tarefa fantasma (conto cartões e turnos do runner falso) | T6 |
+| R8 | Produção: `PERSONA_HOST_FLAGS=production` (portão DESLIGADO): nenhuma porta aberta, `getRemoteAccess` = `feature-off`; ligado só com `PERSONA_SURFACE_REMOTEACCESS=1` | T8, D-113 |
+| R9 | "Esta noite" confere com a noite: depois do soak (§5), `getNightSummary` (feitos, esperando, teto usado, erros) bate com o `.json` do relatório e com os quadros reais; o celular de outro membro só vê os projetos dele | M6, M7 |
+| R10 | O código de pareamento nunca em log, URL, auditoria nem mensagem de erro: varredura do que o host escreveu durante R1 | B3 |
+
+O que preciso do Bolt (nomes, só quando ele tiver em staging): (1) como despachar um Remote COMO um Peer `paired` em processo (sem socket) para R2..R4 serem rápidas, além do HTTP real de R1 e R5; (2) a lista `PHONE_ALLOW` exportada (R2 e R3 leem dela, não copiam); (3) o nome do campo de `confirm` e de `approvedVia`; (4) os nomes exatos das faltas (`remote-not-allowed`, `persona-offline`, `pc-only`, `device-revoked`) e onde a recusa aparece (código da `RemoteFault`); (5) um gancho para o teste emitir e aprovar o pareamento sem UI (a mesma chamada que o PC faz).
+**R12 (Bolt 15:29, fail closed; vem do Lumen R1/R3):** `paired` com aparelho que NÃO está vivo no livro (nunca pareado, revogado, vencido): TODA chamada recusa (`device-revoked` / `forbidden`), nunca cai no dono; chamada Remote SEM nenhum contexto de chamador também recusa (`caller-lost` vira `forbidden`); timer e escalonador do host entram por `runAsHost` e continuam funcionando (controle positivo).

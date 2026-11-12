@@ -55,7 +55,8 @@ it('a reopened home shows NO engine-error card before the engine is ready, and t
       expect(h.orchestration.engineReadinessOf?.().state).not.toBe('ready') // nobody probed the engine yet
       await h.orchestration.flush('pp')
       expect(errorCards(h), 'before the engine is ready nothing is re-run: no run-error card').toEqual([])
-      expect(h.listTasks(scope).filter(task => task.state === 'blocked'), 'and no Task is blocked by it').toEqual([])
+      // This home has no Task yet (only channel lines): the check guards the Task a recovered talk would open; the recovery of an interrupted Task itself is covered by conductor.spec ("resumes an interrupted assignment").
+      expect(h.listTasks(scope).filter(task => task.stage === 'blocked'), 'and no Task is blocked by it').toEqual([])
       // The engine says ready: the held recovery runs now (it can fail honestly here: this machine has no CLI, but it was ASKED once the engine claimed to be ready).
       h.orchestration.engineReadinessOf = () => ({ state: 'ready', reason: null })
       h.orchestration.resumeDeferredRecoveries('pp')

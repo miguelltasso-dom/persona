@@ -94,9 +94,12 @@
 
 .content {
   min-width: 0;
+  /* The text starts at the top of the card; only the picture sits on the bottom edge (no white gap under the title). */
+  align-self: start;
 }
 
 .art {
+  align-self: end;
   width: 100%;
   height: auto;
   margin-bottom: calc(-1 * var(--persona-space-2));

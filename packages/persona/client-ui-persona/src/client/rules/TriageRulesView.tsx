@@ -19,6 +19,11 @@ export interface TriageRulesViewProps {
   readonly onSaveLimits?: (limits: ProactivityLimits) => void
   readonly onRemoteRetry?: () => void
   readonly onEmptyPrimary?: (() => void) | undefined
+  /**
+   * What the host really obeys (HONEST-1). Whatever is not listed stays out of the screen: the saved data is kept, but no window,
+   * no "create rule" and no recipe is offered for something the team would not follow.
+   */
+  readonly obeyed?: { readonly quietWindows?: boolean; readonly newRules?: boolean } | undefined
 }
 
 /** UX-05: budgets as plain-language presets; raw numbers only under "Personalizar". */
@@ -64,8 +69,10 @@ export function TriageRulesView({
   onSaveLimits,
   onRemoteRetry,
   onEmptyPrimary,
+  obeyed,
 }: TriageRulesViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
+  const canCreateRules = obeyed?.newRules === true
   const [limits, setLimits] = useState<ProactivityLimits>(limitsProp ?? {
     maxProposalsPerDay: 3,
     tokensPerPersonaMonth: 500_000,
@@ -106,11 +113,12 @@ export function TriageRulesView({
         {header}
         <PersonaSurfaceEmpty
           dict={dict}
-          illustrationKey="empty-inbox"
+          illustrationKey="empty-regras-da-casa"
+          nightPair={{ day: 'empty-regras-da-casa', night: 'empty-regras-da-casa-noite' }}
           titleKey="empty.title"
           hintKey="empty.hint"
           primaryKey="empty.action"
-          {...(onEmptyPrimary === undefined ? {} : { onPrimary: onEmptyPrimary })}
+          {...(onEmptyPrimary === undefined || !canCreateRules ? {} : { onPrimary: onEmptyPrimary })}
         />
       </Screen>
     )
@@ -199,15 +207,17 @@ export function TriageRulesView({
         </div>
       </Card>
 
-      <Card padding="m" as="section" aria-labelledby="persona-rules-quiet" title={t('quiet.title')} eyebrow={t('quiet.subtitle')}>
-        <ul className={styles.quietList}>
-          {quietWindows.map(window => (
-            <li key={window.id}>
-              <Chip tone="neutral" size="s">{quietWindowLabel(dict, window)}</Chip>
-            </li>
-          ))}
-        </ul>
-      </Card>
+      {obeyed?.quietWindows === true && (
+        <Card padding="m" as="section" aria-labelledby="persona-rules-quiet" title={t('quiet.title')} eyebrow={t('quiet.subtitle')}>
+          <ul className={styles.quietList}>
+            {quietWindows.map(window => (
+              <li key={window.id}>
+                <Chip tone="neutral" size="s">{quietWindowLabel(dict, window)}</Chip>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card padding="m" as="section" aria-labelledby="persona-rules-triage" title={t('triage.title')}>
         <ul className={styles.ruleList}>
@@ -215,12 +225,17 @@ export function TriageRulesView({
             <li key={rule.id} className={styles.ruleRow}>
               <p className={styles.ruleText}>{rule.gateText}</p>
               <p className={styles.ruleMeta}>{rule.assessmentText}</p>
+              {/* "Última aplicação": a line only when the host said it (never an invented count). */}
+              {rule.lastApplied !== undefined && rule.lastApplied.trim() !== '' && (
+                <p className={styles.ruleMeta} data-rule-last-applied="">{rule.lastApplied}</p>
+              )}
               <Chip tone={rule.logOnly ? 'neutral' : 'accent'} size="s">
                 {rule.logOnly ? t('mode.logOnly') : t('mode.executeOptIn')}
               </Chip>
             </li>
           ))}
         </ul>
+        {rules.length === 0 && <p className={styles.ruleMeta}>{t('empty.title')}</p>}
       </Card>
 
       <Card padding="m" as="section" aria-labelledby="persona-rules-log" title={t('log.title')} eyebrow={t('log.subtitle')}>

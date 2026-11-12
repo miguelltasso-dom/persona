@@ -4,6 +4,8 @@ export interface TriageRule {
   readonly assessmentText: string
   readonly logOnly: boolean
   readonly speculativeEnabled: boolean
+  /** When the host says what the rule did lately ("Barrou 2 gastos esta semana"); absent = no line, never an invented one. */
+  readonly lastApplied?: string | undefined
 }
 
 export interface TriageSimulationLog {

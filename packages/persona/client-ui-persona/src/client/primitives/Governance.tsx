@@ -12,6 +12,7 @@ import type { PersonaCardTriggerProps, PersonaFaceTriggers } from './PersonaCard
 import { PersonaFaceCell } from './PersonaFaceCell.tsx'
 import { UiIcon, type UiIconName } from './icons.tsx'
 import { OrgMap, type OrgMapLabels } from './OrgMap.tsx'
+import { useCountTo } from './use-count-to.ts'
 import styles from './Governance.module.css'
 
 export type OrgPersonaState = 'working' | 'reviewing' | 'waiting' | 'resting' | 'stuck' | 'offline'
@@ -207,13 +208,16 @@ export const TWO_DAY_ART: string | undefined = ILLUSTRATIONS['voce-de-ferias']
 function HealthGauge({ score, label }: { readonly score: number; readonly label: string }): ReactNode {
   const value = Math.max(0, Math.min(100, Math.round(score)))
   const arc = Math.PI * 40
+  // The arc travels with a CSS transition and the number with the same curve (420 ms) when the host recalculates the grade; the meter's own
+  // value is the real one from the first instant.
+  const drawn = useCountTo(value)
   return (
     <div className={styles.gauge} role="meter" aria-label={label} aria-valuemin={0} aria-valuemax={100} aria-valuenow={value}>
       <svg viewBox="0 0 100 58" aria-hidden="true" focusable="false">
         <path className={styles.gaugeTrack} d="M10 50 A40 40 0 0 1 90 50" pathLength={arc} />
         <path className={styles.gaugeFill} d="M10 50 A40 40 0 0 1 90 50" pathLength={arc} style={{ strokeDasharray: `${(arc * value) / 100} ${arc}` }} />
       </svg>
-      <span className={styles.gaugeValue} aria-hidden="true">{value}</span>
+      <span className={styles.gaugeValue} aria-hidden="true">{drawn}</span>
       <span className={styles.gaugeLabel} aria-hidden="true">{label}</span>
     </div>
   )
@@ -274,8 +278,12 @@ export type TwoDayOutcome = 'runs' | 'waits' | 'stops'
 
 export interface TwoDayRow {
   readonly id: string
-  /** "Responder clientes (Sol)" */
+  /** "Responder clientes (Sol)", or the persona's name when `role` is given. */
   readonly label: string
+  /** The persona's role, drawn after the name ("Luna · Vigia"): the name always comes first. */
+  readonly role?: string | undefined
+  /** The persona's face (32 px) or the team icon for a row that is not a persona's. */
+  readonly face?: ReactNode
   /** Outcome per half-day slot (4 slots = 2 days); waits/stops say why. */
   readonly slots: readonly TwoDayOutcome[]
   /** Plain-language reason shown under the row ("espera sua aprovação"). */
@@ -301,13 +309,26 @@ export function TwoDayTimeline({ rows, slotLabels, legend, label, legendArt }: {
         {slotLabels.map(slot => <span key={slot} className={styles.slotLabel}>{slot}</span>)}
       </div>
       <ul className={styles.timelineRows}>
-        {rows.map(row => (
-          <li key={row.id} className={styles.timelineRow} data-two-day-row="">
+        {rows.map((row, rowIndex) => (
+          <li
+            key={row.id}
+            className={styles.timelineRow}
+            data-two-day-row=""
+            data-row-id={row.id}
+            // The bars turn green one row after another (45 ms apart) when a fix lands: the slot's transition reads this index.
+            style={{ '--two-day-index': rowIndex } as CSSProperties}
+          >
             <div className={styles.rowLabel}>
-              <span className={styles.rowName}>{row.label}</span>
-              {row.reason !== undefined && <span className={styles.rowReason}>{row.reason}</span>}
+              {row.face !== undefined && <span className={styles.rowFace}>{row.face}</span>}
+              <span className={styles.rowText}>
+                <span className={styles.rowName}>
+                  {row.label}
+                  {row.role !== undefined && <span className={styles.rowRole}> · {row.role}</span>}
+                </span>
+                {row.reason !== undefined && <span className={styles.rowReason}>{row.reason}</span>}
+              </span>
               {row.fixLabel !== undefined && row.onFix !== undefined && (
-                <Button size="s" variant="ghost" icon={<UiIcon name="sparkle" size={14} strokeWidth={2.2} />} onClick={row.onFix}>{row.fixLabel}</Button>
+                <Button size="s" variant="secondary" onClick={row.onFix}>{row.fixLabel}</Button>
               )}
             </div>
             {row.slots.map((outcome, index) => (

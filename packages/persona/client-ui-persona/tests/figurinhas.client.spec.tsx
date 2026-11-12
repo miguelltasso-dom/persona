@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
-// Figurinhas das personas (Colheita Lodi D): modelo puro, legenda em texto vivo e o interruptor em Configurações › Personalidade.
+// Figurinhas das personas (Colheita D): modelo puro, legenda em texto vivo e o interruptor em Configurações › Personalidade.
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { PersonalitySettingsPanel } from '../src/client/figurinhas/PersonalitySettingsPanel.tsx'
+import { StickersSection } from '../src/client/figurinhas/StickersSection.tsx'
 import { STICKERS_FLAG_KEY, isStickersEnabled } from '../src/client/figurinhas/figurinhas-flag.ts'
 import {
   MOMENT_FALLBACK_REACTION,
@@ -109,7 +109,7 @@ describe('StickerMoment', () => {
 
 describe('Configurações › Personalidade › Figurinhas', () => {
   it('um interruptor com nome e dica; começa ligado e a escolha fica gravada', () => {
-    render(<PersonalitySettingsPanel t={shellT} />)
+    render(<StickersSection t={shellT} />)
     const toggle = screen.getByRole('switch', { name: 'Figurinhas das personas' })
     expect(toggle.getAttribute('aria-checked')).toBe('true')
     expect(toggle.getAttribute('aria-describedby')).not.toBeNull()
@@ -118,29 +118,26 @@ describe('Configurações › Personalidade › Figurinhas', () => {
     expect(toggle.getAttribute('aria-checked')).toBe('false')
     expect(localStorage.getItem(STICKERS_ENABLED_KEY)).toBe('0')
     cleanup()
-    render(<PersonalitySettingsPanel t={shellT} />)
+    render(<StickersSection t={shellT} />)
     expect(screen.getByRole('switch', { name: 'Figurinhas das personas' }).getAttribute('aria-checked')).toBe('false')
   })
 
   it('nenhuma palavra técnica na tela', () => {
-    render(<PersonalitySettingsPanel t={shellT} />)
+    render(<StickersSection t={shellT} />)
     expect(document.body.textContent).not.toMatch(/flag|localStorage|sticker\b|webp/iu)
   })
 })
 
-describe('a aba em Configurações só existe com a flag', () => {
-  it('desligada: as abas são as de antes (Sobre continua a última); ligada: Personalidade entra antes de Sobre', async () => {
-    vi.resetModules()
-    const off = await import('../src/client/shell/nav-places.ts')
-    const offTabs = off.NAV_PLACES.find(place => place.id === 'settings')!.tabs.map(tab => tab.panel)
-    expect(offTabs).not.toContain('personality')
-    expect(offTabs.at(-1)).toBe('about')
-    localStorage.setItem('persona.flag.figurinhas', '1')
-    vi.resetModules()
-    const on = await import('../src/client/shell/nav-places.ts')
-    const onTabs = on.NAV_PLACES.find(place => place.id === 'settings')!.tabs.map(tab => tab.panel)
-    expect(onTabs.at(-2)).toBe('personality')
-    expect(onTabs.at(-1)).toBe('about')
-    expect(on.placeOfPanel('personality')?.id).toBe('settings')
+describe('Personalidade virou Figurinhas dentro de Aparência (cena 22)', () => {
+  it('Configurações não tem aba Personalidade, com a flag ligada ou desligada; Sobre continua a última', async () => {
+    for (const flag of ['0', '1'] as const) {
+      localStorage.setItem('persona.flag.figurinhas', flag)
+      vi.resetModules()
+      const fresh = await import('../src/client/shell/nav-places.ts')
+      const tabs = fresh.NAV_PLACES.find(place => place.id === 'settings')!.tabs.map(tab => tab.panel)
+      expect(tabs).not.toContain('personality')
+      expect(tabs.at(-1)).toBe('about')
+    }
+    localStorage.removeItem('persona.flag.figurinhas')
   })
 })

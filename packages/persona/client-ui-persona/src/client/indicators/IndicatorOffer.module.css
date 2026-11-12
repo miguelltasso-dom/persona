@@ -1,0 +1,49 @@
+/* "Seus números" · o número na conversa (design/COLHEITA-MUSE.md §19a): alinhado ao balão da persona, como o cartão de escolha do fim da vez. */
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+  margin: var(--persona-space-4) 0;
+  list-style: none;
+}
+
+.continued {
+  gap: 10px;
+  margin-top: calc(var(--persona-space-1) * -1);
+  padding-left: var(--persona-space-3);
+}
+
+.gutter {
+  flex: 0 0 32px;
+  width: 32px;
+}
+
+.card {
+  min-width: 0;
+  max-width: 420px;
+  flex: 1;
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-card);
+}
+
+.name {
+  margin: 0 0 var(--persona-space-1);
+  color: var(--persona-ink-soft);
+  font: 700 14px/20px var(--persona-font-text);
+}
+
+.actions {
+  display: flex;
+  margin-top: var(--persona-space-2);
+}
+
+.pinned {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  min-height: 32px;
+  color: var(--persona-success);
+  font: 700 13px/18px var(--persona-font-text);
+}

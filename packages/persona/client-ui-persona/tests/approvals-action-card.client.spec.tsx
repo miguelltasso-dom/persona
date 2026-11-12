@@ -18,6 +18,7 @@ import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
 import { ConnectedApprovalsPanel } from '../src/client/remote/ConnectedApprovalsPanel.tsx'
 import { createShellStore } from '../src/client/shell/create-shell-store.ts'
 import { bindObservableForTest } from './bind-observable-for-test.client.ts'
+import { holdToApprove } from './hold-approve-helper.client.ts'
 
 installPreviewTheme()
 beforeEach(() => { localStorage.clear() })
@@ -99,21 +100,24 @@ function mount(items: ReturnType<typeof approvalViewToItem>[], onDecideAction?: 
 }
 
 describe('the card in Aprovações', () => {
-  it("e-mail: says the verb and the medium, shows the real content, and Enviar answers with the contract's choice", () => {
+  it("e-mail: says the verb and the medium, shows the real content, and holding Segure para enviar answers with the contract's choice (a click alone does not)", async () => {
     const onDecideAction = vi.fn()
     mount([{ ...approvalViewToItem(approval()), decisionState: 'pending' }], onDecideAction)
     expect(screen.getByText('Vai enviar um email · pelo Gmail')).toBeTruthy()
     expect(screen.getByText('ana@padarialua.com.br')).toBeTruthy()
     expect(screen.getByText('Encomenda de sexta')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
-    expect(onDecideAction).toHaveBeenCalledWith(expect.objectContaining({ approvalId: 'act-1', choice: 'send' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Segure para enviar' }))
+    expect(onDecideAction).not.toHaveBeenCalled()
+    await holdToApprove(screen.getByRole('button', { name: 'Segure para enviar' }))
+    await waitFor(() => { expect(onDecideAction).toHaveBeenCalledWith(expect.objectContaining({ approvalId: 'act-1', choice: 'send' })) })
+    expect(onDecideAction).toHaveBeenCalledTimes(1)
   })
 
   it('payment: the irreversible warning, no "Não perguntar de novo", and the verb is Pagar', () => {
     const pay = approvalViewToItem(approval({}, preview({ actionClass: 'pay', verb: 'pay', connectorName: 'Mercado Pago', amount: 'R$ 120,00', payee: 'Gráfica Boa Impressão', to: undefined, subject: undefined, body: undefined, canRemember: false })))
     mount([{ ...pay, decisionState: 'pending' }], vi.fn())
     expect(screen.getByText('Isso não dá para desfazer depois.')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Pagar' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Segure para pagar' })).toBeTruthy()
     expect(screen.queryByText(/Não perguntar de novo/)).toBeNull()
     expect(screen.getByText('R$ 120,00')).toBeTruthy()
   })
@@ -121,12 +125,12 @@ describe('the card in Aprovações', () => {
   it('a blind preview cannot be sent', () => {
     const blind = approvalViewToItem(approval({}, preview({ truncated: true })))
     mount([{ ...blind, decisionState: 'pending' }], vi.fn())
-    expect((screen.getByRole('button', { name: 'Enviar' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Segure para enviar' }) as HTMLButtonElement).disabled).toBe(true)
   })
 
   it('with nothing wired it is read-only: no buttons that look alive', () => {
     mount([{ ...approvalViewToItem(approval()), decisionState: 'pending' }])
-    expect(screen.queryByRole('button', { name: 'Enviar' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Segure para enviar' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Cancelar' })).toBeNull()
   })
 
@@ -153,20 +157,22 @@ describe('the capture-only examples (two dev keys; never reaching the host)', ()
     )
   }
 
-  it('the sample set has an e-mail and a payment, both marked as examples', () => {
+  it('the sample set has an e-mail, a payment, a delete and an expired e-mail (COLHEITA 5), all marked as examples', () => {
     const actions = CONNECTOR_DEV_SAMPLE.filter(item => item.kind === 'action')
-    expect(actions.map(item => item.actionPreview?.verb)).toEqual(['email', 'pay'])
+    expect(actions.map(item => item.actionPreview?.verb)).toEqual(['email', 'pay', 'delete', 'email'])
     expect(actions.every(item => item.example === true && item.id.startsWith('dev-'))).toBe(true)
   })
 
-  it('with both keys the two action cards show, tagged "Exemplo", and Enviar / Pagar / Cancelar never call the host', async () => {
+  it('with both keys the action cards show, tagged "Exemplo", and holding Segure para enviar / pagar / apagar, and Cancelar, never call the host', async () => {
     localStorage.setItem('persona.devSeed.v1', '1')
     localStorage.setItem('persona.devSeed.connector', '1')
     const decideActionApproval = vi.fn(async () => undefined)
     mountPanel(decideActionApproval)
-    await waitFor(() => { expect(screen.getByText('Vai enviar um email · pelo Gmail')).toBeTruthy() })
+    // the e-mail and the expired e-mail both say "Vai enviar um email": two eyebrows
+    await waitFor(() => { expect(screen.getAllByText('Vai enviar um email · pelo Gmail')).toHaveLength(2) })
     expect(screen.getByText(/Vai pagar R\$ 120,00/)).toBeTruthy()
-    for (const name of ['Enviar', 'Pagar', 'Cancelar']) for (const button of screen.getAllByRole('button', { name })) fireEvent.click(button)
+    for (const name of ['Segure para enviar', 'Segure para pagar', 'Segure para apagar']) for (const button of screen.getAllByRole('button', { name })) await holdToApprove(button)
+    for (const button of screen.getAllByRole('button', { name: 'Cancelar' })) fireEvent.click(button)
     await Promise.resolve()
     expect(decideActionApproval).not.toHaveBeenCalled()
   })

@@ -37,6 +37,7 @@ import type {
   ScreenRepos,
   StoredPersona,
 } from '@deepseek-ai/dsh-persona-store'
+import type { HouseRules } from './house-rules.ts'
 import { MORNING_ROUTINE_PREFIX } from './morning-brief-host.ts'
 import type { ProactivityHost } from './proactivity.ts'
 import { inSilence } from './proactivity.ts'
@@ -77,8 +78,8 @@ export type SchedulerEventKind =
   | 'sched:team_paused' | 'sched:team_resumed' | 'sched:no_engine' | 'sched:engine_ready'
   | 'sched:routine_run' | 'sched:routine_skipped' | 'sched:routine_bad_rule' | 'sched:routine_lost'
   | 'sched:initiative_act' | 'sched:initiative_skipped' | 'sched:initiative_proposed' | 'sched:proposal_card'
-  | 'sched:assigned' | 'sched:stalled' | 'sched:retry' | 'sched:retry_exhausted' | 'sched:planned' | 'sched:not_delivered' | 'sched:released' | 'sched:queue_sent'
-  | 'sched:budget' | 'sched:silence' | 'sched:error'
+  | 'sched:assigned' | 'sched:stalled' | 'sched:retry' | 'sched:retry_exhausted' | 'sched:planned' | 'sched:not_delivered' | 'sched:released' | 'sched:queue_sent' | 'sched:window'
+  | 'sched:budget' | 'sched:silence' | 'sched:quiet' | 'sched:error'
 
 /** One request the scheduler hands to the normal message pipeline (so the run is a real Ticket). */
 export interface TeamRequest {
@@ -131,6 +132,8 @@ export interface SchedulerDeps {
   flushQueues?(projectId: string): number
   /** Hand back requests the pre-router held (silence, full project) once the gate is open. Returns how many. */
   releaseHeld?(projectId: string): number
+  /** Harvest 10: the window renewed (or the person chose “Continuar agora”): one turn per waiting conversation. Returns how many. */
+  releaseWindowQueue?(projectId: string): number
   /** TEAM-7: the morning card of the Coordenação when it is time (no model; it runs even when no engine is connected). */
   morningBrief?(projectId: string): void
   /** Re-measure the draft of a running ticket (SW-7 “Num rascunho · N arquivos”). Failures are not fatal. */
@@ -139,6 +142,11 @@ export interface SchedulerDeps {
   tokensSince?(projectId: string, personaId: string, fromIso: string): number
   /** P1-9: visible “Proposta de {persona}” cards. Absent ⇒ the initiative stays an audit line, as before. */
   readonly proposals?: TaskProposalPort
+  /**
+   * HONEST-1: the team's quiet window. Inside it the team starts NOTHING by itself (initiatives, routines, plans, the proposal card, the morning card):
+   * what is held stays due and goes when the window ends. Absent ⇒ no window.
+   */
+  readonly houseRules?: Pick<HouseRules, 'hold' | 'quietNow'>
 }
 
 /** Timer pair; the handle is opaque to the scheduler. */
@@ -386,7 +394,19 @@ export class ProactivityScheduler {
       return report(projectId, 'resting')
     }
     deps.proactivity.ensureAllInitiativeRoutines(projectId)
-    deps.morningBrief?.(projectId)
+    // HONEST-1: the team's quiet window. Whatever the team would start BY ITSELF waits (it stays due and goes when the window ends); a DIRECT request of
+    // the person never comes through here, and the recovery of a task already started (`retryFailed`, `pull`) is not an initiative.
+    const quiet = deps.houseRules?.quietNow(projectId, nowIso)
+    if (quiet === undefined) {
+      deps.morningBrief?.(projectId)
+    } else {
+      this.audit(projectId, 'sched:quiet', projectId, `A equipe está na janela de silêncio «${quiet.label}» até ${quiet.end}: iniciativas, rotinas e planos esperam.`, nowIso, `quiet:${quiet.id}:${String(quiet.untilMs)}`)
+    }
+    // Harvest 10: the window renewed → one turn per waiting conversation, even while the probe still says no engine.
+    const windowReleased = deps.releaseWindowQueue?.(projectId) ?? 0
+    if (windowReleased > 0) {
+      this.audit(projectId, 'sched:window', projectId, `${String(windowReleased)} conversa(s) retomada(s) depois da janela.`, nowIso)
+    }
     if (!deps.engineReady()) {
       this.states.set(projectId, 'no_engine')
       this.note(projectId, 'no_engine', nowIso)
@@ -403,13 +423,18 @@ export class ProactivityScheduler {
     this.reclaimExpired(projectId, nowIso)
     deps.proposals?.expire(projectId, nowIso)
     this.materialize(projectId, nowIso)
-    for (const run of deps.routines.claimDue(projectId, new Date(this.nowMs() + this.leaseMs).toISOString())) {
-      const outcome = this.runRoutine(workspaceId, projectId, run, nowIso)
-      if (outcome === 'skipped') tally.routinesSkipped += 1
-      else tally.routinesRun += 1
-      if (outcome === 'model') tally.modelStarts += 1
+    if (quiet !== undefined) this.holdDue(projectId, nowIso)
+    else {
+      for (const run of deps.routines.claimDue(projectId, new Date(this.nowMs() + this.leaseMs).toISOString())) {
+        const outcome = this.runRoutine(workspaceId, projectId, run, nowIso)
+        if (outcome === 'skipped') tally.routinesSkipped += 1
+        else tally.routinesRun += 1
+        if (outcome === 'model') tally.modelStarts += 1
+      }
     }
-    if (deps.proposals?.flush(projectId, nowIso) === true) {
+    if (quiet !== undefined) {
+      if ((deps.proposals?.queued?.(projectId) ?? 0) > 0) deps.houseRules?.hold(projectId, 'proposal', projectId, 'cartão de propostas', nowIso)
+    } else if (deps.proposals?.flush(projectId, nowIso) === true) {
       this.audit(projectId, 'sched:proposal_card', projectId, 'A equipe deixou uma proposta no #geral.', nowIso)
     }
     this.retryFailed(projectId, personas, nowIso, tally)
@@ -428,6 +453,26 @@ export class ProactivityScheduler {
   }
 
   // ---- routines -----------------------------------------------------------
+
+  /**
+   * HONEST-1: inside the team's quiet window the due routines are NOT claimed: they stay pending and go, by their own catch-up rule, when the window
+   * ends. The window's book says what it held (once per routine and per occurrence of the window, however many cycles look at it).
+   */
+  private holdDue(projectId: string, nowIso: string): void {
+    const { deps } = this
+    for (const routine of deps.routines.list(projectId)) {
+      if (routine.paused) continue
+      if (!deps.routines.listRuns(routine.id).some(run => run.status === 'pending' && run.scheduledFor <= nowIso)) continue
+      if (routine.id.startsWith(INITIATIVE_PREFIX)) {
+        const personaId = routine.id.slice(INITIATIVE_PREFIX.length)
+        deps.houseRules?.hold(projectId, 'initiative', personaId, `iniciativa de ${deps.product.getPersona(personaId)?.name ?? 'alguém da equipe'}`, nowIso)
+      } else if (routine.id.startsWith(MORNING_ROUTINE_PREFIX)) {
+        deps.houseRules?.hold(projectId, 'brief', routine.id, 'resumo da manhã', nowIso)
+      } else {
+        deps.houseRules?.hold(projectId, 'routine', routine.id, `rotina «${routine.name}»`, nowIso)
+      }
+    }
+  }
 
   /** A run leased by a process that died is released and tried again (bounded). */
   private reclaimExpired(projectId: string, nowIso: string): void {
@@ -726,6 +771,8 @@ export class ProactivityScheduler {
       this.audit(projectId, 'sched:silence', coordination.id, `${coordination.name} está na janela de silêncio: o planejamento espera.`, nowIso, `plan-silence:${nowIso.slice(0, 13)}`)
       return
     }
+    // HONEST-1: the Coordenação does not start a planning round inside the team's quiet window (it plans when the window ends).
+    if (deps.houseRules?.hold(projectId, 'plan', goal.id, `plano do objetivo «${goal.objective}»`, nowIso) !== undefined) return
     if (!this.mayStartModel(projectId, coordination, autonomy, nowIso)) return
     const posted = deps.postRequest({
       workspaceId, projectId, id: `plan:${goal.id}:${nowIso}`, actorId: 'team:plan', personaId: coordination.id, kind: 'plan',

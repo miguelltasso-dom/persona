@@ -1,0 +1,16 @@
+.select {
+  box-sizing: border-box;
+  min-height: 36px;
+  appearance: auto;
+  border: 1.5px solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-s, 8px);
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  padding: 6px 10px;
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.select:focus-visible {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 2px;
+}

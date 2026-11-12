@@ -15,6 +15,8 @@ function narrowErrorCode(code: string | undefined): ConnectionResolveErrorCode |
 }
 
 function statusFor(row: ConnectionView): ConnectionStatus {
+  // Item 13: o que ainda está sendo conferido (ou que não deu para conferir) nunca vira "Não conectada".
+  if (row.phase === 'checking' && row.error === undefined) return (row as { readonly unconfirmed?: boolean }).unconfirmed === true ? 'unconfirmed' : 'checking'
   const code = row.error?.code
   if (!row.available || code === 'cli_not_found') return 'missing'
   if (code === 'quota_exhausted') return 'expired'
@@ -23,6 +25,7 @@ function statusFor(row: ConnectionView): ConnectionStatus {
 }
 
 function copyCommandFor(row: ConnectionView): string | undefined {
+  if (row.phase === 'checking' && row.error === undefined) return undefined // ainda conferindo: não oferece o comando de login (seria acusar um logout que ninguém confirmou); um erro explícito da CLI é resposta
   if (row.error?.code !== 'not_logged_in' && row.loggedIn) return undefined
   const fromMessage = row.error?.message.match(/`([^`]+)`/u)?.[1]
   if (fromMessage !== undefined) return fromMessage

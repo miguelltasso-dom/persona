@@ -50,6 +50,11 @@ export default class PersonaComponents extends Service {
     })
   }
 
+  /** Whether a manifest is configured; false leaves the service inert (development and tests). */
+  get configured(): boolean {
+    return this.manager !== undefined
+  }
+
   /**
    * Current state without touching the network.
    * @param kind - Component to inspect.

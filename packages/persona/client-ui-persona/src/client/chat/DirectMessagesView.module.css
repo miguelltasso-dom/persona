@@ -255,6 +255,44 @@
   }
 }
 
+/*
+ * Com o rail listando as pessoas (DESIGN-01-MUSE §5.1 #06) a 2ª coluna não existe: a conversa ocupa a largura toda e lê na MESMA medida do
+ * #geral (1120 px de texto + 32 px de cada lado), centrada. Nenhuma largura nova.
+ */
+.layout[data-list-in-rail] {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+/* The subject bar wrapper takes no box of its own (the legacy layout is unchanged) ... */
+.subjectRow {
+  display: contents;
+}
+
+/* ... and with the rail listing people it lines up with the header, the thread and the composer. */
+.layout[data-list-in-rail] .subjectRow {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(1120px + 2 * var(--persona-space-8));
+  margin-inline: auto;
+  padding-inline: var(--persona-space-8);
+}
+
+.layout[data-list-in-rail] .threadHeader,
+.layout[data-list-in-rail] .composer {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: calc(1120px + 2 * var(--persona-space-8));
+  margin-inline: auto;
+  padding-left: var(--persona-space-8);
+  padding-right: var(--persona-space-8);
+}
+
+.layout[data-list-in-rail] .thread {
+  padding-left: max(var(--persona-space-8), calc((100% - 1120px) / 2));
+  padding-right: max(var(--persona-space-8), calc((100% - 1120px) / 2));
+}
+
 /* Live pose of the persona in the thread header (mini scene, sticker frame). */
 .threadStage {
   display: flex;
@@ -279,7 +317,9 @@
   animation: persona-dm-pose-in var(--motion-base) var(--ease-spring);
 }
 
-.threadStage img[data-state='resting'] {
+/* Only a persona who is really asleep (Descansando, Pausada) is drawn small: a Disponível one stands at full size. */
+.threadStage img[data-persona-state='resting'],
+.threadStage img[data-persona-state='paused'] {
   height: 38px;
 }
 
@@ -427,7 +467,6 @@
     background:
       radial-gradient(1150px 780px at -110px 93%, rgb(242 186 110 / 0.3), rgb(242 186 110 / 0.13) 34%, rgb(242 186 110 / 0.04) 58%, transparent 74%),
       radial-gradient(115% 105% at 10% 92%, transparent 42%, rgb(8 4 12 / 0.55));
-    animation: lampBreathe 14s ease-in-out infinite alternate;
   }
 
   /* o conteúdo fica acima da camada de luz */
@@ -440,16 +479,6 @@
     border-left-color: color-mix(in srgb, #f2c27a calc(var(--lit, 0) * 80%), var(--persona-outline-soft));
     border-bottom-color: color-mix(in srgb, #f2c27a calc(var(--lit, 0) * 80%), var(--persona-outline-soft));
     box-shadow: calc(2px + var(--lit, 0) * 5px) calc(-1px - var(--lit, 0) * 4px) calc(10px + var(--lit, 0) * 10px) rgb(6 3 10 / calc(0.28 + var(--lit, 0) * 0.3));
-  }
-}
-
-@keyframes lampBreathe {
-  from {
-    opacity: 0.9;
-  }
-
-  to {
-    opacity: 1;
   }
 }
 

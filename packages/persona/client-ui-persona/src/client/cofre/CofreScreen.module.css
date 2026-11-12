@@ -1,0 +1,213 @@
+/* Item 15 — Configurações › Cofre (Muse 12/11): lista de ficha, logins e chaves + painel lateral de 440 px (o mesmo padrão do item 18). */
+.layout {
+  display: flex;
+  align-items: stretch;
+  gap: var(--persona-space-4);
+  min-width: 0;
+}
+
+.card {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  min-width: 0;
+}
+
+.subtitle {
+  margin: 0;
+  color: var(--persona-ink-soft);
+}
+
+.warning {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-space-2);
+  color: var(--persona-ink);
+}
+
+.loading {
+  min-height: 4rem;
+  border-radius: var(--persona-space-2);
+  background: var(--persona-wash);
+}
+
+.errorBlock {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+}
+
+.groupTitle {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--persona-ink-soft);
+}
+
+.muted {
+  margin: 0;
+  color: var(--persona-ink-soft);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-3);
+  background: var(--persona-wash);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-space-3);
+}
+
+.rowIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: var(--persona-ink-soft);
+}
+
+.rowText {
+  flex: 1 1 12rem;
+  min-width: 0;
+}
+
+.rowTitle {
+  margin: 0;
+  overflow: hidden;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowDetail {
+  margin: 0;
+  overflow: hidden;
+  color: var(--persona-ink-soft);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowActions,
+.confirm {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+}
+
+.confirm {
+  flex: 1 1 100%;
+}
+
+.confirmText {
+  flex: 1 1 14rem;
+}
+
+.error {
+  margin: 0;
+  color: var(--persona-danger, var(--persona-ink));
+}
+
+/* O painel: 440 px à direita, sem scrim, fundo sólido; em janela estreita (200%) ocupa a largura toda por cima. */
+.panel {
+  display: flex;
+  flex: 0 0 440px;
+  flex-direction: column;
+  width: 440px;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-space-3);
+  background: var(--persona-paper);
+  color: var(--persona-ink);
+  animation: cofre-panel-in var(--motion-panel) var(--ease-enter) both;
+}
+
+@keyframes cofre-panel-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (max-width: 760px) {
+  .layout {
+    position: relative;
+  }
+
+  .panel {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    flex-basis: auto;
+    z-index: 2;
+  }
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-4) var(--persona-space-4) var(--persona-space-3);
+  border-bottom: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+.panelTitle {
+  margin: 0;
+  min-width: 0;
+  font: 600 17px/24px var(--persona-font-display);
+}
+
+.panelForm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-4);
+}
+
+.panelActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
+  }
+}
+
+/* O aviso do resultado da importação: uma linha, com a saída própria. */
+.notice {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-space-2);
+}
+
+.noticeText {
+  flex: 1 1 auto;
+  min-width: 0;
+}

@@ -24,7 +24,7 @@ describe('AccountRow / AccountPolicyPicker / Notice (WAVE2-SPEC c)', () => {
     expect(screen.getByText('Em uso agora')).toBeTruthy()
   })
 
-  it('policy is an explicit radio choice with a recommended badge', () => {
+  it('policy is an explicit radio choice, without a recommended badge (regra 0.1 da Muse)', () => {
     const onChange = vi.fn()
     const copy = {
       fixed: { title: 'Ficar na mesma conta', body: 'Espera a cota voltar.' },
@@ -32,10 +32,10 @@ describe('AccountRow / AccountPolicyPicker / Notice (WAVE2-SPEC c)', () => {
       split_balance: { title: 'Dividir o uso', body: 'Alterna entre as contas.' },
       ask: { title: 'Perguntar antes de trocar', body: 'Aparece em Precisa de você.' },
     }
-    render(<AccountPolicyPicker legend="Quando uma conta chega ao limite" name="p" value="fixed" onChange={onChange} copy={copy} recommendedLabel="Recomendado" />)
+    render(<AccountPolicyPicker legend="Quando uma conta chega ao limite" name="p" value="fixed" onChange={onChange} copy={copy} />)
     expect(screen.getByRole('group', { name: 'Quando uma conta chega ao limite' })).toBeTruthy()
     expect((screen.getByRole('radio', { name: /Ficar na mesma conta/u }) as HTMLInputElement).checked).toBe(true)
-    expect(screen.getByText('Recomendado')).toBeTruthy()
+    expect(screen.queryByText('Recomendado')).toBeNull()
     fireEvent.click(screen.getByRole('radio', { name: /Perguntar antes de trocar/u }))
     expect(onChange).toHaveBeenCalledWith('ask')
   })

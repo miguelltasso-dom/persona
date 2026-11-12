@@ -27,6 +27,7 @@ export const pt = {
   'needRoot.hint': 'Os arquivos ficam confinados a uma pasta no seu computador. Nada é enviado para a nuvem sem você ver.',
   'needRoot.action': 'Escolher pasta',
   'needRoot.illustration': 'Ilustração: pasta do projeto aguardando escolha',
+  'header.eyebrowProject': 'Trabalho · {project}',
 } as const
 
 /** English copy. */
@@ -53,6 +54,7 @@ export const en = {
   'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
   'needRoot.action': 'Choose folder',
   'needRoot.illustration': 'Illustration: project folder awaiting selection',
+  'header.eyebrowProject': 'Work · {project}',
 } as const
 
 export const zh = {
@@ -78,6 +80,7 @@ export const zh = {
   'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
   'needRoot.action': 'Choose folder',
   'needRoot.illustration': 'Illustration: project folder awaiting selection',
+  'header.eyebrowProject': 'Work · {project}',
 } as const
 export const ja = {
   'header.eyebrow': 'Company',
@@ -102,6 +105,7 @@ export const ja = {
   'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
   'needRoot.action': 'Choose folder',
   'needRoot.illustration': 'Illustration: project folder awaiting selection',
+  'header.eyebrowProject': 'Work · {project}',
 } as const
 export const es = {
   'header.eyebrow': 'Company',
@@ -126,6 +130,7 @@ export const es = {
   'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
   'needRoot.action': 'Choose folder',
   'needRoot.illustration': 'Illustration: project folder awaiting selection',
+  'header.eyebrowProject': 'Work · {project}',
 } as const
 export const fr = {
   'header.eyebrow': 'Company',
@@ -150,6 +155,7 @@ export const fr = {
   'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
   'needRoot.action': 'Choose folder',
   'needRoot.illustration': 'Illustration: project folder awaiting selection',
+  'header.eyebrowProject': 'Work · {project}',
 } as const
 export const de = {
   'header.eyebrow': 'Company',
@@ -174,6 +180,7 @@ export const de = {
   'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
   'needRoot.action': 'Choose folder',
   'needRoot.illustration': 'Illustration: project folder awaiting selection',
+  'header.eyebrowProject': 'Work · {project}',
 } as const
 export const ru = {
   'header.eyebrow': 'Company',
@@ -198,6 +205,7 @@ export const ru = {
   'needRoot.hint': 'Files stay confined to one folder on your computer. Nothing uploads without you seeing it.',
   'needRoot.action': 'Choose folder',
   'needRoot.illustration': 'Illustration: project folder awaiting selection',
+  'header.eyebrowProject': 'Work · {project}',
 } as const
 
 export type FilesKey = keyof typeof pt

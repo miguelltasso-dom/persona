@@ -1,0 +1,36 @@
+/* #09: 76 px = 16 px + a 44 px face + 16 px. Nothing here moves: the calm state is the absence of motion. */
+.banner {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-4);
+  height: 76px;
+  padding: 16px 20px;
+  background: var(--persona-card);
+  /* The same ink outline and sticker shadow as the cards beside it (Carbon): a banner that is washed out reads as disabled, not as calm. */
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
+.text {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font: 600 17px/24px var(--persona-font-display);
+  color: var(--persona-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seal {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-success-tint);
+  color: var(--persona-success);
+}

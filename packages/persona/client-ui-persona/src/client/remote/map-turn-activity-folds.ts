@@ -12,6 +12,7 @@ export interface TurnActivityGroupWire {
     readonly kind: ActivityItem['kind']
     readonly title: string
     readonly status: ActivityItem['status']
+    readonly at?: string
   }[]
   readonly moreCount: number
 }
@@ -49,6 +50,7 @@ export function mapTurnActivityFolds(
         kind: item.kind,
         title: item.title,
         status: item.status,
+        ...(item.at === undefined ? {} : { at: item.at }),
       })),
       moreCount: fold.moreCount,
     }))

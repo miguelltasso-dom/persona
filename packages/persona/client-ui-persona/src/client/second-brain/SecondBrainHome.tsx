@@ -56,7 +56,12 @@ export interface SecondBrainHomeProps {
   readonly onOpenKind?: (kind: BrainKindView) => void
   readonly onOpenPage?: (pageId: string) => void
   readonly onBringContext?: () => void
-  readonly onWritePage?: () => void
+  /** "Nova página" (the header button, no type) or a "+ Tipo" chip (that type). */
+  readonly onWritePage?: (kind?: BrainKindView) => void
+  /** The first real lines of the company profile (the Cofre brief), for "Comece aqui". Only the first 3 are shown. */
+  readonly companyLines?: readonly string[] | undefined
+  /** "Descrever a empresa em 3 frases": where the person writes the profile. Absent = no invitation. */
+  readonly onDescribeCompany?: (() => void) | undefined
   /** SB-4: write the pages into a folder / read a folder through the BYC review. Both live in the ⋯ menu. */
   readonly onExportVault?: (() => void) | undefined
   readonly onImportFolder?: (() => void) | undefined
@@ -107,6 +112,8 @@ export function SecondBrainHome({
   onOpenPage,
   onBringContext,
   onWritePage,
+  companyLines = [],
+  onDescribeCompany,
   onExportVault,
   onImportFolder,
   vaultFolderAvailable = false,
@@ -129,6 +136,7 @@ export function SecondBrainHome({
   const activeGrants = (home?.activeGrants ?? []).filter(grant => grantIsActive(grant, nowMs))
   const contradictions = home?.contradictions ?? []
   const startHerePage = home === null ? undefined : pages.find(page => page.id === home.startHereId)
+  const startHereLines = companyLines.map(line => line.trim()).filter(line => line !== '').slice(0, 3)
   const sparseHome = changed.length === 0
     && contradictions.length === 0
     && activeGrants.length === 0
@@ -200,9 +208,14 @@ export function SecondBrainHome({
           hintKey="empty.hint"
           {...(onBringContext === undefined ? {} : { onPrimary: onBringContext, primaryKey: 'empty.action.byc' })}
         />
-        {onWritePage !== undefined && (
+        {(onWritePage !== undefined || (onDescribeCompany !== undefined && startHereLines.length === 0)) && (
           <div className={styles.emptyActions}>
-            <Button variant="secondary" onClick={() => { onWritePage() }}>{t('empty.action.write')}</Button>
+            {onDescribeCompany !== undefined && startHereLines.length === 0 && (
+              <Button variant="secondary" onClick={() => { onDescribeCompany() }}>{t('home.startHereCta')}</Button>
+            )}
+            {onWritePage !== undefined && (
+              <Button variant="secondary" onClick={() => { onWritePage() }}>{t('empty.action.write')}</Button>
+            )}
           </div>
         )}
       </Screen>
@@ -266,7 +279,33 @@ export function SecondBrainHome({
           )}
         </Card>
       )}
-      {startHerePage !== undefined && onOpenPage !== undefined && (
+      {startHereLines.length > 0 ? (
+        // DESIGN-01 #16: the first lines of what the person wrote about the company, never the index's dry sentence.
+        <Card padding="m" eyebrow={t('home.startHereLabel')}>
+          <div className={styles.startHere}>
+            <ul className={styles.companyLines}>
+              {startHereLines.map(line => <li key={line} data-company-line="">{line}</li>)}
+            </ul>
+            {startHerePage !== undefined && onOpenPage !== undefined && (
+              <Button variant="secondary" size="s" aria-label={`${t('home.startHereOpen')} ${startHerePage.title}`} onClick={() => { onOpenPage(startHerePage.id) }}>
+                {t('home.startHereOpen')}
+              </Button>
+            )}
+          </div>
+        </Card>
+      ) : onDescribeCompany !== undefined ? (
+        // No profile yet: the host always keeps an index page whose only sentence is "Atualizado sozinho…", so the page is not what invites; the person is.
+        <Card padding="m" eyebrow={t('home.startHereLabel')}>
+          <div className={styles.startHere}>
+            <Button variant="primary" size="m" onClick={() => { onDescribeCompany() }}>{t('home.startHereCta')}</Button>
+            {startHerePage !== undefined && onOpenPage !== undefined && (
+              <Button variant="ghost" size="s" aria-label={`${t('home.startHereOpen')} ${startHerePage.title}`} onClick={() => { onOpenPage(startHerePage.id) }}>
+                {t('home.startHereOpen')}
+              </Button>
+            )}
+          </div>
+        </Card>
+      ) : startHerePage !== undefined && onOpenPage !== undefined ? (
         <Card padding="m" eyebrow={t('home.startHereLabel')}>
           <div className={styles.startHere}>
             {/* The start of the page itself (its title is already the card's eyebrow). */}
@@ -276,7 +315,7 @@ export function SecondBrainHome({
             </Button>
           </div>
         </Card>
-      )}
+      ) : null}
       <div className={styles.homeLayout}>
         <div className={styles.homeMain}>
           <Card padding="m" eyebrow={t('sections.changedToday')}>
@@ -360,7 +399,7 @@ export function SecondBrainHome({
           </Card>
           <Card padding="m" eyebrow={t('sections.byType')}>
             <ul className={styles.typeNav}>
-              {BRAIN_KINDS.map(kind => (
+              {BRAIN_KINDS.filter(kind => (typeCounts[kind] ?? 0) > 0).map(kind => (
                 <li key={kind}>
                   <button type="button" className={styles.typeRow} onClick={() => { onOpenKind?.(kind) }}>
                     <span className={styles.typeRowLabel}>
@@ -372,6 +411,25 @@ export function SecondBrainHome({
                 </li>
               ))}
             </ul>
+            {/* A type with no page yet is not a row of zeros: it is a chip that starts the first one. */}
+            {onWritePage !== undefined && BRAIN_KINDS.some(kind => (typeCounts[kind] ?? 0) === 0) && (
+              <div className={styles.newOfType}>
+                <p className={styles.muted}>{t('sections.byTypeNew')}</p>
+                <div className={styles.typeChips}>
+                  {BRAIN_KINDS.filter(kind => (typeCounts[kind] ?? 0) === 0).map(kind => (
+                    <button
+                      key={kind}
+                      type="button"
+                      className={styles.typeChip}
+                      aria-label={t('home.newOfTypeAria', { type: brainKindLabel(dict, kind) })}
+                      onClick={() => { onWritePage(kind) }}
+                    >
+                      {`+ ${brainKindLabel(dict, kind)}`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </Card>
         </aside>
       </div>

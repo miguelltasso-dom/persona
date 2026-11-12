@@ -1,0 +1,92 @@
+.bubble {
+  display: grid;
+  grid-template-columns: auto minmax(120px, 1fr) auto auto;
+  align-items: center;
+  gap: var(--persona-space-3);
+  max-width: 420px;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border-radius: var(--persona-radius-m, 12px);
+  background: var(--persona-surface);
+}
+
+.bubble audio {
+  display: none;
+}
+
+.wave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: 24px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* 40 barras finas: a parte ouvida em `--persona-brand`, o resto em `--persona-ink-soft`. */
+.tick {
+  flex: 1 1 0;
+  min-width: 2px;
+  height: 24px;
+  border-radius: 2px;
+  background: var(--persona-ink-soft);
+  transform-origin: center;
+}
+
+.tick[data-heard='true'] {
+  background: var(--persona-brand);
+}
+
+.time {
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Controle de 32 px. */
+.speed {
+  min-width: 32px;
+  height: 32px;
+  padding: 0 var(--persona-space-1);
+  border: 1px solid var(--persona-outline-control);
+  border-radius: 16px;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  font: 600 12px/16px var(--persona-font-text);
+  cursor: pointer;
+}
+
+.speed:hover {
+  color: var(--persona-ink);
+}
+
+.transcription {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  gap: var(--persona-space-2);
+  margin: 0;
+  font: 500 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-muted);
+}
+
+.transcriptionText {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.transcription[data-expanded='true'] .transcriptionText {
+  -webkit-line-clamp: unset;
+}
+
+.link {
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--persona-brand);
+  font: 600 13px/18px var(--persona-font-text);
+  cursor: pointer;
+  text-decoration: underline;
+}

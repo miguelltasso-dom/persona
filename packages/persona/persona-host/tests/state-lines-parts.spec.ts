@@ -39,7 +39,9 @@ const PARTS = ['Texto da campanha pronto.', 'Arte da campanha pronta.', 'Posts d
 
 it('WITH the review on: each persona\'s words at the end of her part are typed part_done/result under the request\'s group (the plan card absorbs them)', async () => {
   const h = rig(true)
-  script(h, [...PARTS, 'AJUSTES\n- faltou o nome do produto no texto', 'APROVADO\nTudo certo.', 'APROVADO\nTudo certo.', 'Ajustei o nome do produto no texto.', 'APROVADO\nAgora sim.'])
+  // D-100: the parts are a CHAIN (texto → arte → posts), so the turns run in this order: the text, its review (asks for adjustments), her adjustment, the review again,
+  // and only then the art with its review, and the posts with theirs (they used to run side by side, and the review steps came after all three).
+  script(h, [PARTS[0]!, 'AJUSTES\n- faltou o nome do produto no texto', 'Ajustei o nome do produto no texto.', 'APROVADO\nAgora sim.', PARTS[1]!, 'APROVADO\nTudo certo.', PARTS[2]!, 'APROVADO\nTudo certo.'])
   say(h, 'c1', REQUEST)
   await flush(h)
   const stored = h.events.listProject('pp').filter(row => row.streamId === 'channel:geral')

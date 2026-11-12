@@ -1,0 +1,66 @@
+/* "Seus números" · o modal "Fixar na Visão geral" (design/COLHEITA-MUSE.md §19a). Só tokens `--persona-*`; nenhuma altura fora da régua 32/40/48. */
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+}
+
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: var(--persona-space-1);
+  color: var(--persona-ink);
+  font: 800 13px/18px var(--persona-font-text);
+}
+
+.choice {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  min-height: 32px;
+  color: var(--persona-ink);
+  font: 600 15px/20px var(--persona-font-text);
+  cursor: pointer;
+}
+
+.testRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-3);
+}
+
+.tip {
+  flex: 1;
+  min-width: 180px;
+  margin: 0;
+  color: var(--persona-ink-soft);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.result {
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-surface-alt);
+}
+
+.resultTitle {
+  margin: 0 0 var(--persona-space-1);
+  color: var(--persona-ink-soft);
+  font: 800 13px/18px var(--persona-font-text);
+}
+
+.error {
+  margin: 0;
+  color: var(--persona-danger-ink);
+  font: 700 13px/18px var(--persona-font-text);
+}

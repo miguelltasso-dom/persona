@@ -9,6 +9,9 @@
   box-shadow: none;
   transition: border 220ms ease, opacity 220ms ease;
   margin: var(--persona-space-2) 0;
+  /* DESIGN-01 #04: a borda tracejada nunca é cortada: nada em volta recorta o balão e, ao rolar até ele, sobra o respiro de cima. */
+  overflow: visible;
+  scroll-margin-top: var(--persona-space-2);
 }
 
 :global(body[data-ds-dark-theme='true']) .queuedMessage {

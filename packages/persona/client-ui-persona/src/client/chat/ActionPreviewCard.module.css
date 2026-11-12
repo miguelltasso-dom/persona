@@ -8,6 +8,41 @@
   min-width: 0;
 }
 
+/* COLHEITA 5: o selo de prazo no topo do cartão. Só leitura (não é controle): 24 px, ícone `clock` 14 px. */
+.deadline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  min-height: 24px;
+  margin: 0 0 var(--persona-space-2);
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-muted);
+}
+
+/* Falta menos de 1 h: âmbar do estado "esperando", com tinta escura. */
+.deadline[data-deadline='soon'] {
+  padding: 0 var(--persona-space-2);
+  border-radius: 12px;
+  background: var(--persona-state-waiting);
+  color: var(--persona-accent-ink);
+}
+
+/* Vencido: só leitura. Sem sombra, conteúdo a 60%; "Pedir de novo" fica nítido. */
+.card.expiredCard {
+  box-shadow: none;
+  border-color: var(--persona-outline-soft);
+}
+
+.expiredBody {
+  opacity: 0.6;
+}
+
+.retried {
+  margin: var(--persona-space-2) 0 0;
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-muted);
+}
+
 .eyebrowRow {
   display: inline-flex;
   align-items: center;
@@ -139,6 +174,8 @@
 .actions {
   display: flex;
   flex-wrap: wrap;
+  /* COLHEITA 5: cada botão com a sua altura (32/40): nada estica até a altura do vizinho. */
+  align-items: center;
   gap: var(--persona-space-2);
   margin-top: var(--persona-space-3);
 }

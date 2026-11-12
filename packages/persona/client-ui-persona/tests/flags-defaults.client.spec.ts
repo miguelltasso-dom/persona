@@ -12,6 +12,7 @@ import { isWorkingControlEnabled, WORKING_CONTROL_FLAG_KEY } from '../src/client
 import { houseEmptyArt, channelScene } from '../src/client/decor/HouseDecor.tsx'
 import { isHouseDecorEnabled, HOUSE_DECOR_FLAG_KEY } from '../src/client/decor/house-decor-flag.ts'
 import { isStickersEnabled, STICKERS_FLAG_KEY } from '../src/client/figurinhas/figurinhas-flag.ts'
+import { isRemoteTeamTabEnabled, REMOTE_TEAM_TAB_FLAG_KEY } from '../src/client/members/members-flag.ts'
 import { FLAG_NAMES, FLAGS, readFlag, setFlagDefaults, type FlagName } from '../src/client/flags.ts'
 import { isNextStepEnabled, NEXT_STEP_FLAG_KEY } from '../src/client/next-step/next-step-flag.ts'
 import { isEngineEffortEnabled, ENGINE_EFFORT_FLAG_KEY } from '../src/client/profile/engine-effort-flag.ts'
@@ -47,18 +48,19 @@ const WRAPPERS: readonly (readonly [FlagName, () => boolean, string])[] = [
   ['taskProposal', isTaskProposalEnabled, TASK_PROPOSAL_FLAG_KEY],
   ['settingsPersonas', isSettingsPersonasEnabled, SETTINGS_PERSONAS_FLAG_KEY],
   ['engineEffort', isEngineEffortEnabled, ENGINE_EFFORT_FLAG_KEY],
+  ['remoteTeamTab', isRemoteTeamTabEnabled, REMOTE_TEAM_TAB_FLAG_KEY],
 ]
 
 describe('a tabela de padrões da v1.1', () => {
-  it('são as 13 flags persona.flag.* mais o V2 de Aprovações (a chave dele nasceu fora do prefixo)', () => {
+  it('são as 14 flags persona.flag.* mais o V2 de Aprovações (a chave dele nasceu fora do prefixo)', () => {
     expect([...FLAG_NAMES].sort()).toEqual([
       'actionPreview', 'approvalsInboxV2', 'bubbles', 'engineEffort', 'figurinhas', 'houseDecor', 'lampLight', 'navPlaces', 'nextStep',
-      'personaAsk', 'settingsPersonas', 'taskProposal', 'teamwork', 'workingControl',
+      'personaAsk', 'remoteTeamTab', 'settingsPersonas', 'taskProposal', 'teamwork', 'workingControl',
     ])
   })
 
-  it('as flags da v1.1 entram LIGADAS, salvo nextStep, que fica DESLIGADA no corte (Muse 06:15; EFF-1 volta ON, Atlas/Keel 06:21)', () => {
-    expect(FLAG_NAMES.filter(name => !FLAGS[name].defaultOn)).toEqual(['nextStep'])
+  it('as flags da v1.1 entram LIGADAS, salvo nextStep (corte, Muse 06:15) e remoteTeamTab (cena 20, decisão do Keel), que ficam DESLIGADAS', () => {
+    expect(FLAG_NAMES.filter(name => !FLAGS[name].defaultOn)).toEqual(['nextStep', 'remoteTeamTab'])
   })
 
   it('toda chave é "persona.flag.<nome>", salvo o V2 de Aprovações (persona.approvalsInbox.v2)', () => {
@@ -70,12 +72,16 @@ describe('a tabela de padrões da v1.1', () => {
 describe('o padrão de PRODUÇÃO (sem nenhuma escolha explícita)', () => {
   beforeEach(() => { setFlagDefaults(undefined) })
 
-  it.each(FLAG_NAMES.filter(name => name !== 'nextStep'))('%s vem LIGADA', (name) => {
+  it.each(FLAG_NAMES.filter(name => name !== 'nextStep' && name !== 'remoteTeamTab'))('%s vem LIGADA', (name) => {
     expect(readFlag(name)).toBe(true)
   })
 
   it('nextStep vem DESLIGADA no corte (Muse 06:15: sem prova visual da regra certa; v1.2)', () => {
     expect(readFlag('nextStep')).toBe(false)
+  })
+
+  it('remoteTeamTab vem DESLIGADA na v1.1 (cena 20: a aba Membros só com a equipe remota ligada)', () => {
+    expect(readFlag('remoteTeamTab')).toBe(false)
   })
 
   it('a luz da luminária continua precisando dos balões (os dois ligados = a luz)', () => {

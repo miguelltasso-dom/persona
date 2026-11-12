@@ -92,8 +92,8 @@ describe('rail com a flag LIGADA (5 lugares compactos + a barra de conversas)', 
     const { container } = rail()
     const team = container.querySelector('[data-nav-place="team"]')!
     expect(team.getAttribute('data-nav-panel')).toBe('team')
-    expect(team.getAttribute('data-nav-contains')).toBe('team orgChart teamHealth')
-    expect(container.querySelector('[data-nav-place="projects"]')!.getAttribute('data-nav-contains')).toBe('projects kanban routines files canvas')
+    expect(team.getAttribute('data-nav-contains')).toBe('team orgChart teamHealth routines')
+    expect(container.querySelector('[data-nav-place="projects"]')!.getAttribute('data-nav-contains')).toBe('kanban files canvas projects')
   })
 
   it('clicar num lugar abre a última aba usada nele (ou a primeira)', () => {

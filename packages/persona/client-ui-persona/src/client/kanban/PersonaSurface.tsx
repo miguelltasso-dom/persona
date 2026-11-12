@@ -7,7 +7,7 @@ import { Button, EmptyState, ErrorState, Skeleton } from '../primitives/index.ts
 import { bindLocale, type LocaleDict } from '../preview/locale-bind.ts'
 import styles from './Kanban.module.css'
 
-export type LumenEmptyIllustration = 'empty-kanban' | 'empty-connections' | 'empty-sem-ia' | 'empty-vault' | 'empty-routines' | 'empty-inbox' | 'bibliotecario' | 'empty-historico'
+export type LumenEmptyIllustration = 'empty-kanban' | 'empty-connections' | 'empty-sem-ia' | 'empty-vault' | 'empty-routines' | 'empty-inbox' | 'bibliotecario' | 'empty-historico' | 'empty-regras-da-casa'
 
 export interface PersonaSurfaceProps {
   readonly dict: LocaleDict

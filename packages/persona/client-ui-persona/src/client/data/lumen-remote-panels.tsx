@@ -10,6 +10,9 @@ import type {
   ProjectFileListing,
   ProjectScopeRequest,
   RunnerSwapPolicy,
+  WindowReserveView,
+  EmailFilterView,
+  EmailPresetView,
 } from '@deepseek-ai/dsh-persona-host/types'
 import { ApprovalsInbox, type ApprovalRememberChoice } from '../approvals/ApprovalsInbox.tsx'
 import type { ApprovalItem } from '../approvals/mock-data.ts'
@@ -22,6 +25,7 @@ import { RoutinesView, type RoutineActions, type RoutineRow } from '../routines/
 import type { EditorPersona, EditorProject } from '../routines/RoutineEditorModal.tsx'
 import { routineNameFromPrompt, type RoutineScheduleWire, type RoutineWire } from '../routines/routine-wire.ts'
 import { UsageLimits } from '../usage/UsageLimits.tsx'
+import { EmailRuleForm } from '../email-rule/EmailRuleForm.tsx'
 import { TriageRulesView } from '../rules/TriageRulesView.tsx'
 import { PersonaProfilePage } from '../profile/PersonaProfilePage.tsx'
 import type { PersonaProfileSnapshot } from '../profile/mock-data.ts'
@@ -66,7 +70,8 @@ import { teamToMembers } from './adapters/members.ts'
 import { dailySummariesToUi } from './adapters/proactive.ts'
 import { routineScheduleToQuiet, routineScheduleToRuns } from './adapters/routines.ts'
 import { humanizeInternalIds, type NamedPersona } from '../governance/humanize-ids.ts'
-import { personaPortrait } from '../second-brain/brain-ui-adapters.ts'
+import { indexKeeperName, personaPortrait } from '../second-brain/brain-ui-adapters.ts'
+import { companyProfileLines, companyProfileText, newCompanyBriefId } from './company-profile.ts'
 import { pt as governanceDictPt } from '../locale/governance/locales.ts'
 import { pt as brainDictPt } from '../locale/second-brain/locales.ts'
 import { triageLogFromHost } from './adapters/triage.ts'
@@ -94,7 +99,7 @@ import type { ShellState } from '../shell/create-shell-store.ts'
 import { HIRE_PERSONA_PROFILE_ID, type MainPanelId } from '../shell/create-shell-store.ts'
 import { resolveProfileProjectNames } from '../profile/resolve-profile-project-names.ts'
 import { personaCardViewToInfo } from '../profile/map-persona-card-view.ts'
-import type { PersonaCardView, SkillView, TalkAclView } from '@deepseek-ai/dsh-persona-host/types'
+import type { PersonaCardView, PlaybookNoteView, SkillView, TalkAclView } from '@deepseek-ai/dsh-persona-host/types'
 import type { SkillRecord } from '../skills/mock-data.ts'
 import { ConnectedPersonaEditor } from '../remote/ConnectedPersonaEditor.tsx'
 import { pt as editorDict } from '../locale/persona-editor/locales.ts'
@@ -106,6 +111,7 @@ import type { PersonaTenantSnapshot } from './persona-tenant.ts'
 import { unwrapRemote } from './remote-call.ts'
 import { usePersonaRemoteLoad } from './use-persona-remote-load.ts'
 import { type RemoteTenantGate } from './use-remote-tenant-gate.ts'
+import { useProjectName } from './use-project-name.ts'
 import { useRemoteProjectScope } from './use-remote-project-scope.ts'
 import type { RemoteLoadState } from './remote-call.ts'
 
@@ -121,7 +127,6 @@ function remotePanelSurface<T>(
 
 const COORD_ROUTINE_PROMPT = 'Sugira 3 rotinas para a nossa equipe com horário e dono.'
 const FILES_EMPTY_PROMPT = 'Preciso de uma entrega de arquivo para este projeto — o que você sugere?'
-const RULES_EMPTY_PROMPT = 'Ajude-me a definir a primeira regra de triagem para este projeto.'
 
 type IssueInviteWire = PersonaRemoteClient & {
   issueInvite(request: {
@@ -232,9 +237,9 @@ export function RemoteKanbanPanel({ persona, useTenant, useShell }: LumenRemoteP
   )
 }
 
-export function RemoteKnowledgePanel({ persona, useTenant, useShell, selectMainPanel }: LumenRemotePanelProps): ReactNode {
+/** The documents and records of the company. Alone it is a screen; with `embedded` it is the section at the bottom of Páginas. */
+export function RemoteKnowledgePanel({ persona, useTenant, useShell, selectMainPanel, embedded = false }: LumenRemotePanelProps & { readonly embedded?: boolean }): ReactNode {
   const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
-  const actorId = useTenant(tenant => tenant.scope?.actorId ?? 'owner')
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
   const load = useCallback(async () => {
@@ -267,25 +272,13 @@ export function RemoteKnowledgePanel({ persona, useTenant, useShell, selectMainP
     await deleteVaultDocumentRemote(persona, vaultScope, documentId)
     retry()
   }, [persona, vaultScope, retry])
-  const onDescribeCompany = useCallback(async () => {
-    if (vaultScope === null || typeof persona.createVaultRecord !== 'function') return
-    await unwrapRemote(await persona.createVaultRecord({
-      workspaceId: vaultScope.workspaceId,
-      projectId: vaultScope.projectId,
-      id: 'company-brief',
-      kind: 'brief',
-      body: '',
-      authorId: actorId,
-    }))
-    retry()
-  }, [actorId, persona, vaultScope, retry])
   return (
     <KnowledgeVault
+      embedded={embedded}
       records={records}
       documents={documents}
       initialState={remotePanelSurface(gate, state, data => data.records.length === 0 && data.documents.length === 0)}
       onRemoteRetry={() => { retryBootstrap(); retry() }}
-      onDescribeCompany={() => { void onDescribeCompany() }}
       onOpenImport={selectMainPanel === undefined ? undefined : () => { selectMainPanel('importers') }}
       onUploadDocument={persona.ingestVaultDocument === undefined ? undefined : onUploadDocument}
       onReplaceDocument={persona.replaceVaultDocument === undefined ? undefined : onReplaceDocument}
@@ -296,6 +289,8 @@ export function RemoteKnowledgePanel({ persona, useTenant, useShell, selectMainP
 
 export function RemoteFilesPanel({ persona, useTenant, useShell, sendToPersona }: LumenRemotePanelProps): ReactNode {
   const { scope, gate, retryBootstrap, workspaceOverrideProjectId } = useRemoteProjectScope(useTenant, useShell)
+  // The tabs of the Projetos place are of the project of the moment: the screen says which one by NAME, never by id.
+  const projectName = useProjectName(persona, scope, workspaceOverrideProjectId)
   const actorId = useTenant(s => s.scope?.actorId ?? '')
   const [reloadToken, setReloadToken] = useState(0)
   const loadKey = `${remoteScopeKey(scope)}:${reloadToken}`
@@ -345,7 +340,7 @@ export function RemoteFilesPanel({ persona, useTenant, useShell, sendToPersona }
     <FilesView
       files={files}
       initialState={initialState}
-      scopeProjectId={workspaceOverrideProjectId}
+      scopeProjectName={projectName}
       onChooseProjectRoot={onChooseProjectRoot}
       onRemoteRetry={() => { retryBootstrap(); retry(); setReloadToken(token => token + 1) }}
       onEmptyPrimary={() => { void onEmptyPrimary() }}
@@ -353,8 +348,9 @@ export function RemoteFilesPanel({ persona, useTenant, useShell, sendToPersona }
   )
 }
 
-export function RemoteRoutinesPanel({ persona, useTenant, useShell, sendToPersona }: LumenRemotePanelProps): ReactNode {
-  const { scope, gate, retryBootstrap, workspaceOverrideProjectId } = useRemoteProjectScope(useTenant, useShell)
+/** Rotinas (Equipe › Rotinas, DESIGN-01 #10): the routines of the WHOLE team, so the workspace's own project, never the Projetos place's project of the moment. */
+export function RemoteRoutinesPanel({ persona, useTenant, sendToPersona }: LumenRemotePanelProps): ReactNode {
+  const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
   const load = useCallback(async () => {
@@ -391,6 +387,29 @@ export function RemoteRoutinesPanel({ persona, useTenant, useShell, sendToPerson
       faces,
       projects,
     }
+  }, [persona, workspaceId, projectId])
+  // Harvest 19b: the inbox rule as a human phrase in the routine editor (same rule the Connections card saves).
+  const [emailRule, setEmailRule] = useState<{ readonly presets: readonly EmailPresetView[]; readonly filter: EmailFilterView } | null>(null)
+  useEffect(() => {
+    if (workspaceId === undefined || projectId === undefined) return undefined
+    let alive = true
+    void (async () => {
+      try {
+        const [presets, filter] = await Promise.all([
+          persona.listEmailPresets().then(unwrapRemote),
+          persona.getEmailFilter({ workspaceId, projectId }).then(unwrapRemote),
+        ])
+        if (alive) setEmailRule({ presets, filter })
+      } catch {
+        if (alive) setEmailRule(null)
+      }
+    })()
+    return () => { alive = false }
+  }, [persona, workspaceId, projectId])
+  const saveEmailRule = useCallback(async (filter: EmailFilterView) => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    const saved = await unwrapRemote(await persona.putEmailFilter({ workspaceId, projectId, filter }))
+    setEmailRule(current => current === null ? null : { ...current, filter: saved })
   }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
   const schedules = state.status === 'ready' ? state.data.schedules : []
@@ -453,6 +472,9 @@ export function RemoteRoutinesPanel({ persona, useTenant, useShell, sendToPerson
       projects: state.status === 'ready' ? state.data.projects : [{ id: projectId, name: projectId }],
       defaultProjectId: projectId,
       canEdit: typeof routineWire.updateRoutine === 'function',
+      ...(emailRule === null ? {} : {
+        emailRule: <EmailRuleForm variant="phrase" presets={emailRule.presets} filter={emailRule.filter} onSave={saveEmailRule} />,
+      }),
       onSave: async (saved) => {
         if (saved.id === undefined) {
           await createRoutineFrom({ id: `routine-${crypto.randomUUID()}`, projectId: saved.projectId, prompt: saved.prompt, rrule: saved.rrule, ownerPersonaId: saved.ownerPersonaId })
@@ -523,7 +545,6 @@ export function RemoteRoutinesPanel({ persona, useTenant, useShell, sendToPerson
     <RoutinesView
       routineRuns={routineRuns}
       quietWindows={quietWindows}
-      scopeProjectId={workspaceOverrideProjectId}
       initialState={remotePanelSurface(gate, state, data => data.schedules.length === 0)}
       onRemoteRetry={() => { retryBootstrap(); retry() }}
       onAskSuggestions={() => { void onAskSuggestions() }}
@@ -583,16 +604,33 @@ export function RemoteUsagePanel({ persona, useTenant, useShell, selectMainPanel
     const screens = personaScreensRemote(persona)
     const scopeReq = { workspaceId, projectId }
     const period = currentUsagePeriod()
-    const [usage, quotas, insights, tokenPanelRaw, personaNames] = await Promise.all([
+    const [usage, quotas, insights, tokenPanelRaw, personaNames, reserve] = await Promise.all([
       unwrapRemote(await screens.getUsage({ ...scopeReq, period })),
       loadOfficialQuotasByAccount(persona, scopeReq),
       loadLocalInsights(persona, scopeReq),
       loadUsagePanelRemote(persona, { ...scopeReq, period }),
       loadPersonaNames(persona, scopeReq),
+      screens.getWindowReserve === undefined ? Promise.resolve(null) : screens.getWindowReserve(scopeReq).then(unwrapRemote),
     ])
-    return { usage, quotas, insights, tokenPanelRaw, personaNames }
+    return { usage, quotas, insights, tokenPanelRaw, personaNames, reserve }
   }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, remoteScopeKey(scope), load)
+  // “Continuar agora” swaps the reserve in place; a new load (or another scope) drops the local answer.
+  const [reserveAfterContinue, setReserveAfterContinue] = useState<WindowReserveView | null>(null)
+  useEffect(() => { setReserveAfterContinue(null) }, [state])
+  const windowReserve = reserveAfterContinue ?? (state.status === 'ready' ? state.data.reserve : null)
+  const onContinueWindow = useCallback(async () => {
+    if (workspaceId === undefined || projectId === undefined) return
+    const screens = personaScreensRemote(persona)
+    if (screens.continueWindowNow === undefined) return
+    try {
+      setReserveAfterContinue(await unwrapRemote(await screens.continueWindowNow({ workspaceId, projectId })))
+    } catch {
+      // Never silent: re-read the host, which shows the error surface if it is unreachable.
+      retryBootstrap()
+      retry()
+    }
+  }, [persona, workspaceId, projectId, retryBootstrap, retry])
   const rawMeters = state.status === 'ready'
     ? usageBookToMeters(state.data.usage, state.data.quotas)
     : []
@@ -616,13 +654,16 @@ export function RemoteUsagePanel({ persona, useTenant, useShell, selectMainPanel
       meters={meters}
       providerPools={providerPools}
       tokenPanel={tokenPanel}
+      windowReserve={windowReserve}
+      onContinueWindow={() => { void onContinueWindow() }}
       showLimitNotice={false}
       insightsFunnel={insightsPayload?.funnel ?? null}
       insightsImpacts={insightsImpacts}
       initialState={remotePanelSurface(gate, state, data =>
         data.tokenPanelRaw === null
         && data.insights === null
-        && usageBookToMeters(data.usage, data.quotas).length === 0)}
+        && usageBookToMeters(data.usage, data.quotas).length === 0
+        && (data.reserve === null || data.reserve.state === 'ok'))}
       onRemoteRetry={() => { retryBootstrap(); retry() }}
       onEmptyPrimary={selectMainPanel === undefined ? undefined : () => { selectMainPanel('connections') }}
     />
@@ -661,6 +702,29 @@ export function RemoteConnectionsPanel({ persona, useTenant, useShell, selectMai
       }
     })()
     return () => { alive = false }
+  }, [persona, workspaceId, projectId])
+  // Harvest 19b: the inbox rule and the provider presets (absent when the host predates them).
+  const [emailRule, setEmailRule] = useState<{ readonly presets: readonly EmailPresetView[]; readonly filter: EmailFilterView } | null>(null)
+  useEffect(() => {
+    if (workspaceId === undefined || projectId === undefined) return undefined
+    let alive = true
+    void (async () => {
+      try {
+        const [presets, filter] = await Promise.all([
+          persona.listEmailPresets().then(unwrapRemote),
+          persona.getEmailFilter({ workspaceId, projectId }).then(unwrapRemote),
+        ])
+        if (alive) setEmailRule({ presets, filter })
+      } catch {
+        if (alive) setEmailRule(null)
+      }
+    })()
+    return () => { alive = false }
+  }, [persona, workspaceId, projectId])
+  const saveEmailRule = useCallback(async (filter: EmailFilterView) => {
+    if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
+    const saved = await unwrapRemote(await persona.putEmailFilter({ workspaceId, projectId, filter }))
+    setEmailRule(current => current === null ? null : { ...current, filter: saved })
   }, [persona, workspaceId, projectId])
   const onSwapPolicyChange = useCallback(async (policy: RunnerSwapPolicy, policyScope: RunnerSwapPolicyScope, personaId?: string) => {
     if (scope === null) throw new Error('no-scope')
@@ -707,6 +771,9 @@ export function RemoteConnectionsPanel({ persona, useTenant, useShell, selectMai
       onAddAccount={onAddAccount}
       onRenameAccount={onRenameAccount}
       onRemoveAccount={onRemoveAccount}
+      emailRule={emailRule === null ? undefined : (
+        <EmailRuleForm presets={emailRule.presets} filter={emailRule.filter} onSave={saveEmailRule} />
+      )}
     />
   )
 }
@@ -784,7 +851,11 @@ export function RemoteApprovalsPanel({ persona, useTenant, useShell }: LumenRemo
   )
 }
 
-export function RemoteSecondBrainPanel({ persona, useTenant, useShell, selectMainPanel }: LumenRemotePanelProps): ReactNode {
+/** The Memória da empresa: the Resumo (default) or, with `view="pages"`, the Páginas tab (its `footer` holds the documents). */
+export function RemoteSecondBrainPanel({ persona, useTenant, useShell, selectMainPanel, view = 'summary', footer }: LumenRemotePanelProps & {
+  readonly view?: 'summary' | 'pages'
+  readonly footer?: ReactNode
+}): ReactNode {
   const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const actorId = useTenant(tenant => tenant.scope?.actorId ?? 'owner')
   const [reloadToken, setReloadToken] = useState(0)
@@ -794,20 +865,23 @@ export function RemoteSecondBrainPanel({ persona, useTenant, useShell, selectMai
   const load = useCallback(async () => {
     if (workspaceId === undefined || projectId === undefined) throw new Error('no-scope')
     const scopeReq = { workspaceId, projectId }
-    const [home, personas, pages, grants] = await Promise.all([
+    const [home, personas, pages, grants, profile] = await Promise.all([
       loadBrainHomeRemote(persona, scopeReq),
       unwrapRemote(await persona.listPersonas(scopeReq)),
       listBrainPagesRemote(persona, scopeReq),
       listBrainPermissionsRemote(persona, scopeReq),
+      // The profile is "Comece aqui" of the Resumo; a host that cannot list the Cofre simply has no profile to show.
+      typeof persona.listVaultRecords === 'function'
+        ? persona.listVaultRecords(scopeReq).then(result => unwrapRemote(result)).then(rows => companyProfileText(rows), () => null)
+        : Promise.resolve(null),
     ])
     const personaNames = Object.fromEntries(personas.map(row => [row.id, row.name]))
-    // The automatic index is kept by whoever holds the librarian role in this team (none → a neutral "O bibliotecário").
-    const librarian = personas.find(row => Array.isArray(row.systemRoles) && row.systemRoles.includes('librarian'))
+    // The automatic updates are signed by the librarian, else Pesquisa, else Coordenação (none → "Atualização automática da equipe").
     const personaAvatars = Object.fromEntries(personas.flatMap((row) => {
       const src = personaPortrait(row)
       return src === undefined ? [] : [[row.id, src] as const]
     }))
-    return { home, personaNames, personaAvatars, pages, grants, librarianName: librarian?.name }
+    return { home, personaNames, personaAvatars, pages, grants, librarianName: indexKeeperName(personas), companyLines: companyProfileLines(profile) }
   }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, loadKey, load)
   const payload = state.status === 'ready' ? state.data : null
@@ -822,7 +896,22 @@ export function RemoteSecondBrainPanel({ persona, useTenant, useShell, selectMai
       reload()
     })()
   }, [persona, scope])
+  /** "Descrever a empresa em 3 frases": stores what was written as a new `brief` of the Cofre; a refusal reaches the dialog, which keeps the text. */
+  const onSaveCompanyBrief = useCallback(async (text: string) => {
+    if (scope === null) throw new Error('no-scope')
+    await unwrapRemote(await persona.createVaultRecord({
+      workspaceId: scope.workspaceId,
+      projectId: scope.projectId,
+      id: newCompanyBriefId(),
+      kind: 'brief',
+      body: text,
+      authorId: actorId,
+    }))
+    reload()
+  }, [actorId, persona, scope])
+  // A profile the person wrote is content: the Resumo then shows it instead of the "empty" illustration.
   const surfaceEmpty = payload !== null
+    && payload.companyLines.length === 0
     && payload.pages.length <= 1
     && payload.home.changedToday.length === 0
     && payload.home.activeGrants.length === 0
@@ -841,16 +930,25 @@ export function RemoteSecondBrainPanel({ persona, useTenant, useShell, selectMai
         [actorId]: brainDictPt['feed.whoYou'] ?? 'Você',
         ...(payload?.librarianName === undefined ? {} : { system: payload.librarianName }),
       }}
-      surfaceState={remotePanelSurface(gate, state, () => surfaceEmpty)}
+      surfaceState={remotePanelSurface(gate, state, () => view === 'pages' ? false : surfaceEmpty)}
       onRemoteRetry={() => { retryBootstrap(); retry(); reload() }}
       onRevokeGrant={onRevokeGrant}
       onReload={reload}
       selectMainPanel={selectMainPanel}
+      companyLines={payload?.companyLines ?? []}
+      {...(typeof persona.createVaultRecord === 'function' ? { onSaveCompanyBrief } : {})}
+      view={view}
+      footer={footer}
     />
   )
 }
 
-export function RemoteRulesPanel({ persona, useTenant, useShell, sendToPersona }: LumenRemotePanelProps): ReactNode {
+/** Memória › Páginas (panel `knowledge`): every page of the company, and the uploaded documents under the list. */
+export function RemotePagesPanel(props: LumenRemotePanelProps): ReactNode {
+  return <RemoteSecondBrainPanel {...props} view="pages" footer={<RemoteKnowledgePanel {...props} embedded />} />
+}
+
+export function RemoteRulesPanel({ persona, useTenant, useShell }: LumenRemotePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const [reloadToken, setReloadToken] = useState(0)
   const loadKey = `${remoteScopeKey(scope)}:rules:${reloadToken}`
@@ -877,16 +975,13 @@ export function RemoteRulesPanel({ persona, useTenant, useShell, sendToPersona }
       limits: limitsFromHost(payload.limits),
       triageLog: triageLogFromHost(payload.triageLog),
     }
-  const onEmptyPrimary = useCallback(async () => {
-    if (scope === null) return
-    await sendCoordinationPrompt(persona, scope, sendToPersona, RULES_EMPTY_PROMPT)
-  }, [persona, scope, sendToPersona])
+  // HONEST-1: the screen offers only what the host obeys, and the host has no contract for that yet (no `obeyed`): no quiet windows, no "create rule".
+  // An empty list is not an empty screen: the budget is always there, and the rules card says there is none.
   return (
     <TriageRulesView
       {...rulesProps}
-      initialState={remotePanelSurface(gate, state, data => data.rules.length === 0)}
+      initialState={remotePanelSurface(gate, state, () => false)}
       onRemoteRetry={() => { retryBootstrap(); retry(); setReloadToken(token => token + 1) }}
-      onEmptyPrimary={() => { void onEmptyPrimary() }}
       onSaveLimits={(limits) => {
         if (scope === null) return
         void (async () => {
@@ -988,6 +1083,15 @@ export function RemoteProfilePanel({
         autonomy = null
       }
     }
+    // Item 16, tab "Jeito de trabalhar": how she works, learned quietly. A host without it has no tab; a failure shows inside the tab, never breaks the profile.
+    let playbook: { readonly rows: readonly PlaybookNoteView[]; readonly failed: boolean } | undefined
+    if (screens.listPlaybook !== undefined) {
+      try {
+        playbook = { rows: await unwrapRemote(await screens.listPlaybook({ workspaceId, projectId, personaId: picked.id })), failed: false }
+      } catch {
+        playbook = { rows: [], failed: true }
+      }
+    }
     let swapPolicy: RunnerSwapPolicy | undefined
     if (typeof persona.listConnectionAccounts === 'function') {
       try {
@@ -1003,6 +1107,7 @@ export function RemoteProfilePanel({
       row,
       autonomy,
       memoryRows: memoryViewsToRows(memoryViews, workspaceId, projectId),
+      playbook,
       skillRecords: skillViewsToRecords(skillViews),
       hostCard,
       talkAcl,
@@ -1113,6 +1218,9 @@ export function RemoteProfilePanel({
   const skillRecords = state.status === 'ready' && state.data !== null && state.data.hireMode === false
     ? state.data.skillRecords
     : []
+  const playbook = state.status === 'ready' && state.data !== null && state.data.hireMode === false
+    ? state.data.playbook
+    : undefined
   const primaryId = state.status === 'ready' && state.data !== null && state.data.hireMode === false
     ? state.data.primary.id
     : null
@@ -1140,6 +1248,7 @@ export function RemoteProfilePanel({
     ...(selectMainPanel === undefined ? {} : { onReview: () => { selectMainPanel('approvals') } }),
   }
   // Memory tab: the host's own approve / edit / forget, only where the host has them. Each hands back by reloading the tab.
+  const screensWire = personaScreensRemote(persona)
   const memoryWire = persona as PersonaRemoteClient & {
     approveMemory?(request: { workspaceId: string; projectId: string; id: string; authorId: string; body: string }): Promise<RemoteResult<unknown>>
     editMemory?(request: { workspaceId: string; projectId: string; id: string; authorId: string; body: string }): Promise<RemoteResult<unknown>>
@@ -1167,6 +1276,18 @@ export function RemoteProfilePanel({
         },
       }),
     }
+  // Playbook tab: "Esquecer" is the host's own; "Virar skill?" is decided in Aprovações (Muse §16b), so the card only links there.
+  const playbookActions: ComponentProps<typeof PersonaProfilePage>['playbookActions'] = workspaceId === undefined || projectId === undefined
+    ? undefined
+    : {
+      ...(screensWire.forgetPlaybook === undefined ? {} : {
+        onForget: async (row) => {
+          await unwrapRemote(await screensWire.forgetPlaybook!({ workspaceId, projectId, id: row.id }))
+          retry()
+        },
+      }),
+      ...(selectMainPanel === undefined ? {} : { onDecide: () => { selectMainPanel('approvals') } }),
+    }
   const cardBase = hostCard !== null ? personaCardViewToInfo(hostCard, talkAcl ?? undefined) : undefined
   const policyLine = swapPolicy !== undefined
     ? swapPolicyCardSummaryLine(key => bindLocale(profileDict, key), swapPolicy)
@@ -1180,6 +1301,12 @@ export function RemoteProfilePanel({
       initialState="ready"
       memoryRows={memoryRows}
       memoryActions={memoryActions}
+      {...(playbook === undefined ? {} : {
+        playbookRows: playbook.rows,
+        playbookState: playbook.failed ? 'error' as const : 'ready' as const,
+        playbookActions,
+        onPlaybookRetry: () => { retryBootstrap(); retry() },
+      })}
       skillRecords={skillRecords}
       skillActions={skillActions}
       {...(card !== undefined ? { card } : {})}

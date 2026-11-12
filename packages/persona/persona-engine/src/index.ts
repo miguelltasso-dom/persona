@@ -4,6 +4,8 @@
 export const PACKAGE_ENGINE = 'persona-engine'
 
 export * from './core/index.ts'
+export * from './core/choices.ts'
+export * from './core/indicators.ts'
 export {
   EffectQueue,
   Later,

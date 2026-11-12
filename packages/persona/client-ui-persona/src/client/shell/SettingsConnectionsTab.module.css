@@ -1,0 +1,25 @@
+/* A aba é a rolagem: o painel de contas (um Screen de altura total) passa a crescer com o conteúdo, e o cartão entra na mesma coluna. */
+/* A pilha é a rolagem da aba (dentro da moldura SettingsScrollFrame, que cuida da guilhotina). */
+.stack {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.stack > :first-child {
+  flex: none;
+  height: auto;
+  overflow: visible;
+}
+
+/* Mesma coluna e mesmo recuo do Screen (padding de space-8, largura máxima de 1180 px). */
+.teamCard {
+  flex: none;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 var(--persona-space-8) var(--persona-space-12);
+}

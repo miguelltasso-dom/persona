@@ -142,6 +142,38 @@ it('Direcionar agora with an open turn goes into that turn, and the chip survive
   await expect(h.steerWorkingTurn({ ...queueKey, text: '  ' })).rejects.toThrow(/Escreva o que quer direcionar/)
 })
 
+it('Direcionar agora uses the runner steer and answers without waiting for the turn to end', async () => {
+  const h = host()
+  seed(h)
+  const log: string[] = []
+  openTurn(h, log)
+  const runner: Runner = {
+    ...runningRunner(log),
+    steer: (sessionId, requestId, text) => { log.push(`steer:${sessionId}:${requestId}:${text}`); return Promise.resolve(true) },
+  }
+  h.orchestration.warmRunners.set('pp:p1:task', runner)
+  const view = await h.steerWorkingTurn({ ...queueKey, text: 'use a cor azul' })
+  expect(view).toMatchObject({ mode: 'steer', ticketId: 't1' })
+  expect(log).toHaveLength(1)
+  expect(log[0]).toMatch(/^steer:worker-t1:steer:p1:/)
+  expect(log[0]?.endsWith(':use a cor azul')).toBe(true)
+})
+
+it('Direcionar agora falls back to a normal send when the open turn refuses the steer', async () => {
+  const h = host()
+  seed(h)
+  const log: string[] = []
+  openTurn(h, log)
+  const runner: Runner = {
+    ...runningRunner(log),
+    steer: () => Promise.resolve(false),
+  }
+  h.orchestration.warmRunners.set('pp:p1:task', runner)
+  const view = await h.steerWorkingTurn({ ...queueKey, text: 'use a cor azul' })
+  expect(view.mode).toBe('sent')
+  expect(geral(h).find(message => message.id === view.messageId)?.steeredPersonaId).toBeUndefined()
+})
+
 it('Parar cancels the open turn keeping the queue, ends the task as stopped, and leaves a flagged line', async () => {
   const h = host()
   seed(h)

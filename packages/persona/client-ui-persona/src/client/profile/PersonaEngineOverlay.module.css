@@ -36,6 +36,13 @@
   color: var(--persona-ink-soft);
 }
 
+/* DESIGN-01 #03: "Vale para as próximas tarefas de {nome}": uma linha de corpo, separada da lista de motores. */
+.appliesNext {
+  margin: 0 0 var(--persona-space-4);
+  font: 600 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
 .list {
   list-style: none;
   margin: 0;
@@ -98,8 +105,8 @@
   display: flex;
   align-items: center;
   gap: var(--persona-space-3, 12px);
-  min-height: 44px;
-  padding: var(--persona-space-2, 8px) var(--persona-space-3, 12px);
+  min-height: 36px;
+  padding: 6px var(--persona-space-3, 12px);
   border-radius: var(--persona-radius-m, 12px);
   border: 1px solid var(--persona-outline-soft);
   background: var(--persona-card);
@@ -111,27 +118,54 @@
   background: var(--persona-wash-strong);
 }
 
+/* Carbon (fio-d103 #6): o radio nativo era um círculo BRANCO no escuro (parecia marcado); agora é um círculo do tema, e o marcado é preenchido. */
 .modelRadio {
   flex: none;
   margin: 0;
-  width: 16px;
-  height: 16px;
-  accent-color: var(--persona-brand);
+  width: 18px;
+  height: 18px;
+  appearance: none;
+  border: 1.5px solid var(--persona-outline-control);
+  border-radius: 999px;
+  background: var(--persona-paper);
+  cursor: pointer;
+}
+
+.modelRadio:checked {
+  border-color: var(--persona-brand);
+  background: var(--persona-brand);
+  box-shadow: inset 0 0 0 3px var(--persona-paper);
+}
+
+.modelRadio:focus-visible {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 2px;
+}
+
+.modelRadio:disabled {
+  cursor: default;
+  opacity: 0.6;
 }
 
 .modelText {
   display: flex;
   flex: 1 1 auto;
   min-width: 0;
-  flex-direction: column;
+  flex-direction: row;
+  align-items: baseline;
+  gap: var(--persona-space-3, 12px);
 }
 
 .modelName {
+  flex: none;
   font: 700 14px/20px var(--persona-font-display);
   color: var(--persona-ink);
+  white-space: nowrap;
 }
 
 .modelHint {
+  flex: 1 1 auto;
+  min-width: 0;
   font: 400 13px/18px var(--persona-font-text);
   color: var(--persona-ink-soft);
   white-space: nowrap;

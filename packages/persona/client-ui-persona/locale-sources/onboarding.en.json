@@ -97,7 +97,7 @@
   "step5.hint": "A small, useful request — your team works for real and you see the result in #general.",
   "step5.suggestedTask": "Suggest first task",
   "step5.taskPreviewLabel": "The request",
-  "step5.taskPreview": "Summarize in 5 bullet points what the team already knows about the company (Vault) and propose the first practical task for the week.",
+  "step5.taskPreview": "Summarize in 5 bullet points what the team already knows about the company (Company memory) and propose the first practical task for the week.",
   "step5.taskPreviewEmpty": "List 3 things the team can do for you this week with what it already knows.",
   "step5.requestNow": "Request now",
   "step5.enterApp": "Enter without requesting",

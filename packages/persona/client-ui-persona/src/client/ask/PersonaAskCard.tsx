@@ -1,5 +1,5 @@
 /**
- * IV-10 · a pergunta estruturada da persona no fio (Colheita Lodi A(1); contracts/structured-question.md).
+ * IV-10 · a pergunta estruturada da persona no fio (Colheita A(1); contracts/structured-question.md).
  *
  * Um cartão-sticker dentro da mensagem da persona: "Pergunta {i} de {n}", a pergunta, os CHIPS (escolha única: o toque responde;
  * várias: os chips marcam com ✓ e "Enviar {k}" envia) e, sempre, "ou escreva do seu jeito na caixa abaixo". Depois de respondida o
@@ -33,6 +33,16 @@ export interface PersonaAskCardProps {
 }
 
 type Phase = 'idle' | 'sending' | 'failed'
+
+/** Os ids dos dois botões do cartão "Continuar" do host (persona-host/src/continue-card.ts): o primeiro retoma, o segundo só encerra. */
+const CONTINUE_OPTION_ID = 'continuar'
+const STOP_OPTION_ID = 'parar'
+
+/** O cartão "Continuar" (item 7): exatamente estes dois botões. Ele ganha hierarquia: "Continuar" é a ação principal. */
+export function isContinueCard(ask: PersonaAskUi): boolean {
+  const ids = ask.options.map(option => option.id)
+  return ids.length === 2 && ids.includes(CONTINUE_OPTION_ID) && ids.includes(STOP_OPTION_ID)
+}
 
 /** O cartão só existe quando há chips para tocar: pergunta só em palavras segue a mensagem de sempre (o composer responde). */
 export function hasAskChips(ask: PersonaAskUi): boolean {
@@ -116,7 +126,7 @@ export function PersonaAskCard({ t, ask, live, characterId, timeLabel, rowTag = 
 
   return (
     <Tag className={styles.row} data-persona-ask={ask.askId} data-persona-ask-state={cancelled ? 'cancelled' : answered ? 'answered' : 'open'}>
-      <Avatar name={ask.personaName} src={src} shape="portrait" size={32} decorative />
+      <Avatar name={ask.personaName} src={src} shape="portrait" size={32} decorative className={styles.face} />
       <div className={styles.main}>
         <div className={styles.who}>
           <b>{ask.personaName}</b>
@@ -125,6 +135,7 @@ export function PersonaAskCard({ t, ask, live, characterId, timeLabel, rowTag = 
         <section
           className={`${styles.card} ${answered || cancelled ? styles.done : ''}`}
           aria-label={t('ask.group', { name: ask.personaName })}
+          data-variant={isContinueCard(ask) ? 'continue' : undefined}
         >
           <div className={styles.head}>
             <span className={styles.eyebrow}>
@@ -162,7 +173,7 @@ export function PersonaAskCard({ t, ask, live, characterId, timeLabel, rowTag = 
                         type="button"
                         role={itemRole}
                         aria-checked={isChosen}
-                        className={`${styles.chip} ${styles.button} ${isChosen ? styles.picked : ''}`}
+                        className={`${styles.chip} ${styles.button} ${isChosen ? styles.picked : ''} ${isContinueCard(ask) && option.id === CONTINUE_OPTION_ID ? styles.primary : ''}`}
                         disabled={phase === 'sending'}
                         tabIndex={ask.multiple || option.id === rovingId ? 0 : -1}
                         ref={(node) => {

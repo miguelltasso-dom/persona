@@ -11,6 +11,19 @@ div.bar {
   scrollbar-width: none;
 }
 
+/* 200% (revisão do Carbon): os rótulos não quebram ("Uso e limites" em duas linhas) e a fila de abas rola na horizontal, sem cortar a última aba. */
+div.bar [role='tablist'] {
+  display: flex;
+  flex-wrap: nowrap;
+  width: max-content;
+  min-width: 100%;
+}
+
+div.bar [role='tab'] {
+  flex: none;
+  white-space: nowrap;
+}
+
 div.bar::-webkit-scrollbar {
   display: none;
 }

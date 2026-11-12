@@ -30,7 +30,8 @@ describe('Configurações › Personas (esqueleto)', () => {
     expect(within(rows[0]!).getByText('Nina')).toBeTruthy()
     expect(within(rows[0]!).getByText('Design')).toBeTruthy()
     expect(within(rows[1]!).queryByText('Design')).toBeNull()
-    expect(screen.queryByRole('button')).toBeNull()
+    // Cena 16: a linha de 64 px tem o botão do acordeão (e só ele: nada de botão sem efeito).
+    expect(screen.queryAllByRole('button').every(button => button.hasAttribute('aria-expanded'))).toBe(true)
     expect(screen.queryByRole('switch')).toBeNull()
   })
 
@@ -53,7 +54,9 @@ describe('Configurações › Personas (esqueleto)', () => {
     vi.resetModules()
     const on = await import('../src/client/shell/nav-places.ts')
     const tabs = on.NAV_PLACES.find(place => place.id === 'settings')!.tabs.map(tab => tab.panel)
-    expect(tabs.indexOf('personas')).toBe(tabs.indexOf('connections') + 1)
+    // Cofre (item 15) fica ao lado de Conexões; Personas entra depois dele e antes de Uso.
+    expect(tabs.indexOf('cofre')).toBe(tabs.indexOf('connections') + 1)
+    expect(tabs.indexOf('personas')).toBe(tabs.indexOf('cofre') + 1)
     expect(tabs.indexOf('usage')).toBe(tabs.indexOf('personas') + 1)
     expect(on.placeOfPanel('personas')?.id).toBe('settings')
   })
@@ -112,7 +115,8 @@ describe('Configurações › Personas (HT-13 + EFF-1 + D-090)', () => {
     // ChoiceCards de autonomia ("Sempre pergunta" · "Sugere e espera" · "Decide o rotineiro")
     expect(screen.getByText('Sempre pergunta')).toBeTruthy()
     expect(screen.getByText('Sugere e espera')).toBeTruthy()
-    expect(screen.getByText('Decide o rotineiro')).toBeTruthy()
+    // A linha fechada também mostra o resumo da autonomia (cena 16): o texto aparece no resumo e na opção.
+    expect(screen.getAllByText('Decide o rotineiro').length).toBeGreaterThan(0)
     fireEvent.click(screen.getByText('Sempre pergunta'))
     expect(onChangeAutonomy).toHaveBeenCalledWith('p-clara', 'on-request')
 

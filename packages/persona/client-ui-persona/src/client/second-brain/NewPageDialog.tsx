@@ -13,12 +13,14 @@ export interface NewPageDialogProps {
   readonly onClose: () => void
   /** Creates the page. A rejection is shown as a sentence and the dialog stays open. */
   readonly onCreate: (title: string, kind: BrainKindView) => Promise<void>
+  /** The type the dialog opens on (the "+ Tipo" chip of the Resumo); absent = Processo. */
+  readonly initialKind?: BrainKindView | undefined
 }
 
-export function NewPageDialog({ dict, onClose, onCreate }: NewPageDialogProps): ReactNode {
+export function NewPageDialog({ dict, onClose, onCreate, initialKind = 'process' }: NewPageDialogProps): ReactNode {
   const t = (key: string) => bindLocale(dict, key)
   const [title, setTitle] = useState('')
-  const [kind, setKind] = useState<BrainKindView>('process')
+  const [kind, setKind] = useState<BrainKindView>(initialKind)
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   const create = (): void => {

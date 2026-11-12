@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 import { OVERLAY_ICONS } from '../assets/generated-imports.ts'
 import { poseLifeUrl, poseUrl } from '../assets/asset-url.ts'
 import type { ChannelPersonaMember } from './persona-work-state.ts'
-import { uiStateToPose, workStateOverlay } from './persona-work-state.ts'
+import { PERSONA_STATE_OVERLAY, PERSONA_STATE_POSE, personaStateOf } from './persona-state.ts'
 import styles from './PersonaTeamFigure.module.css'
 
 export interface PersonaTeamFigureProps {
@@ -12,13 +12,15 @@ export interface PersonaTeamFigureProps {
 
 /** Single roster figure: pose by state, blink/tail life, state overlay (UX-GUIDE §3). */
 export function PersonaTeamFigure({ member, breatheDelay }: PersonaTeamFigureProps): ReactNode {
-  const pose = uiStateToPose(member.state)
+  // The pose and the overlay come from the ONE state vocabulary: only a persona inside a silence window (or paused) sleeps.
+  const personaState = personaStateOf(member)
+  const pose = PERSONA_STATE_POSE[personaState]
   const src = poseUrl(member.id, pose)
   // Blink/tail frames belong to the standing pose only; layering them over another pose shows two animals.
   const blink = pose === 'disponivel' ? poseLifeUrl(member.id, 'disponivel-blink') : undefined
   const tail = pose === 'disponivel' ? poseLifeUrl(member.id, 'disponivel-tail') : undefined
-  const overlayKey = workStateOverlay(member.state)
-  const overlaySrc = OVERLAY_ICONS[overlayKey as keyof typeof OVERLAY_ICONS]
+  const overlayKey = PERSONA_STATE_OVERLAY[personaState]
+  const overlaySrc = overlayKey === undefined ? undefined : OVERLAY_ICONS[overlayKey as keyof typeof OVERLAY_ICONS]
 
   // UX-GUIDE §3 "Troca de estado: crossfade de pose 220 ms + pequeno pulo 6 px na entrada" (real state changes only;
   // nothing on first mount). The leaving pose keeps its own size while it fades.
@@ -40,7 +42,7 @@ export function PersonaTeamFigure({ member, breatheDelay }: PersonaTeamFigurePro
   const style = { '--persona-breathe-delay': breatheDelay } as CSSProperties
 
   return (
-    <div className={styles.figure} style={style} data-state={member.state} data-character={member.id} data-pose={pose}>
+    <div className={styles.figure} style={style} data-state={member.state} data-persona-state={personaState} data-character={member.id} data-pose={pose}>
       <div className={styles.poseStack}>
         <img key={src} className={leaving === null ? styles.poseBase : `${styles.poseBase} ${styles.poseEntering}`} src={src} alt="" aria-hidden="true" />
         {leaving !== null && (
@@ -59,7 +61,7 @@ export function PersonaTeamFigure({ member, breatheDelay }: PersonaTeamFigurePro
         {tail !== undefined && (
           <img className={styles.poseTail} src={tail} alt="" aria-hidden="true" />
         )}
-        <img className={styles.overlay} src={overlaySrc} alt="" aria-hidden="true" />
+        {overlaySrc !== undefined && <img className={styles.overlay} src={overlaySrc} alt="" aria-hidden="true" />}
       </div>
     </div>
   )

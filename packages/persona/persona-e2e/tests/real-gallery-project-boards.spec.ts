@@ -43,8 +43,10 @@ describe.skipIf(!run)('real gallery — project boards (PB-9+)', () => {
     expect(stuck.stuck, stuck.detail).toBe(false)
     expect(isMainPanelBlank(main), main.detail).toBe(false)
     await session.page.locator('[data-persona-surface="boards"]').waitFor({ state: 'visible', timeout: 60_000 })
-    await session.page.getByRole('button', { name: /Novo projeto/i }).waitFor({ state: 'visible', timeout: 30_000 })
-    expect(await session.page.locator('[data-persona-boards]').count()).toBeGreaterThan(0)
+    // "Novo projeto" lives in the project switcher menu now (the board header keeps two controls): the switcher is the proof of the header.
+    await session.page.getByRole('button', { name: /Trocar de projeto/iu }).first().waitFor({ state: 'visible', timeout: 30_000 })
+    // DESIGN-01 #10: the place opens on the board of the project of the moment (the grid is "Ver todos os projetos").
+    expect(await session.page.locator('[data-persona-kanban="project-flow"]').count()).toBeGreaterThan(0)
     await dismissBlockingOverlays(session.page)
   }, 120_000)
 })

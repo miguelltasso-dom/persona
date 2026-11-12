@@ -2,6 +2,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within, type RenderResult } from '@testing-library/react'
 import type { ReactElement } from 'react'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { publishRemoteTeamStatus } from '../src/client/remote-team/remote-team-status.ts'
 import { CanvasView } from '../src/client/canvas/CanvasView.tsx'
 import { MOCK_CANVAS_EDGES, MOCK_CANVAS_NODES } from '../src/client/canvas/mock-data.ts'
 import { ImportWizard } from '../src/client/importers/ImportWizard.tsx'
@@ -140,7 +141,10 @@ describe('lumen a11y (dom)', () => {
   })
 
   it('members invite uses medium primary control', () => {
-    renderPreview(<MembersView dict={membersPt} members={MOCK_MEMBERS} />)
+    // O convite só existe com a equipe remota ligada e um handler (revisão do Carbon, quill-final): publica o estado antes.
+    publishRemoteTeamStatus('connected')
+    renderPreview(<MembersView dict={membersPt} members={MOCK_MEMBERS} onInvite={() => undefined} />)
+    publishRemoteTeamStatus('unknown')
     expect(screen.getByRole('button', { name: membersPt['action.invite'] })).toBeTruthy()
   })
 

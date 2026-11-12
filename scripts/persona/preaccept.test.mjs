@@ -3,13 +3,16 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { createServer as createHttpServer } from 'node:http'
 import { createRequire } from 'node:module'
+import { createServer } from 'node:net'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { renderMarkdown } from './preaccept-lib.mjs'
-import { articleBeforePersona, buildReport, evaluateScene, fileNameFor, findAtTitles, findExampleChips, findPessoaInSpeech, findProhibited, minBytesFor, parseLegacyLog, parseLegacyReportJson, plan, verdictOf, CHECKS, MIN_PNG_BYTES } from './preaccept-lib.mjs'
+import { articleBeforePersona, buildReport, describeAnimation, evaluateScene, fileNameFor, findAtTitles, findExampleChips, findPessoaInSpeech, findProhibited, focusedWarning, gpuGate, gpuIdleVerdict, groupAnimations, minBytesFor, parseLegacyLog, parseLegacyReportJson, plan, stripLicenseCredit, verdictOf, CHECKS, MIN_PNG_BYTES } from './preaccept-lib.mjs'
+import { gpuIdleFromPerfRun, gpuIdleReport, gpuUtilizationFromRows, parseGpuEngineName } from './preaccept-gpu.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const rules = (text, options) => findProhibited(text, options).map(item => item.rule)
@@ -146,15 +149,17 @@ const cleanProbe = (extra = {}) => ({
   composerDuplicates: [],
   popoverCovers: [],
   exampleChips: [],
+  // sonda v4 (DESIGN-01 §2.7 regra 6, preaccept-gpu): com foco pode haver animação (≤ 2), sem foco tem de ser 0
+  gpu: { focusedRunning: 2, afterBlur: { count: 0, items: [] }, settleMs: 800 },
   ...extra,
 })
 const row = (extra = {}) => ({ scene: 'aprovacoes', scheme: 'light', viewport: '1440x900', file: 'aprovacoes-light-1440x900', allowCurrency: false, expectFoliage: true, ...extra })
 const failing = (checks) => checks.filter(item => item.status === 'falhou').map(item => item.check)
 
-test('cena limpa passa nas 18 checagens', () => {
+test('cena limpa passa nas 19 checagens', () => {
   const checks = evaluateScene(row(), { png: PNG, probe: cleanProbe() })
   assert.equal(verdictOf(checks), 'PASSOU', JSON.stringify(checks.filter(item => item.status !== 'ok')))
-  assert.equal(checks.length, 18)
+  assert.equal(checks.length, 19)
   assert.deepEqual(checks.map(item => item.check).sort(), [...CHECKS].sort(), 'cada checagem da lista aparece uma vez')
 })
 
@@ -235,15 +240,15 @@ test('D-103c RED/GREEN · popover cobrindo mensagens reprova; `allowPopover` dis
 })
 
 test('D-103c · sidecar anterior à sonda v3 é INCOMPLETO (nunca PASSOU); `--legacy-ok` o dispensa; sem sonda nenhuma, as 5 ficam sem verificar', () => {
-  const { initialsAvatars: _a, personaSpeech: _b, composerDuplicates: _c, popoverCovers: _d, exampleChips: _e, ...v2 } = cleanProbe({ version: 2 })
+  const { initialsAvatars: _a, personaSpeech: _b, composerDuplicates: _c, popoverCovers: _d, exampleChips: _e, gpu: _f, ...v2 } = cleanProbe({ version: 2 })
   const old = evaluateScene(row(), { png: PNG, probe: v2 })
   assert.equal(verdictOf(old), 'INCOMPLETO')
   assert.deepEqual(failing(old), [])
-  assert.deepEqual(old.filter(item => item.status === 'nao-verificado').map(item => item.check).sort(), ['composer', 'fala', 'popover', 'rosto'])
+  assert.deepEqual(old.filter(item => item.status === 'nao-verificado').map(item => item.check).sort(), ['composer', 'fala', 'gpu', 'popover', 'rosto'])
   assert.match(checkOf(old, 'rosto').detail, /sidecar da sonda v2, sem os rostos das personas: recapture com a sonda nova \(D-103c\)/u)
   assert.equal(checkOf(old, 'exemplo').status, 'ok', 'o chip "Exemplo" também se lê do texto visível de sidecar antigo')
   const none = evaluateScene(row(), { png: PNG })
-  for (const name of ['fala', 'rosto', 'composer', 'popover']) assert.equal(checkOf(none, name).status, 'nao-verificado', name)
+  for (const name of ['fala', 'rosto', 'composer', 'popover', 'gpu']) assert.equal(checkOf(none, name).status, 'nao-verificado', name)
   assert.equal(checkOf(none, 'exemplo').status, 'nao-verificado')
   assert.equal(verdictOf(none), 'INCOMPLETO')
 })
@@ -445,7 +450,7 @@ test('D-103c · linha de comando: sidecar da sonda v2 = INCOMPLETO (código 1); 
     png.writeUInt32BE(1440, 16)
     png.writeUInt32BE(900, 20)
     writeFileSync(join(dir, 'manifest.json'), JSON.stringify({ owner: 'Teste', bundle: 'd103c', shell: false, viewports: ['1440x900'], scenes: ['velha', 'composer-duplicado'] }))
-    const { initialsAvatars: _a, personaSpeech: _b, composerDuplicates: _c, popoverCovers: _d, exampleChips: _e, ...v2 } = cleanProbe({ version: 2 })
+    const { initialsAvatars: _a, personaSpeech: _b, composerDuplicates: _c, popoverCovers: _d, exampleChips: _e, gpu: _f, ...v2 } = cleanProbe({ version: 2 })
     for (const scheme of ['light', 'dark']) {
       writeFileSync(join(dir, `velha-${scheme}-1440x900.png`), png)
       writeFileSync(join(dir, `velha-${scheme}-1440x900.probe.json`), JSON.stringify({ ...v2, darkTheme: scheme === 'dark' }))
@@ -455,7 +460,7 @@ test('D-103c · linha de comando: sidecar da sonda v2 = INCOMPLETO (código 1); 
     const args = [join(here, 'preaccept.mjs'), '--manifest', join(dir, 'manifest.json'), '--dir', dir]
     const strict = spawnSync(process.execPath, args, { encoding: 'utf8' })
     assert.equal(strict.status, 1, strict.stdout + strict.stderr)
-    assert.match(strict.stdout, /INCOMPLETO\s+velha.*sem verificar: fala, rosto, composer, popover/u)
+    assert.match(strict.stdout, /INCOMPLETO\s+velha.*sem verificar: fala, rosto, composer, popover, gpu/u)
     assert.match(strict.stdout, /FALHOU\s+composer-duplicado.*composer \(“Decide o rotineiro” aparece 2× no composer\)/u)
     const lenient = spawnSync(process.execPath, [...args, '--legacy-ok'], { encoding: 'utf8' })
     assert.equal(lenient.status, 1, 'a cena com o composer duplicado continua reprovando')
@@ -690,7 +695,7 @@ test('D-103c · sonda v3 no Chrome: RED (composer duplicado, balão sobre mensag
     await overMessage()
     await page.waitForTimeout(200)
     const red = await collectProbe(page, { focus: false })
-    assert.equal(red.version, 3)
+    assert.equal(red.version, 4)
     assert.deepEqual(red.initialsAvatars, ['SR', 'E', 'B'], 'retrato em inicial, círculo dentro da linha da persona e a inicial do trilho; o círculo da pessoa (MA) não')
     assert.equal(red.personaSpeech.length, 2, 'só os balões de persona (o da pessoa e o cromo ficam de fora)')
     assert.match(red.personaSpeech[0], /Avisei a pessoa que o cartaz saiu\./u)
@@ -736,5 +741,504 @@ test('D-103c · sonda v3 no Chrome: RED (composer duplicado, balão sobre mensag
     await page.close()
   } finally {
     await browser.close()
+  }
+})
+
+// ---- Dispensa ESTREITA do crédito de licença MIT (Keel 11/11 14:24): o "Sobre" cita "DeepSeek Harness" por obrigação legal. ----
+// O texto é o da captura real do Quill (bundle7, settings-3-sobre): innerText com quebra de linha entre os blocos do crédito.
+const SOBRE_TEXT = 'Sobre\nA Persona roda no seu computador. Suas conversas, o Cofre e as chaves ficam aqui, a menos que você decida outra coisa.\n\nFeito sobre o trabalho de\nDeepSeek Harness\nLicença MIT\nA base do app: o que roda no seu computador, os plugins e a janela.\n© 2026 DeepSeek\nOAR\nLicença Apache-2.0\nComo as personas usam o Claude, o Codex e outras IAs.\nbotiverse\nt3code\nLicença MIT\nIdeias de atalhos de teclado e da caixa de mensagem.'
+
+test('proibidos · crédito de licença MIT: RED sem a dispensa; GREEN com `allowCreditoLicenca` só no bloco do crédito; "harness" fora dele continua reprovando', () => {
+  const sobre = (text, rowExtra = {}) => evaluateScene(row({ scene: 'settings-3-sobre', ...rowExtra }), { png: PNG, probe: cleanProbe({ text }) })
+  const red = sobre(SOBRE_TEXT)
+  assert.deepEqual(failing(red), ['proibidos'], 'sem a dispensa a cena Sobre reprova (a regra da Muse vale em todo o app)')
+  assert.match(checkOf(red, 'proibidos').detail, /harness: “.*Harness/u)
+  const green = sobre(SOBRE_TEXT, { allowCreditoLicenca: true })
+  assert.deepEqual(failing(green), [], JSON.stringify(green.filter(item => item.status !== 'ok')))
+  assert.equal(verdictOf(green), 'PASSOU')
+  // a regex é FIXA: o mesmo nome fora do crédito, outra frase de abertura, outra licença, ou "harness" no resto do texto continuam reprovando mesmo com a dispensa
+  for (const [name, text] of [
+    ['harness solto no fim', `${SOBRE_TEXT}\nModo harness ativado`],
+    ['o nome sem a frase do crédito', SOBRE_TEXT.replace('Feito sobre o trabalho de\n', '')],
+    ['outra frase de abertura', SOBRE_TEXT.replace('Feito sobre o trabalho de', 'Powered by')],
+    ['a licença errada', SOBRE_TEXT.replace('DeepSeek Harness\nLicença MIT', 'DeepSeek Harness\nLicença Apache-2.0')],
+    ['o nome citado no meio de uma frase de produto', `${SOBRE_TEXT}\nUse o DeepSeek Harness para tudo`],
+  ]) assert.deepEqual(failing(sobre(text, { allowCreditoLicenca: true })), ['proibidos'], `RED mesmo com a dispensa: ${name}`)
+  // a dispensa só tira o bloco do crédito: as outras regras da lista seguem valendo na cena
+  assert.deepEqual(failing(sobre(`${SOBRE_TEXT}\nO runner caiu`, { allowCreditoLicenca: true })), ['proibidos'])
+  assert.equal(stripLicenseCredit(SOBRE_TEXT).includes('Harness'), false)
+  assert.equal(stripLicenseCredit(SOBRE_TEXT).includes('A base do app'), true, 'o resto do texto fica intacto')
+  assert.equal(stripLicenseCredit('Built on the work of DeepSeek Harness MIT License').trim(), '', 'a forma em inglês do mesmo crédito')
+})
+
+test('proibidos · `allowCreditoLicenca` vale só na cena que o pede (nunca no topo do manifesto) e vira linha em "Dispensas" para o Carbon', () => {
+  const manifest = { owner: 'Quill', bundle: 'dispensa', shell: false, viewports: ['1440x900'], schemes: ['light'], allowCreditoLicenca: true, scenes: ['conexoes', { id: 'sobre', allowCreditoLicenca: true }] }
+  const rows = plan(manifest)
+  assert.equal(rows.find(item => item.scene === 'sobre').allowCreditoLicenca, true)
+  assert.equal(rows.find(item => item.scene === 'conexoes').allowCreditoLicenca, undefined, 'a chave no topo do manifesto é ignorada: só por cena')
+  const results = new Map(rows.map((item) => {
+    const checks = evaluateScene(item, { png: PNG, probe: cleanProbe(item.scene === 'sobre' ? { text: SOBRE_TEXT } : {}) })
+    return [item.file, { checks, verdict: verdictOf(checks) }]
+  }))
+  const report = buildReport(manifest, rows, results)
+  assert.deepEqual(report.waivers.map(item => item.scene), ['sobre'])
+  assert.match(report.waivers[0].rule, /^proibidos: só o crédito de licença MIT/u)
+  assert.equal(report.totals.scenesReady, 2)
+  assert.match(renderMarkdown(report), /## Dispensas do manifesto[\s\S]*- \*\*sobre\*\*: proibidos: só o crédito de licença MIT .*“harness” em outro lugar continua reprovando/u)
+})
+
+// ---- Paleta do Prism (11/11): "último controle fora da janela" com a caixa à vista é lista rolável interna; `skipChecks` por cena. ----
+test('diálogo · só o "último controle fora da janela", com a caixa à vista, é lista rolável interna: aviso (a paleta em 1440/960); caixa cortada reprova (a paleta em 200%)', () => {
+  const quiet = { png: PNG }
+  const soft = evaluateScene(row({ expectFoliage: false }), { ...quiet, probe: cleanProbe({ dialogs: [{ label: 'Buscar', cut: ['último controle “Ajuda” fora da janela'] }] }) })
+  assert.deepEqual(failing(soft), [])
+  assert.match(checkOf(soft, 'dialogo').detail, /^aviso: “Buscar”: último controle “Ajuda” fora da janela — a caixa cabe na janela/u)
+  const zoom = evaluateScene(row({ expectFoliage: false }), { ...quiet, probe: cleanProbe({ dialogs: [{ label: 'Buscar', cut: ['base 150 px abaixo da janela', 'último controle “Ajuda” fora da janela'] }] }) })
+  assert.deepEqual(failing(zoom), ['dialogo'], 'a caixa passa da janela: o defeito é real')
+  assert.match(checkOf(zoom, 'dialogo').detail, /base 150 px abaixo da janela/u)
+  // um diálogo cortado e uma paleta com lista: reprova pelo cortado e o aviso da lista não esconde isso
+  const mixed = evaluateScene(row({ expectFoliage: false }), { ...quiet, probe: cleanProbe({ dialogs: [{ label: 'Buscar', cut: ['último controle “Ajuda” fora da janela'] }, { label: 'Adicionar conta', cut: ['topo 10 px acima da janela'] }] }) })
+  assert.deepEqual(failing(mixed), ['dialogo'])
+  assert.match(checkOf(mixed, 'dialogo').detail, /Adicionar conta/u)
+})
+
+test('skipChecks por cena: a checagem some só daquela cena, vira linha em "Dispensas" e o resto da cena segue valendo; sem a dispensa a cena fica INCOMPLETO', () => {
+  const manifest = { owner: 'T', bundle: 'skip', shell: false, viewports: ['1440x900'], schemes: ['light'], scenes: ['topo', { id: 'rolado', skipChecks: ['foco'] }] }
+  const rows = plan(manifest)
+  assert.deepEqual(rows.find(item => item.scene === 'rolado').skipChecks, ['foco'])
+  assert.equal(rows.find(item => item.scene === 'topo').skipChecks, undefined)
+  const dir = mkdtempSync(join(tmpdir(), 'preaccept-skip-'))
+  try {
+    const png = Buffer.alloc(MIN_PNG_BYTES + 100)
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52]).copy(png)
+    png.writeUInt32BE(1440, 16)
+    png.writeUInt32BE(900, 20)
+    const { focus: _focus, ...semFoco } = cleanProbe()
+    for (const scene of ['topo', 'rolado']) {
+      writeFileSync(join(dir, `${scene}-light-1440x900.png`), png)
+      writeFileSync(join(dir, `${scene}-light-1440x900.probe.json`), JSON.stringify(scene === 'rolado' ? semFoco : cleanProbe()))
+    }
+    const run = (m) => {
+      writeFileSync(join(dir, 'manifest.json'), JSON.stringify({ ...m, dir }))
+      return spawnSync(process.execPath, [join(here, 'preaccept.mjs'), '--manifest', join(dir, 'manifest.json'), '--dir', dir], { encoding: 'utf8' })
+    }
+    const without = run({ ...manifest, scenes: ['topo', 'rolado'] })
+    assert.equal(without.status, 1, without.stdout)
+    assert.match(without.stdout, /INCOMPLETO\s+rolado.*sem verificar: foco/u, 'focus:false sem a dispensa: nunca PASSOU')
+    const withSkip = run(manifest)
+    assert.equal(withSkip.status, 0, withSkip.stdout + withSkip.stderr)
+    const report = JSON.parse(readFileSync(join(dir, 'preaccept-report.json'), 'utf8'))
+    assert.deepEqual(report.readyForMuse.map(item => item.scene), ['topo', 'rolado'])
+    assert.deepEqual(report.waivers.map(item => item.scene), ['rolado'])
+    assert.match(report.waivers[0].rule, /^foco: NÃO conferida nesta cena/u)
+    assert.match(readFileSync(join(dir, 'preaccept-report.md'), 'utf8'), /## Dispensas do manifesto[\s\S]*- \*\*rolado\*\*: foco: NÃO conferida nesta cena/u)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('sonda · diálogo com lista rolável interna: o último item abaixo da dobra não conta como rodapé cortado; o rodapé de verdade cortado reprova', async (context) => {
+  const requireFrom = createRequire(join(here, '..', '..', 'packages', 'persona', 'persona-e2e', 'package.json'))
+  let browser
+  try {
+    const { chromium } = requireFrom('playwright')
+    browser = await chromium.launch({ channel: 'chrome', headless: true })
+  } catch (error) {
+    context.skip(`sem navegador: ${String(error).slice(0, 80)}`)
+    return
+  }
+  try {
+    const { collectProbe } = await import('./preaccept-probe.mjs')
+    const page = await browser.newPage({ viewport: { width: 800, height: 400 } })
+    const items = Array.from({ length: 30 }, (_, index) => `<button type="button" role="option" style="display:block;min-width:80px;min-height:30px">Item ${String(index + 1)}</button>`).join('')
+    // A paleta: caixa de 300 px dentro da janela de 400, lista rolável (overflow auto) com 30 itens, SEM rodapé: o último controle da caixa é um item lá embaixo.
+    await page.setContent(`<!doctype html><body style="margin:0"><div role="dialog" aria-label="Buscar" style="position:fixed;top:20px;left:100px;width:600px;height:300px;background:#fff;border:1px solid #333"><input aria-label="Buscar" style="min-height:30px;min-width:200px" /><div style="overflow:auto;height:240px">${items}</div></div></body>`)
+    const palette = await collectProbe(page, { focus: false, gpu: false })
+    assert.deepEqual(palette.dialogs, [{ label: 'Buscar', cut: [] }], 'o item 30 está bem abaixo da janela, dentro de uma lista rolável: não é rodapé cortado')
+    assert.deepEqual(failing(evaluateScene(row({ expectFoliage: false }), { png: PNG, probe: { ...palette, text: `${palette.text} ${'x'.repeat(20)}` } })), [])
+    // O diálogo com rodapé de verdade: a caixa passa da janela e o "Continuar" some junto → reprova (mesmo com uma lista rolável dentro).
+    await page.setContent(`<!doctype html><body style="margin:0"><div role="dialog" aria-label="Adicionar conta" style="position:fixed;top:20px;left:100px;width:600px;background:#fff;border:1px solid #333"><div style="overflow:auto;height:200px">${items}</div><div style="height:300px"></div><button type="button" style="min-width:80px;min-height:30px">Continuar</button></div></body>`)
+    const tall = await collectProbe(page, { focus: false, gpu: false })
+    assert.ok(tall.dialogs[0].cut.some(item => item.includes('abaixo da janela')), JSON.stringify(tall.dialogs))
+    assert.ok(tall.dialogs[0].cut.some(item => item.includes('Continuar')), JSON.stringify(tall.dialogs))
+    assert.deepEqual(failing(evaluateScene(row({ expectFoliage: false }), { png: PNG, probe: { ...tall, text: `${tall.text} ${'x'.repeat(20)}` } })), ['dialogo'])
+    await page.close()
+  } finally {
+    await browser.close()
+  }
+})
+
+// ---- `avisos` por cena (Keel 11/11 14:43): nota do manifesto que o Carbon lê em "Avisos"; não muda o veredito. ----
+test('avisos por cena: a nota do manifesto vai para "Avisos" do relatório (uma vez por cena) e NÃO muda o veredito', () => {
+  const nota = 'O “Recomendado” de Conexões é do Zinc, não do Quill'
+  const manifest = { owner: 'Quill', bundle: 'nota', shell: false, viewports: ['1440x900'], schemes: ['light', 'dark'], scenes: [{ id: 'conexoes', avisos: [nota, '  ', 7] }, 'sobre'] }
+  const rows = plan(manifest)
+  assert.deepEqual(rows.find(item => item.scene === 'conexoes').avisos, [nota], 'só texto não vazio')
+  assert.equal(rows.find(item => item.scene === 'sobre').avisos, undefined)
+  const results = new Map(rows.map((item) => {
+    const checks = evaluateScene(item, { png: PNG, probe: cleanProbe({ darkTheme: item.scheme === 'dark' }) })
+    return [item.file, { checks, verdict: verdictOf(checks) }]
+  }))
+  const report = buildReport(manifest, rows, results)
+  assert.equal(report.totals.scenesReady, 2, 'a nota não reprova nada')
+  assert.deepEqual(report.warnings.map(item => [item.scene, item.check, item.detail]), [['conexoes', 'nota', nota]], 'uma linha, não uma por tema')
+  assert.match(renderMarkdown(report), /## Avisos[\s\S]*- \*\*conexoes\*\* \(nota do manifesto\): O “Recomendado” de Conexões é do Zinc/u)
+})
+
+// ---- Imagens (Quill bundle10, 11/11): imagem à vista ainda carregando ganha até 1,5 s; preguiçosa fora da janela não conta; a que nunca chega e a quebrada reprovam. ----
+test('sonda · imagem à vista ainda carregando ganha tempo; lazy fora da janela não conta; a que nunca chega e a quebrada (404) reprovam', async (context) => {
+  const requireFrom = createRequire(join(here, '..', '..', 'packages', 'persona', 'persona-e2e', 'package.json'))
+  let browser
+  try {
+    const { chromium } = requireFrom('playwright')
+    browser = await chromium.launch({ channel: 'chrome', headless: true })
+  } catch (error) {
+    context.skip(`sem navegador: ${String(error).slice(0, 80)}`)
+    return
+  }
+  const pixel = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')
+  const server = createHttpServer((request, response) => {
+    if (request.url === '/slow.png') setTimeout(() => { response.writeHead(200, { 'content-type': 'image/png' }); response.end(pixel) }, 700)
+    else if (request.url === '/hang.png') { /* nunca responde */ }
+    else if (request.url === '/missing.png') { response.writeHead(404); response.end() }
+    else { response.writeHead(200, { 'content-type': 'image/png' }); response.end(pixel) }
+  })
+  await new Promise((resolveListen) => { server.listen(0, '127.0.0.1', resolveListen) })
+  const base = `http://127.0.0.1:${String(server.address().port)}`
+  try {
+    const { collectProbe } = await import('./preaccept-probe.mjs')
+    const page = await browser.newPage({ viewport: { width: 800, height: 400 } })
+    const show = (html) => page.setContent(`<!doctype html><body style="margin:0">${html}</body>`, { waitUntil: 'domcontentloaded' })
+    const probeOf = async () => (await collectProbe(page, { focus: false, gpu: false })).brokenImages
+
+    // GREEN 1: o servidor local demora 700 ms; na hora da sonda a imagem ainda não completou, mas está à vista: a sonda espera e ela chega.
+    await show(`<img src="${base}/slow.png" width="40" height="40" alt="">`)
+    assert.deepEqual(await probeOf(), [], 'imagem lenta que chega dentro do prazo não é quebrada')
+    // GREEN 2: preguiçosa abaixo da dobra (a seção "Figurinhas" do Quill): o navegador nem a buscou e ela não está nesta captura.
+    await show(`<div style="height:1500px"></div><img loading="lazy" src="${base}/hang.png" width="40" height="40" alt="">`)
+    assert.deepEqual(await probeOf(), [], 'lazy fora da janela não conta')
+    // RED 1: imagem à vista que nunca chega (passou o prazo): "não carregou".
+    await show(`<img src="${base}/hang.png" width="40" height="40" alt="">`)
+    const hung = await probeOf()
+    assert.equal(hung.length, 1)
+    assert.match(hung[0], /^não carregou: .*\/hang\.png$/u)
+    // RED 2: 404: completa, sem pixels.
+    await show(`<img src="${base}/missing.png" width="40" height="40" alt="">`)
+    const missing = await probeOf()
+    assert.equal(missing.length, 1)
+    assert.match(missing[0], /^sem pixels: .*\/missing\.png$/u)
+    // O mesmo lazy fora da janela, mas visível (sem a dobra), e preso: aí conta.
+    await show(`<img loading="lazy" src="${base}/hang.png" width="40" height="40" alt="">`)
+    assert.equal((await probeOf()).length, 1, 'lazy à vista e que não chega conta')
+    await page.close()
+  } finally {
+    server.closeAllConnections()
+    await new Promise((resolveClose) => { server.close(resolveClose) })
+    await browser.close()
+  }
+})
+
+// ---- Regra 5 do §2.7 (Keel 11/11 16:54 + ajuste 16:55): com foco, mais de 2 infinitas CONTÍNUAS é AVISO (não reprova); as infinitas em steps(...) não contam; a sonda lista todas. ----
+test('gpu · regra 5: mais de 2 infinitas CONTÍNUAS com foco vira AVISO agrupado; as em steps ficam de fora; sem classificação não avisa; a falha do repouso continua falha', () => {
+  const anim = (name, easing, target = 'div.figure', iterations = 'Infinity', durationMs = 4600) => ({ kind: 'css', name, target, iterations, durationMs, easing })
+  const gpu = (extra) => ({ focusedRunning: 10, afterBlur: { count: 0, items: [] }, settleMs: 800, ...extra })
+  const many = (count, build) => Array.from({ length: count }, build)
+  // GREEN (o caso real do Prism): 5 personaBlinkFrame + 5 personaTailFrame, TODAS em steps (troca de frame, 0,0% de GPU): nenhuma contínua, sem aviso
+  const stepsOnly = [...many(5, () => anim('personaBlinkFrame', 'steps', 'img.poseBlink', 'Infinity', 5500)), ...many(5, () => anim('personaTailFrame', 'steps', 'img.poseTail', 'Infinity', 7000))]
+  const quiet = gpuGate(gpu({ focusedInfinite: 10, focusedSteps: 10, focusedContinuous: 0, focusedItems: stepsOnly }))
+  assert.deepEqual(quiet, { ok: true, detail: '0 animações rodando sem foco (com foco: 10 · 10 infinitas em steps)' })
+  // RED (aviso): 5 personaBreathe CONTÍNUAS (scale) + 4 em steps: passa o gate do repouso, com o aviso agrupado e a nota dos steps
+  const mixed = [...many(5, () => anim('personaBreathe', 'continua')), ...many(4, () => anim('personaBlinkFrame', 'steps', 'img.poseBlink', 'Infinity', 5500)), { kind: 'transition', name: 'opacity', target: 'p#t', iterations: 1, durationMs: 150, easing: 'continua' }]
+  const warned = gpuGate(gpu({ focusedInfinite: 9, focusedSteps: 4, focusedContinuous: 5, focusedItems: mixed }))
+  assert.equal(warned.ok, true, 'o gate do repouso (regra 6) passa: 0 depois do blur')
+  assert.match(warned.detail, /^aviso: 5 animações infinitas CONTÍNUAS rodando COM foco \(a regra 5 manda no máximo 2; as 4 em steps \(troca de frame\) ficam de fora\): personaBreathe em div\.figure \(∞ · 4600 ms\) ×5 — 0 animações rodando sem foco \(com foco: 10 · 4 infinitas em steps\)$/u)
+  assert.doesNotMatch(warned.detail, /personaBlinkFrame|opacity/u, 'steps e finitas não entram na lista das contínuas')
+  // o limite é 2: 2 contínuas + 8 steps = sem aviso; 3 contínuas = aviso
+  assert.doesNotMatch(gpuGate(gpu({ focusedInfinite: 10, focusedSteps: 8, focusedContinuous: 2, focusedItems: [anim('cursor', 'continua'), anim('lampBreathe', 'continua')] })).detail, /^aviso/u)
+  assert.match(gpuGate(gpu({ focusedInfinite: 3, focusedSteps: 0, focusedContinuous: 3, focusedItems: many(3, () => anim('x', 'continua')) })).detail, /^aviso: 3 animações infinitas CONTÍNUAS/u)
+  // sidecar sem a classificação (sonda de antes): não tem como separar steps de contínua: sem aviso, detalhe simples
+  assert.equal(gpuGate(gpu({})).detail, '0 animações rodando sem foco (com foco: 10)')
+  // a falha da regra 6 não leva aviso junto: continua sendo falha com a causa
+  const failed = gpuGate(gpu({ focusedInfinite: 9, focusedSteps: 4, focusedContinuous: 5, focusedItems: mixed, afterBlur: { count: 1, items: [anim('lampBreathe', 'continua')] } }))
+  assert.equal(failed.ok, false)
+  assert.doesNotMatch(failed.detail, /^aviso/u)
+  assert.equal(describeAnimation(anim('personaBlinkFrame', 'steps', 'img.poseBlink', 'Infinity', 5500)), 'personaBlinkFrame em img.poseBlink (∞ · 5500 ms · steps)')
+  assert.equal(describeAnimation(anim('personaBreathe', 'continua')), 'personaBreathe em div.figure (∞ · 4600 ms)')
+  assert.deepEqual(groupAnimations([anim('a', 'continua'), anim('a', 'continua'), anim('b', 'continua')]), ['a em div.figure (∞ · 4600 ms) ×2', 'b em div.figure (∞ · 4600 ms)'])
+  // na checagem da cena: status ok, o veredito não muda e o aviso chega ao relatório (uma linha por cena, não uma por modo)
+  const manifest = { owner: 'T', bundle: 'regra5', shell: false, viewports: ['1440x900'], schemes: ['light', 'dark'], scenes: ['geral-topo'] }
+  const rows = plan(manifest)
+  const results = new Map(rows.map((item) => {
+    const checks = evaluateScene(item, { png: PNG, probe: cleanProbe({ darkTheme: item.scheme === 'dark', gpu: gpu({ focusedInfinite: 9, focusedSteps: 4, focusedContinuous: 5, focusedItems: mixed }) }) })
+    return [item.file, { checks, verdict: verdictOf(checks) }]
+  }))
+  const report = buildReport(manifest, rows, results)
+  assert.equal(report.totals.scenesReady, 1, 'o aviso não reprova')
+  assert.equal(report.warnings.filter(item => item.check === 'gpu').length, 1, 'uma linha por cena')
+  assert.match(report.warnings.find(item => item.check === 'gpu').detail, /^5 animações infinitas CONTÍNUAS rodando COM foco/u)
+  assert.equal(report.warnings.find(item => item.check === 'gpu').otherModes, 1, 'o outro tema só conta')
+})
+
+test('sonda · classifica cada animação rodando com foco como steps ou contínua (CSS e WAAPI) e conta as infinitas; a finita não conta', async (context) => {
+  const requireFrom = createRequire(join(here, '..', '..', 'packages', 'persona', 'persona-e2e', 'package.json'))
+  let browser
+  try {
+    const { chromium } = requireFrom('playwright')
+    browser = await chromium.launch({ channel: 'chrome', headless: true })
+  } catch (error) {
+    context.skip(`sem navegador: ${String(error).slice(0, 80)}`)
+    return
+  }
+  try {
+    const { collectGpuIdle } = await import('./preaccept-probe.mjs')
+    const page = await browser.newPage({ viewport: { width: 800, height: 400 } })
+    // 3 contínuas CSS (ease, linear, sem curva), 2 em steps CSS (as do piscar/rabo), 1 WAAPI em steps, 1 WAAPI contínua, 1 CSS FINITA contínua (3 iterações) e uma transição
+    await page.goto(`data:text/html;charset=utf-8,${encodeURIComponent(`<!doctype html><style>
+      @keyframes breathe{from{transform:scale(1)}to{transform:scale(1.01)}} @keyframes frame{50%{opacity:.3}}
+      .a{animation:breathe 4s ease infinite alternate} .b{animation:breathe 5s linear infinite} .c{animation:breathe 6s infinite}
+      .s1{animation:frame 5.5s steps(1,end) infinite} .s2{animation:frame 7s steps(2,start) infinite} .fin{animation:breathe 30s linear 3}
+      #t{transition:opacity 5s}</style>
+      <i class="a">a</i><i class="b">b</i><i class="c">c</i><i class="s1">1</i><i class="s2">2</i><i class="fin">f</i><p id="t">t</p>
+      <script>
+        getComputedStyle(document.getElementById('t')).opacity
+        document.getElementById('t').style.opacity = '0.3'
+        document.querySelector('.a').animate([{ opacity: 1 }, { opacity: 0.5 }], { duration: 900, iterations: Infinity, easing: 'steps(1, end)', id: 'cursor-steps' })
+        document.querySelector('.b').animate([{ opacity: 1 }, { opacity: 0.5 }], { duration: 900, iterations: Infinity, id: 'cursor-linear' })
+      </script>`)}`)
+    await page.waitForTimeout(100)
+    const gpu = await collectGpuIdle(page, { settleMs: 50 })
+    const byName = (name) => gpu.focusedItems.filter(item => item.name === name)
+    assert.deepEqual(gpu.focusedItems.filter(item => item.name === 'breathe').map(item => item.easing), ['continua', 'continua', 'continua', 'continua'], 'ease, linear, sem curva e a finita (a finita é contínua, mas não infinita)')
+    assert.deepEqual(byName('frame').map(item => item.easing), ['steps', 'steps'], 'steps(1,end) e steps(2,start) em CSS: a curva vive nas keyframes')
+    assert.equal(byName('cursor-steps')[0].easing, 'steps', 'WAAPI com easing steps no efeito')
+    assert.equal(byName('cursor-linear')[0].easing, 'continua')
+    assert.equal(byName('opacity')[0].kind, 'transition')
+    // 3 CSS contínuas infinitas + 1 WAAPI contínua = 4; steps: 2 CSS + 1 WAAPI = 3; infinitas = 7 (a finita e a transição ficam de fora)
+    assert.equal(gpu.focusedInfinite, 7, JSON.stringify(gpu.focusedItems))
+    assert.equal(gpu.focusedSteps, 3)
+    assert.equal(gpu.focusedContinuous, 4)
+    assert.match(focusedWarning(gpu), /^4 animações infinitas CONTÍNUAS rodando COM foco \(a regra 5 manda no máximo 2; as 3 em steps \(troca de frame\) ficam de fora\): /u)
+    // só 2 contínuas: sem aviso, mesmo com steps rodando
+    await page.goto(`data:text/html;charset=utf-8,${encodeURIComponent('<!doctype html><style>@keyframes b{to{opacity:.5}} i{animation:b 4s linear infinite} i.s{animation:b 4s steps(1,end) infinite}</style><i>1</i><i>2</i><i class="s">3</i><i class="s">4</i><i class="s">5</i>')}`)
+    await page.waitForTimeout(100)
+    const calm = await collectGpuIdle(page, { settleMs: 50 })
+    assert.equal(calm.focusedContinuous, 2)
+    assert.equal(calm.focusedSteps, 3)
+    assert.equal(focusedWarning(calm), undefined, '2 contínuas + 3 steps está dentro da regra 5')
+    await page.close()
+  } finally {
+    await browser.close()
+  }
+})
+
+// ---- DESIGN-01 §2.7 regra 6 · preaccept-gpu (Keel 11/11 12:47): sem foco ou após 16 s sem turno ativo, ZERO animações rodando. ----
+const looping = (name, target, iterations = 'Infinity', durationMs = 14000) => ({ kind: 'css', name, target, iterations, durationMs })
+
+test('gpu · RED: animação rodando sem foco reprova e diz qual; GREEN: 0 sem foco passa (com foco pode haver)', () => {
+  const lamp = looping('lampBreathe', 'div.lampLayer')
+  const items = [lamp, looping('personaBreathe', 'img.figure', 'Infinity', 4000), looping('personaBlinkFrame', 'img.figure', 'Infinity', 5200), looping('persona-rail-pulse', 'span.dot', 'Infinity', 2400)]
+  const red = evaluateScene(row(), { png: PNG, probe: cleanProbe({ gpu: { focusedRunning: 22, afterBlur: { count: 22, items }, settleMs: 800 } }) })
+  assert.deepEqual(failing(red), ['gpu'])
+  assert.equal(verdictOf(red), 'FALHOU')
+  const detail = checkOf(red, 'gpu').detail
+  assert.match(detail, /22 animação\(ões\) rodando com a janela sem foco \(o certo é 0\): lampBreathe em div\.lampLayer \(∞ · 14000 ms\)/u)
+  assert.match(detail, /\(\+19\)/u, 'mostra 3 e conta o resto')
+  const green = evaluateScene(row(), { png: PNG, probe: cleanProbe() })
+  assert.deepEqual(failing(green), [])
+  assert.equal(checkOf(green, 'gpu').status, 'ok')
+  assert.equal(checkOf(green, 'gpu').detail, '0 animações rodando sem foco (com foco: 2)')
+  // após 16 s sem turno ativo (a 2ª metade da regra): o blur zerou, mas a janela parada ainda tem animação rodando
+  const idleRed = evaluateScene(row(), { png: PNG, probe: cleanProbe({ gpu: { focusedRunning: 2, afterBlur: { count: 0, items: [] }, afterIdle: { count: 1, items: [lamp], idleMs: 16000 }, settleMs: 800 } }) })
+  assert.deepEqual(failing(idleRed), ['gpu'])
+  assert.match(checkOf(idleRed, 'gpu').detail, /1 animação\(ões\) rodando após 16 s sem turno ativo \(o certo é 0\): lampBreathe/u)
+  const idleGreen = gpuGate({ focusedRunning: 2, afterBlur: { count: 0, items: [] }, afterIdle: { count: 0, items: [], idleMs: 16000 } })
+  assert.deepEqual(idleGreen, { ok: true, detail: '0 animações rodando sem foco e após 16 s parada (com foco: 2)' })
+  assert.equal(describeAnimation({ name: 'fade', target: 'p#t', iterations: 1, durationMs: 300 }), 'fade em p#t (1× · 300 ms)')
+  assert.equal(describeAnimation({ name: 'x', target: 'i', iterations: null, durationMs: null }), 'x em i')
+})
+
+test('gpu · sidecar sem a medida (v3) é INCOMPLETO; sonda que falhou também; sem sonda, não verificado', () => {
+  const { gpu: _gpu, ...v3 } = cleanProbe({ version: 3 })
+  const old = evaluateScene(row(), { png: PNG, probe: v3 })
+  assert.equal(checkOf(old, 'gpu').status, 'nao-verificado')
+  assert.match(checkOf(old, 'gpu').detail, /sidecar da sonda v3, sem a medida de animações sem foco: recapture com a sonda nova \(DESIGN-01 §2\.7\)/u)
+  assert.equal(verdictOf(old), 'INCOMPLETO')
+  const broken = evaluateScene(row(), { png: PNG, probe: cleanProbe({ gpu: undefined, gpuError: 'Execution context was destroyed' }) })
+  assert.equal(checkOf(broken, 'gpu').status, 'nao-verificado')
+  assert.match(checkOf(broken, 'gpu').detail, /a sonda de GPU falhou: Execution context was destroyed/u)
+  assert.equal(checkOf(evaluateScene(row(), { png: PNG }), 'gpu').status, 'nao-verificado')
+})
+
+test('gpu · contador do Windows: soma por tipo de motor, vale o maior, média das amostras; processo sem motor = ocioso; sem linhas = sem medida', () => {
+  assert.deepEqual(parseGpuEngineName('pid_100_luid_0x00000000_0x0000AB12_phys_0_eng_2_engtype_VideoDecode'), { pid: 100, engine: 'VideoDecode' })
+  assert.equal(parseGpuEngineName('tick'), undefined)
+  const name = (pid, eng, type) => `pid_${String(pid)}_luid_0x00000000_0x0000AB12_phys_0_eng_${String(eng)}_engtype_${type}`
+  const rows = [
+    { i: 0, n: name(100, 0, '3D'), v: 2 }, { i: 0, n: name(100, 1, '3D'), v: 1 }, { i: 0, n: name(100, 2, 'Copy'), v: 0.5 }, { i: 0, n: name(200, 0, '3D'), v: 40 }, { i: 0, n: 'tick', v: 0 },
+    { i: 1, n: name(100, 0, '3D'), v: 1 }, { i: 1, n: 'tick', v: 0 },
+  ]
+  assert.deepEqual(gpuUtilizationFromRows(rows, [100]), { pct: 2, byEngine: { '3D': 2, Copy: 0.25 }, samples: 2, matched: 4 })
+  assert.equal(gpuUtilizationFromRows(rows, [100, 200]).pct, 22, 'dois processos do app: 3D soma 43 e 1 → média 22 (o Persona.exe de outro agente fica de fora pela árvore de processos)')
+  assert.deepEqual(gpuUtilizationFromRows(rows, [999]), { pct: 0, byEngine: {}, samples: 2, matched: 0 })
+  assert.equal(gpuUtilizationFromRows([], [100]).pct, null)
+})
+
+test('gpu · a meta de GPU ociosa: ≤ 1,5 % com foco parado, ≤ 0,5 % sem foco e minimizada; sem número não há ok', () => {
+  const rows = gpuIdleVerdict({ focused: 1.2, unfocused: 0.8, minimized: 0.2 })
+  assert.deepEqual(rows.map(item => [item.state, item.status]), [['focused', 'ok'], ['unfocused', 'falhou'], ['minimized', 'ok']])
+  assert.deepEqual(rows.map(item => item.limit), [1.5, 0.5, 0.5])
+  assert.equal(gpuIdleVerdict({ focused: 1.5 })[0].status, 'ok', '1,5 passa (≤)')
+  assert.equal(gpuIdleVerdict({ focused: 1.6 })[0].status, 'falhou')
+  assert.equal(gpuIdleVerdict({ unfocused: null })[0].status, 'nao-medido')
+  assert.deepEqual(gpuIdleVerdict({}), [])
+})
+
+// O formato é o do perf-probe-visible.mjs do Cobalt (idleCpu / idleCpuUnfocused / idleCpuMinimized = [{role, pid, rssMb, cpuPct}]).
+const perfRun = (gpuFocused, gpuUnfocused, gpuMinimized, extra = {}) => ({
+  run: 1, cold: true, marks: {}, readyState: 'complete', visibility: 'visible',
+  idleCpu: [{ role: 'main', cpuPct: 1 }, { role: 'gpu', cpuPct: gpuFocused }, { role: 'renderer', cpuPct: 7 }],
+  idleCpuUnfocused: [{ role: 'main', cpuPct: 0 }, { role: 'gpu', cpuPct: gpuUnfocused }],
+  idleCpuMinimized: [{ role: 'gpu', cpuPct: gpuMinimized }],
+  ...extra,
+})
+
+test('gpu · relata a GPU ociosa de uma rodada do perf-probe-visible (RED: a v1.1 com 23 %; GREEN: dentro da meta); o proxy diz que é proxy', () => {
+  const v11 = perfRun(23, 9, 0)
+  assert.deepEqual(gpuIdleFromPerfRun(v11), { source: 'cpu-do-processo-gpu (proxy, passos de 1 ponto)', focused: 23, unfocused: 9, minimized: 0 })
+  const red = gpuIdleReport([v11])[0]
+  assert.equal(red.ok, false)
+  assert.deepEqual(red.rows.map(item => item.status), ['falhou', 'falhou', 'ok'])
+  assert.equal(gpuIdleReport([perfRun(1, 0, 0)])[0].ok, true, '1 % com foco (≤ 1,5), 0 sem foco e minimizada')
+  // com o número do contador do Windows na rodada, ele vale no lugar do proxy
+  const counter = gpuIdleReport([perfRun(23, 9, 0, { gpuUtilization: { focused: 0.9, unfocused: 0.1 } })])[0]
+  assert.equal(counter.source, 'contador-gpu')
+  assert.equal(counter.ok, true)
+  assert.deepEqual(counter.rows.map(item => item.state), ['focused', 'unfocused'], 'só o que foi medido')
+  assert.equal(gpuIdleReport([{ run: 2, error: 'no dsh-app://app/ page' }])[0].ok, false, 'rodada com erro nunca passa')
+})
+
+test('gpu · linha de comando --perf: rodada acima da meta = código 1; dentro = 0', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'preaccept-gpu-perf-'))
+  try {
+    writeFileSync(join(dir, 'v11.json'), JSON.stringify([perfRun(23, 9, 0)]))
+    writeFileSync(join(dir, 'ok.json'), JSON.stringify([perfRun(1, 0, 0)]))
+    const red = spawnSync(process.execPath, [join(here, 'preaccept-gpu.mjs'), '--perf', join(dir, 'v11.json')], { encoding: 'utf8' })
+    assert.equal(red.status, 1, red.stdout + red.stderr)
+    assert.match(red.stdout, /com foco parado\s+23,0 %\s+meta ≤ 1,5 %\s+FALHOU/u)
+    assert.match(red.stdout, /VEREDITO: FALHOU/u)
+    const green = spawnSync(process.execPath, [join(here, 'preaccept-gpu.mjs'), '--perf', join(dir, 'ok.json')], { encoding: 'utf8' })
+    assert.equal(green.status, 0, green.stdout + green.stderr)
+    assert.match(green.stdout, /VEREDITO: PASSOU/u)
+    assert.equal(spawnSync(process.execPath, [join(here, 'preaccept-gpu.mjs')], { encoding: 'utf8' }).status, 2, 'sem argumento: uso')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// O gate numa página de verdade: o que o `document.getAnimations()` diz tem de bater com o que o gate relata.
+test('gpu · página de verdade: RED = animação infinita sem pausa no blur; GREEN = o app pausa no blur; transição finita não vaza; a sonda devolve a página; CLI --cdp', async (context) => {
+  const requireFrom = createRequire(join(here, '..', '..', 'packages', 'persona', 'persona-e2e', 'package.json'))
+  const userData = mkdtempSync(join(tmpdir(), 'preaccept-gpu-chrome-'))
+  let chrome
+  let port
+  try {
+    const { chromium } = requireFrom('playwright')
+    port = await new Promise((resolvePort, reject) => {
+      const server = createServer()
+      server.once('error', reject)
+      server.listen(0, '127.0.0.1', () => { const { port: free } = server.address(); server.close(() => { resolvePort(free) }) })
+    })
+    // Contexto persistente: o CLI --cdp (outro processo) enxerga a página no contexto padrão do Chrome.
+    chrome = await chromium.launchPersistentContext(userData, { channel: 'chrome', headless: true, viewport: { width: 800, height: 500 }, args: [`--remote-debugging-port=${String(port)}`] })
+  } catch (error) {
+    rmSync(userData, { recursive: true, force: true })
+    context.skip(`sem navegador: ${String(error).slice(0, 80)}`)
+    return
+  }
+  try {
+    const { collectGpuIdle, collectProbe } = await import('./preaccept-probe.mjs')
+    const css = `@keyframes lampBreathe{from{opacity:.9}to{opacity:1}} @keyframes blink{50%{opacity:.2}}
+      .lampLayer{position:absolute;inset:0;width:300px;height:200px;animation:lampBreathe 14s infinite alternate}
+      .eye{display:inline-block;width:20px;height:20px;background:#444;animation:blink 2s steps(1,end) infinite}
+      body[data-ambient-paused] *{animation-play-state:paused !important}`
+    // Um "app" mínimo no molde do que o Cobalt vai entregar: pausa tudo no blur (CSS pelo atributo; WAAPI pelo pause()), volta no focus,
+    // e (idle) pausa sozinho depois de `idleAfterMs` sem evento nenhum.
+    const html = ({ pauseOnBlur, idleAfterMs }) => `<!doctype html><html><head><style>${css}</style></head><body>
+      <div class="lampLayer"></div><i class="eye"></i><i class="eye"></i><p id="t" style="transition:opacity 300ms">Olá</p>
+      <script>
+        window.__events = []
+        const pauseAll = () => { document.body.setAttribute('data-ambient-paused', ''); document.getAnimations().filter(a => a.id === 'cursor').forEach(a => a.pause()) }
+        const resumeAll = () => { document.body.removeAttribute('data-ambient-paused'); document.getAnimations().filter(a => a.id === 'cursor').forEach(a => a.play()) }
+        let timer
+        const arm = () => { clearTimeout(timer); if (${String(idleAfterMs !== undefined)}) timer = setTimeout(pauseAll, ${String(idleAfterMs ?? 0)}) }
+        getComputedStyle(document.getElementById('t')).opacity
+        document.querySelector('.eye').animate([{ opacity: 1 }, { opacity: 0.5 }], { duration: 900, iterations: Infinity, id: 'cursor' })
+        window.addEventListener('blur', () => { window.__events.push('blur'); if (${String(pauseOnBlur)}) { pauseAll(); document.getElementById('t').style.opacity = '0.3' } })
+        window.addEventListener('focus', () => { window.__events.push('focus'); resumeAll(); arm() })
+        arm()
+      </script></body></html>`
+    const page = chrome.pages()[0] ?? await chrome.newPage()
+    // Cada cena é uma navegação nova: o setContent reaproveita o window (e o `const` do script da cena anterior já estaria declarado).
+    const load = (options) => page.goto(`data:text/html;charset=utf-8,${encodeURIComponent(html(options))}`)
+    const running = () => page.evaluate(() => document.getAnimations().filter(animation => animation.playState === 'running').length)
+    const grade = (probe) => evaluateScene(row({ expectFoliage: false }), { png: PNG, probe: { ...probe, text: `${probe.text} ${'x'.repeat(20)}` } })
+
+    // ---- RED: a v1.1 de hoje (lampBreathe + olhos + cursor rodando, nada escuta o blur) ----
+    await load({ pauseOnBlur: false })
+    await page.waitForTimeout(150)
+    const red = await collectProbe(page, { focus: false, gpu: { settleMs: 200 } })
+    assert.equal(red.version, 4)
+    assert.ok(red.gpu.focusedRunning >= 4, `lamp + 2 olhos + cursor rodando com foco (viu ${String(red.gpu.focusedRunning)})`)
+    assert.equal(red.gpu.afterBlur.count, red.gpu.focusedRunning, 'o blur não pausou nada: tudo continua rodando')
+    assert.ok(red.gpu.afterBlur.items.map(describeAnimation).includes('lampBreathe em div.lampLayer (∞ · 14000 ms)'), JSON.stringify(red.gpu.afterBlur.items))
+    assert.ok(red.gpu.afterBlur.items.some(item => item.kind === 'waapi' && item.name === 'cursor'), 'a animação do WAAPI também conta')
+    const redChecks = grade(red)
+    assert.deepEqual(failing(redChecks), ['gpu'])
+    assert.equal(verdictOf(redChecks), 'FALHOU')
+    assert.match(checkOf(redChecks, 'gpu').detail, /animação\(ões\) rodando com a janela sem foco \(o certo é 0\)/u)
+
+    // ---- GREEN: o app pausa no blur; a transição de 300 ms que ele dispara ainda está em voo no assentamento e acaba dentro do prazo ----
+    await load({ pauseOnBlur: true })
+    await page.waitForTimeout(150)
+    const green = await collectProbe(page, { focus: false, gpu: { settleMs: 100 } })
+    assert.ok(green.gpu.focusedRunning >= 4, JSON.stringify(green.gpu))
+    assert.equal(green.gpu.afterBlur.count, 0, JSON.stringify(green.gpu.afterBlur.items))
+    assert.deepEqual(failing(grade(green)), [])
+    assert.equal(checkOf(grade(green), 'gpu').status, 'ok')
+    // a sonda devolve a página como estava: blur e focus, nessa ordem; a pausa saiu e o que rodava volta a rodar
+    assert.deepEqual(await page.evaluate(() => window.__events), ['blur', 'focus'])
+    assert.ok(await running() >= 3, 'depois do gate a página volta a animar (a próxima cena da régua não herda a pausa)')
+    assert.equal(await page.evaluate(() => document.body.hasAttribute('data-ambient-paused')), false)
+
+    // ---- após N s sem turno ativo (a 2ª metade da regra) ----
+    await load({ pauseOnBlur: true, idleAfterMs: 700 })
+    const idleGreen = await collectGpuIdle(page, { settleMs: 100, idleMs: 1200 })
+    assert.equal(idleGreen.afterBlur.count, 0)
+    assert.equal(idleGreen.afterIdle.count, 0, 'o app se pausou sozinho depois de 700 ms parado')
+    assert.equal(gpuGate(idleGreen).ok, true)
+    await load({ pauseOnBlur: true })
+    const idleRed = await collectGpuIdle(page, { settleMs: 100, idleMs: 1200 })
+    assert.equal(idleRed.afterBlur.count, 0)
+    assert.ok(idleRed.afterIdle.count >= 3, 'pausa no blur, mas parado com foco continua animando')
+    const idleGate = gpuGate(idleRed)
+    assert.equal(idleGate.ok, false)
+    assert.match(idleGate.detail, /rodando após 1 s sem turno ativo \(o certo é 0\)/u)
+
+    // ---- a linha de comando num Chrome aberto por CDP: o RED sai com 1; o GREEN com 0 ----
+    await load({ pauseOnBlur: false })
+    await page.waitForTimeout(150)
+    const cliRed = spawnSync(process.execPath, [join(here, 'preaccept-gpu.mjs'), '--cdp', String(port), '--settle-ms', '200'], { encoding: 'utf8' })
+    assert.equal(cliRed.status, 1, cliRed.stdout + cliRed.stderr)
+    assert.match(cliRed.stdout, /sem foco \(blur \+ 200 ms\)\s*\.+\s*\d+\s+FALHOU/u)
+    assert.match(cliRed.stdout, /lampBreathe em div\.lampLayer/u)
+    assert.match(cliRed.stdout, /VEREDITO: FALHOU/u)
+    await load({ pauseOnBlur: true })
+    await page.waitForTimeout(150)
+    const cliGreen = spawnSync(process.execPath, [join(here, 'preaccept-gpu.mjs'), '--cdp', String(port), '--settle-ms', '200'], { encoding: 'utf8' })
+    assert.equal(cliGreen.status, 0, cliGreen.stdout + cliGreen.stderr)
+    assert.match(cliGreen.stdout, /VEREDITO: PASSOU/u)
+  } finally {
+    await chrome.close()
+    rmSync(userData, { recursive: true, force: true })
   }
 })

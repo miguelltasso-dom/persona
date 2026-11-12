@@ -71,6 +71,16 @@ export {
   type PrefixLayers,
 } from './stable-prefix.ts'
 export { quotaCardMeters, type QuotaCardMeters } from './quota-card.ts'
+export {
+  WINDOW_RESERVE_PERCENT,
+  backgroundWorkAllowed,
+  ownerAnswerAllowed,
+  reserveWindowLabel,
+  windowReserveOf,
+  type ReserveQuotaRow,
+  type WindowReserve,
+  type WindowReserveState,
+} from './window-reserve.ts'
 export { createMemoryUsageStore } from './store.ts'
 export {
   evaluateSpend,

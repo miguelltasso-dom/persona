@@ -5,6 +5,7 @@
 
 import { Context } from '@deepseek-ai/cordis'
 import { afterAll, afterEach, beforeAll, it as baseIt } from 'vitest'
+import { backgroundWorkOf } from '../src/background-work.ts'
 import { CofreSecretVault } from '../src/cofre-secrets.ts'
 import PersonaHost from '../src/index.ts'
 import type { HostRunnerFactory } from '../src/runner.ts'
@@ -95,6 +96,9 @@ export function resetHost(host: PersonaHost, clock: string = CLOCK): void {
   db.exec('PRAGMA foreign_keys = ON')
   host.orchestration.runtimes.clear()
   host.orchestration.work = Promise.resolve()
+  // Item 12: the background book is per host and outlives the runtimes; a Task left detached by one test must not mark the next test's
+  // ticket (ids repeat after the wipe) as background. The clock is the host's, as in `driveTicket` (the book takes its clock when created).
+  backgroundWorkOf(host.orchestration, { nowMs: () => Date.parse(host.orchestration.now()) }).reset()
   host.orchestration.cancelled.clear()
   host.orchestration.warmRunners.clear()
   host.orchestration.usedContext.clear()

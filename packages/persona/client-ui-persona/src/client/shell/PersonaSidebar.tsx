@@ -14,6 +14,7 @@ import type { ConversationTarget, OpenConversation } from './conversation-select
 import { PlacesRailNav } from './PlacesRailNav.tsx'
 import { ConversationsRail } from './ConversationsRail.tsx'
 import { FoliageLampHalo } from './FoliageLampHalo.tsx'
+import { FoliageLampOff } from './FoliageLampOff.tsx'
 import { isLampLightFlagOn } from '../chat/lamp-light.ts'
 import { EMPTY_CONVERSATIONS, type ConversationsSource } from './conversations-source.ts'
 import { UserAwayControl, formatAwayUntilWhen, isAwayExpired, type UserAwayState } from './UserAwayControl.tsx'
@@ -342,13 +343,17 @@ export function PersonaSidebar({
     ai: aiStatus,
   })
   const aiRowText = shell.hostStatus === 'offline' ? null : railAiRowText(t, aiStatus)
-  // O "—" não fica enigmático: a frase da Muse no tooltip da pílula e na linha do popover (some quando o dado chega).
+  // O "pronto" sem número não fica vago: a frase da Muse no tooltip da pílula e na linha do popover (some quando o dado chega).
   const aiHint = shell.hostStatus === 'online' && !awayState.isAway ? railAiHint(t, aiStatus) : null
-  const aiLink = aiStatus?.kind === 'unavailable'
-    ? { label: t('rail.ai.connect'), panel: 'connections' as const }
-    : aiStatus?.kind === 'ready'
-      ? { label: t('rail.ai.openUsage'), panel: 'usage' as const }
-      : null
+  // Item 13: "Claude · não consegui conferir" tem a ação "Tentar de novo" (o host confere de novo); só um logout confirmado manda para Conexões.
+  const retryAi = (railAi as { readonly retry?: () => Promise<void> } | undefined)?.retry
+  const aiLink: { readonly label: string; readonly panel: 'connections' | 'usage' | null; readonly run?: () => Promise<void> } | null = aiStatus?.kind === 'unconfirmed'
+    ? (retryAi === undefined ? null : { label: t('rail.ai.retry'), panel: null, run: retryAi })
+    : aiStatus?.kind === 'unavailable'
+      ? { label: t('rail.ai.connect'), panel: 'connections' as const }
+      : aiStatus?.kind === 'ready'
+        ? { label: t('rail.ai.openUsage'), panel: 'usage' as const }
+        : null
   const devBadge = showPersonaDevHostBadge() && shell.hostProtocol !== null ? ` · p${shell.hostProtocol}` : ''
   const pillButton = (
     <button
@@ -377,12 +382,13 @@ export function PersonaSidebar({
         className={styles.helpButton}
         data-nav-item=""
         data-nav-panel="help"
+        data-nav-icon="help"
         aria-current={shell.activePanel === 'help' ? 'page' : undefined}
         aria-label={t('sidebar.helpShortcuts')}
         aria-keyshortcuts="?"
         onClick={() => { selectPanel('help') }}
       >
-        <BrandIcon name="ajuda" size={18} />
+        <UiIcon name="help" size={20} strokeWidth={2} />
       </button>
     </Tooltip>
   )
@@ -396,6 +402,8 @@ export function PersonaSidebar({
         {ILLUSTRATIONS['rail-foliage-dark'] !== undefined && (
           <img className={styles.foliageDark} src={ILLUSTRATIONS['rail-foliage-dark']} alt="" data-persona-foliage-dark="" />
         )}
+        {/* Uau 5: no escuro, ao abrir, a luminária APAGADA some em 420 ms revelando a acesa (1 vez por abertura; depois sai do DOM). */}
+        <FoliageLampOff armed={!shell.onboardingOpen} />
         {/* O halo da luminária (v1.1, atrás de persona.flag.lampLight; só no escuro e só com a arte v2): atrás de tudo, nunca do texto. */}
         {isLampLightFlagOn() && <FoliageLampHalo />}
       </div>
@@ -552,8 +560,9 @@ export function PersonaSidebar({
                           size="s"
                           variant="ghost"
                           onClick={() => {
+                            if (aiLink.run !== undefined) { void aiLink.run(); return }
                             setAwayPopoverOpen(false)
-                            selectPanel(aiLink.panel)
+                            if (aiLink.panel !== null) selectPanel(aiLink.panel)
                           }}
                         >
                           {aiLink.label}
@@ -569,11 +578,14 @@ export function PersonaSidebar({
         {placesNav ? (
           // Flag A-1 LIGADA (D-077): "Configurações" é o lugar (o nosso SettingsLauncher no `settings.launcher`) e "Ajuda e
           // atalhos" é o ícone do rodapé. O slot do DSW segue montado: os indicadores de conexão e de atualização ficam ao lado.
-          <div className={styles.footActions}>
+          // Rail aberto: UMA fileira de 3 alvos de 40 px (DESIGN-01-MUSE §1.0.4): Configurações, a luminária no centro (a luz do escuro, só
+          // decorativa) e Ajuda "?". O trilho de 64 px segue em coluna (ponto, Ajuda, Configurações) e não leva a luminária.
+          <div className={styles.footActions} data-rail-foot-row={compactFooter ? undefined : ''}>
             {compactFooter && helpFootButton}
             <div className={styles.settingsSlot}>
               {renderSlot('sidebar.settings', { wide: !compactFooter })}
             </div>
+            {!compactFooter && <span className={styles.lampSeat} data-persona-lamp-seat="" aria-hidden="true" />}
             {!compactFooter && helpFootButton}
           </div>
         ) : (

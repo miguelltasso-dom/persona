@@ -19,6 +19,10 @@ export interface RosterEntry {
   readonly role: string
   readonly characterId: PersonaCharacterId
   readonly state: PersonaWorkUiState
+  /** Rascunho, Janela de silêncio e pausa: estreitam `state` no vocabulário único (`persona-state.ts`). */
+  readonly draftFiles?: number | undefined
+  readonly quiet?: boolean | undefined
+  readonly paused?: boolean | undefined
   /** O título da tarefa atual (nunca um id). */
   readonly currentTask?: string | undefined
   readonly queueCount: number
@@ -66,12 +70,16 @@ export function buildRoster(
     const now = nowRows.find(row => row.member.id === characterId && row.member.name === persona.name)
     const state: PersonaWorkUiState = now?.member.state ?? (strip !== undefined && strip.name === persona.name ? strip.state : 'resting')
     const caretaker = caretakers.get(persona.id)
+    const facts = now?.member ?? (strip !== undefined && strip.name === persona.name ? strip : undefined)
     return {
       id: persona.id,
       name: persona.name,
       role: persona.title,
       characterId,
       state,
+      ...(facts?.draftFiles === undefined ? {} : { draftFiles: facts.draftFiles }),
+      ...(facts?.quiet === undefined ? {} : { quiet: facts.quiet }),
+      ...(facts?.paused === undefined ? {} : { paused: facts.paused }),
       ...(now?.currentTask === undefined || now.currentTask === '' ? {} : { currentTask: now.currentTask }),
       queueCount: now?.queueCount ?? 0,
       coordination: persona.systemRoles?.includes('coordination') === true,

@@ -173,6 +173,8 @@ function block(rows: readonly ChannelMessageUi[]) {
   return model
 }
 const card = (): HTMLElement => document.querySelector('[data-persona-opinion]') as HTMLElement
+/** DESIGN-01: depois de consolidado o cartão é uma pílula; o clique a reabre (a versão Antes · Depois e as respostas moram atrás dele). */
+const openPill = (): void => { const pill = document.querySelector('[data-persona-opinion-pill]'); if (pill !== null) fireEvent.click(pill) }
 
 describe('o cartão', () => {
   it('eyebrow "{A} quer a opinião da equipe", rodada, e a pergunta como texto', () => {
@@ -308,56 +310,62 @@ describe('motor sem visão', () => {
 describe('a consolidação', () => {
   const fin = (extra: Partial<OpinionUi> = {}) => msg('m-fin', 'nina', 'Nina', 'Troquei a fonte e escureci a capa', ui({ kind: 'consolidated', ...extra }))
 
-  it('MUSE 03:29: depois de consolidado o cartão recolhe SEM esconder o que importa: a pergunta, os chips das marcas e a consolidação ficam; só as respostas ficam atrás de "Ver respostas"', () => {
+  it('DESIGN-01: depois de consolidado o cartão recolhe numa pílula; a pergunta, as respostas e a frase ficam a 1 clique, e as respostas voltam a recolher', () => {
     render(<OpinionBlock t={t as never} block={block([request(), reply('r1', 'bento', 'Bento', 'bom demais', 'liked'), fin()])} team={TEAM} />)
     expect(card().getAttribute('data-collapsed')).toBe('')
+    expect(card().textContent).toContain('Nina ouviu Bento')
+    expect(card().textContent).not.toContain('Qual destas capas funciona melhor?')
+    expect(card().textContent).not.toContain('bom demais')
+    const pill = document.querySelector('[data-persona-opinion-pill]') as HTMLElement
+    expect(pill.getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(pill)
     expect(card().textContent).toContain('Qual destas capas funciona melhor?')
     expect(card().textContent).toContain('Nina juntou as opiniões: Troquei a fonte e escureci a capa')
-    expect([...card().querySelectorAll('ul[class*="markSummary"] li')].map(node => node.textContent)).toEqual(['1 Gostei'])
-    expect(card().textContent).not.toContain('bom demais')
-    const show = within(card()).getByRole('button', { name: 'Ver respostas' })
-    expect(show.getAttribute('aria-expanded')).toBe('false')
-    fireEvent.click(show)
     expect(card().textContent).toContain('bom demais')
-    expect(card().textContent).toContain('Bento')
     expect(card().getAttribute('data-collapsed')).toBeNull()
     const hide = within(card()).getByRole('button', { name: 'Ocultar respostas' })
     expect(hide.getAttribute('aria-expanded')).toBe('true')
     fireEvent.click(hide)
     expect(card().textContent).not.toContain('bom demais')
-    expect(within(card()).getByRole('button', { name: 'Ver respostas' })).toBeTruthy()
+    expect(document.querySelector('[data-persona-opinion-pill]')).not.toBeNull()
   })
 
-  it('MUSE 03:29: o resumo das marcas conta cada uma ("2 Gostei", "1 Sugestão"), na ordem Gostei · Sugestão · Ponto de atenção, e não inventa chip sem resposta com a marca', () => {
+  it('DESIGN-01: os chips das marcas ficam NA pílula e contam cada uma ("2 Gostei", "1 Sugestão"), na ordem Gostei · Sugestão · Ponto de atenção, sem chip para marca que ninguém usou', () => {
     render(<OpinionBlock t={t as never} block={block([
       request(),
       reply('r1', 'bento', 'Bento', 'a', 'liked'), reply('r2', 'sol', 'Sol', 'b', 'liked'), reply('r3', 'luna', 'Luna', 'c', 'suggestion'),
       reply('r4', 'atlas', 'Atlas', '', 'nothing'),
       fin(),
     ])} team={TEAM} />)
-    expect([...card().querySelectorAll('ul[class*="markSummary"] li')].map(node => node.textContent)).toEqual(['2 Gostei', '1 Sugestão'])
+    expect([...card().querySelectorAll('[class*="pillMarks"] > *')].map(node => node.textContent)).toEqual(['2 Gostei', '1 Sugestão'])
   })
 
-  it('só "nada a acrescentar": sem chips, mas as respostas seguem atrás de "Ver respostas"; sem resposta nenhuma, sem o botão', () => {
+  it('só "nada a acrescentar": a pílula não tem chips e diz que juntou as opiniões; as respostas seguem a 1 clique; sem resposta nenhuma o cartão abre com "Recolher"', () => {
     const { unmount } = render(<OpinionBlock t={t as never} block={block([request(), reply('r4', 'atlas', 'Atlas', '', 'nothing'), fin()])} team={TEAM} />)
-    expect(card().querySelector('ul[class*="markSummary"]')).toBeNull()
-    expect(within(card()).getByRole('button', { name: 'Ver respostas' })).toBeTruthy()
+    expect(card().querySelector('[class*="pillMarks"]')).toBeNull()
+    expect(document.querySelector('[data-persona-opinion-pill]')?.textContent).toContain('Nina juntou as opiniões')
+    fireEvent.click(document.querySelector('[data-persona-opinion-pill]') as HTMLElement)
+    expect(within(card()).getByRole('button', { name: 'Ocultar respostas' })).toBeTruthy()
     unmount()
     render(<OpinionBlock t={t as never} block={block([request(), fin()])} team={TEAM} />)
-    expect(within(card()).queryByRole('button', { name: 'Ver respostas' })).toBeNull()
+    fireEvent.click(document.querySelector('[data-persona-opinion-pill]') as HTMLElement)
+    expect(within(card()).queryByRole('button', { name: 'Ocultar respostas' })).toBeNull()
+    expect(within(card()).getByRole('button', { name: 'Recolher' })).toBeTruthy()
   })
 
-  it('MUSE 03:29: a IMAGEM do rascunho continua à vista no recolhido, em miniatura de até 160 px (classe própria), e abre ao clicar', async () => {
+  it('DESIGN-01: sem arte da persona, a imagem que a pessoa anexou fica a 1 clique da pílula e abre inline em tamanho normal (nada some)', async () => {
     render(<OpinionBlock
       t={t as never}
       block={block([request({ imageIds: ['att-1'], alt: 'Capa azul' }), reply('r1', 'bento', 'Bento', 'bom', 'liked'), fin()])}
       team={TEAM}
       resolveImage={() => Promise.resolve('data:image/png;base64,AAAA')}
     />)
+    expect(card().querySelector('img[class*="thumb"]')).toBeNull()
+    fireEvent.click(document.querySelector('[data-persona-opinion-pill]') as HTMLElement)
     await waitFor(() => { expect(card().querySelector('img[class*="thumb"]')).not.toBeNull() })
     const img = card().querySelector('img[class*="thumb"]') as HTMLImageElement
     expect(img.alt).toBe('Capa azul')
-    expect(img.className).toContain('thumbSmall')
+    expect(img.className).not.toContain('thumbSmall')
     fireEvent.click(img.closest('button') as HTMLElement)
     expect(screen.getByRole('dialog')).toBeTruthy()
   })
@@ -377,6 +385,7 @@ describe('a consolidação', () => {
 
   it('versão de TEXTO: "Versão 2" com o alternador Antes · Depois', () => {
     render(<OpinionBlock t={t as never} block={block([request(), fin({ version: { k: 2, before: { text: 'texto velho', imageIds: [] }, after: { text: 'texto novo', imageIds: [] } } })])} team={TEAM} />)
+    openPill()
     expect(within(card()).getByText('Versão 2')).toBeTruthy()
     expect(within(card()).getByText('texto novo')).toBeTruthy()
     fireEvent.click(within(card()).getByRole('button', { name: 'Antes' }))
@@ -391,6 +400,7 @@ describe('a consolidação', () => {
       team={TEAM}
       resolveImage={() => Promise.resolve('data:image/png;base64,AAAA')}
     />)
+    openPill()
     expect(await screen.findByRole('img', { name: 'Antes: Capa' })).toBeTruthy()
     expect(await screen.findByRole('img', { name: 'Depois: Capa' })).toBeTruthy()
   })
@@ -403,6 +413,7 @@ describe('a consolidação', () => {
       team={TEAM}
       resolveImage={() => Promise.resolve('data:image/png;base64,AAAA')}
     />)
+    openPill()
     expect(card().textContent).toContain('Nina juntou as opiniões: Troquei a fonte e escureci a capa')
     expect(within(card()).queryByText('Versão 2')).toBeNull()
     expect(card().querySelector('figure')).toBeNull()
@@ -411,6 +422,7 @@ describe('a consolidação', () => {
     unmount()
     // modo TEXTO: o "Antes" tem texto e o "Depois" não tem nada (o alternador mostraria um parágrafo vazio)
     render(<OpinionBlock t={t as never} block={block([request(), fin({ version: { k: 2, before: { text: 'texto velho', imageIds: [] }, after: { imageIds: [] } } })])} team={TEAM} />)
+    openPill()
     expect(card().textContent).toContain('Nina juntou as opiniões')
     expect(within(card()).queryByText('Versão 2')).toBeNull()
     expect(within(card()).queryByRole('button', { name: 'Depois' })).toBeNull()
@@ -419,6 +431,7 @@ describe('a consolidação', () => {
 
   it('o "Depois" só com espaços também é "sem nova versão"', () => {
     render(<OpinionBlock t={t as never} block={block([request(), fin({ version: { k: 2, before: { text: 'velho', imageIds: [] }, after: { text: '   ', imageIds: [] } } })])} team={TEAM} />)
+    openPill()
     expect(within(card()).queryByText('Versão 2')).toBeNull()
     expect(within(card()).queryByRole('button', { name: 'Depois' })).toBeNull()
   })
@@ -430,10 +443,12 @@ describe('a consolidação', () => {
       team={TEAM}
       resolveImage={() => Promise.resolve('data:image/png;base64,AAAA')}
     />)
+    openPill()
     expect(within(card()).getByText('Versão 3')).toBeTruthy()
     expect(await screen.findByRole('img', { name: 'Depois: Capa' })).toBeTruthy()
     unmount()
     render(<OpinionBlock t={t as never} block={block([request(), fin({ version: { k: 2, before: { text: 'velho', imageIds: [] }, after: { text: 'novo', imageIds: [] } } })])} team={TEAM} />)
+    openPill()
     expect(within(card()).getByRole('button', { name: 'Depois' })).toBeTruthy()
     expect(within(card()).getByText('novo')).toBeTruthy()
   })

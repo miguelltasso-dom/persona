@@ -1,0 +1,23 @@
+{
+  "title": "E-mail da empresa",
+  "hint": "Só leitura: a equipe lê o que chega e nunca marca como lido.",
+  "preset.label": "Provedor",
+  "preset.choose": "Escolha o provedor",
+  "preset.server": "{host} · porta {port} · TLS",
+  "to.label": "Receber de",
+  "to.hint": "Separe com vírgula. Vazio = qualquer destinatário.",
+  "from.label": "De quem",
+  "from.hint": "Separe com vírgula. Vazio = qualquer remetente.",
+  "subject.label": "Assunto contém",
+  "subject.hint": "Separe com vírgula. Vazio = qualquer assunto.",
+  "skipBulk": "Ignorar newsletters e avisos automáticos",
+  "save": "Salvar regra",
+  "cancel": "Cancelar",
+  "saved": "Regra salva.",
+  "failed": "Não consegui salvar a regra.",
+  "trigger.phrase": "Quando chegar e-mail em {to} com assunto {subject}",
+  "trigger.any": "Quando chegar qualquer e-mail",
+  "any": "qualquer",
+  "trigger.hint": "O filtro roda antes de acordar a equipe.",
+  "edit": "Editar regra"
+}

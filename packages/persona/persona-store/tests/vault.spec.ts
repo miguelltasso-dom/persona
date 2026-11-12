@@ -269,3 +269,19 @@ it('document search does not cross into records FTS', async () => {
   })
   expect(vault.searchDocuments('pp', 'palavra-rara-record')).toEqual([])
 })
+
+it('purges a secret record: tombstone body, no fact key, no versions', async () => {
+  const { vault } = await setup()
+  vault.createRecord({
+    id: 'r1', workspaceId: 'ws', projectId: 'pp', kind: 'memory',
+    body: 'token-123', authorId: 'ana', visibility: { kind: 'workspace' }, factKey: 'telegram',
+  })
+  vault.updateRecord('r1', 'token-456', 'ana')
+  vault.purgeSecret('r1')
+  const row = vault.getRecord('r1')
+  expect(row?.body).toBe('Conteúdo movido para o Cofre.')
+  expect(row?.status).toBe('revoked')
+  expect(row?.factKey).toBeUndefined()
+  expect(vault.findActiveFact('pp', 'telegram')).toBeUndefined()
+  expect(vault.listVersions('record', 'r1')).toEqual([])
+})

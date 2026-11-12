@@ -29,6 +29,13 @@ export function Modal({ open, title, eyebrow, description, footer, closeLabel, o
   const bodyRef = useRef<HTMLDivElement>(null)
   const scrimRef = useRef<HTMLDivElement>(null)
 
+  // The ambient pause reads a full-screen scrim as "the shell is covered"; announce it on open/close so the pause and
+  // the resume do not wait for the 1 s sync tick.
+  useEffect(() => {
+    if (!open) return undefined
+    window.dispatchEvent(new Event('persona:cover-change'))
+    return () => { window.dispatchEvent(new Event('persona:cover-change')) }
+  }, [open])
   // Muse (achado do Quill): while open, everything outside the dialog is inert (not focusable, not in the
   // accessibility tree), as a modal must be. Live regions stay out of it so toasts and announcements are still read.
   useEffect(() => {
@@ -104,7 +111,7 @@ export function Modal({ open, title, eyebrow, description, footer, closeLabel, o
   }
 
   return (
-    <div ref={scrimRef} className={styles.scrim} data-persona-root="" role="presentation" onKeyDown={onKeyDown}>
+    <div ref={scrimRef} className={styles.scrim} data-persona-root="" data-persona-cover="" role="presentation" onKeyDown={onKeyDown}>
       <div
         ref={panelRef}
         className={size === 'l' ? `${styles.modal} ${styles.modalL}` : styles.modal}

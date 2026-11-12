@@ -101,7 +101,7 @@ function mount(personas: readonly unknown[] = PERSONAS) {
   const persona = { getProjectBoard: vi.fn(async () => ({ ok: true as const, value: BOARD })), moveTicket: vi.fn(), listPersonas } as unknown as PersonaRemoteClient
   const view = render(
     <PreviewFrame brandLabel="Persona">
-      <ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onBack={() => {}} onMutate={() => {}} />
+      <ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onMutate={() => {}} />
     </PreviewFrame>,
   )
   return { listPersonas, view }
@@ -160,7 +160,7 @@ describe('with persona.flag.teamwork ON', () => {
       }] as unknown as ProjectBoardView['cards'],
     }
     const persona = { getProjectBoard: vi.fn(async () => ({ ok: true as const, value: hostile })), moveTicket: vi.fn(), listPersonas: vi.fn(async () => ({ ok: true as const, value: PERSONAS })) } as unknown as PersonaRemoteClient
-    render(<PreviewFrame brandLabel="Persona"><ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onBack={() => {}} onMutate={() => {}} /></PreviewFrame>)
+    render(<PreviewFrame brandLabel="Persona"><ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onMutate={() => {}} /></PreviewFrame>)
     fireEvent.click(await screen.findByRole('button', { name: 'Caminho do trabalho' }))
     const dialog = await screen.findByRole('dialog')
     fireEvent.click(within(dialog).getByRole('button', { name: 'Bilhete de Bia' }))
@@ -185,7 +185,7 @@ describe('the bilhete and the path come from the host TASK (TaskView.note/path),
       ],
     }))
     const persona = { getProjectBoard: vi.fn(async () => ({ ok: true as const, value: slim })), moveTicket: vi.fn(), listPersonas: vi.fn(async () => ({ ok: true as const, value: PERSONAS })), listTasks } as unknown as PersonaRemoteClient
-    render(<PreviewFrame brandLabel="Persona"><ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onBack={() => {}} onMutate={() => {}} /></PreviewFrame>)
+    render(<PreviewFrame brandLabel="Persona"><ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onMutate={() => {}} /></PreviewFrame>)
     fireEvent.click(await screen.findByRole('button', { name: 'Caminho do trabalho' }))
     const dialog = await screen.findByRole('dialog')
     expect(within(dialog).getAllByRole('listitem')).toHaveLength(2)
@@ -244,7 +244,7 @@ describe('"Revisando: {R}" (reviewing?: { personaId, round } on the card or the 
       ] as unknown as ProjectBoardView['cards'],
     }
     const persona = { getProjectBoard: vi.fn(async () => ({ ok: true as const, value: reviewing })), moveTicket: vi.fn(), listPersonas: vi.fn(async () => ({ ok: true as const, value: PERSONAS })) } as unknown as PersonaRemoteClient
-    render(<PreviewFrame brandLabel="Persona"><ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onBack={() => {}} onMutate={() => {}} /></PreviewFrame>)
+    render(<PreviewFrame brandLabel="Persona"><ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onMutate={() => {}} /></PreviewFrame>)
     expect(await screen.findByText('Revisando: Bia')).toBeTruthy()
     expect(screen.getAllByText(/Revisando:/)).toHaveLength(1)
   })
@@ -258,7 +258,7 @@ describe('"Revisando: {R}" (reviewing?: { personaId, round } on the card or the 
       listPersonas: vi.fn(async () => ({ ok: true as const, value: PERSONAS })),
       listTasks: vi.fn(async () => ({ ok: true as const, value: [{ id: 't-r', reviewing: { personaId: 'teo', round: 1 } }] })),
     } as unknown as PersonaRemoteClient
-    render(<PreviewFrame brandLabel="Persona"><ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onBack={() => {}} onMutate={() => {}} /></PreviewFrame>)
+    render(<PreviewFrame brandLabel="Persona"><ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onMutate={() => {}} /></PreviewFrame>)
     expect(await screen.findByText('Revisando: Téo')).toBeTruthy()
   })
 })
@@ -272,7 +272,7 @@ describe('the capture-only example board (two dev keys + the flag; never in the 
   function mountReal() {
     const moveTicket = vi.fn(async () => ({ ok: true as const, value: undefined }))
     const persona = { getProjectBoard: vi.fn(async () => ({ ok: true as const, value: REVIEW_BOARD })), moveTicket, listPersonas: vi.fn(async () => ({ ok: true as const, value: [] })) } as unknown as PersonaRemoteClient
-    render(<PreviewFrame brandLabel="Persona"><ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onBack={() => {}} onMutate={() => {}} /></PreviewFrame>)
+    render(<PreviewFrame brandLabel="Persona"><ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onMutate={() => {}} /></PreviewFrame>)
     return { moveTicket }
   }
 

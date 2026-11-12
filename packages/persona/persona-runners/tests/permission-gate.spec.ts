@@ -32,8 +32,9 @@ describe('settings the CLI is started with', () => {
     const gate = await start()
     const settings = gate.settings() as { hooks: { PreToolUse: { matcher: string; hooks: { type: string; url: string; headers: Record<string, string> }[] }[] }; allowedHttpHookUrls: string[] }
     expect(gate.url).toMatch(/^http:\/\/127\.0\.0\.1:\d+\/hook$/u)
-    // P0-1: the hook also sees the built-in tools that write a file (to keep them inside the draft); every other built-in tool is still not its business
-    expect(settings.hooks.PreToolUse[0]?.matcher).toBe('mcp__.*|Write|Edit|MultiEdit|NotebookEdit')
+    // P0-1: the hook also sees the built-in tools that write a file (to keep them inside the draft); COLHEITA 8: and the shell and the reads that can reach a secret.
+    // Every other built-in tool is still not its business.
+    expect(settings.hooks.PreToolUse[0]?.matcher).toBe('mcp__.*|Write|Edit|MultiEdit|NotebookEdit|Bash|PowerShell|Read|Grep|Glob')
     expect(settings.hooks.PreToolUse[0]?.hooks[0]).toEqual({ type: 'http', url: gate.url, headers: { [GATE_TOKEN_HEADER]: 'tok-1' } })
     expect(settings.allowedHttpHookUrls).toEqual([gate.url])
   })

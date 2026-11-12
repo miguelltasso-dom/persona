@@ -85,6 +85,9 @@ export interface CreateVaultDocumentInput {
   readonly visibility: VaultRecord['visibility']
 }
 
+/** Body left in place of a secret that moved to the sealed store: the record is revoked, so it is a tombstone, not knowledge. */
+const SECRET_PURGED_BODY = 'Conteúdo movido para o Cofre.'
+
 /**
  * Persist and query the company vault for one project tenant.
  */
@@ -219,6 +222,19 @@ export class VaultRepos {
     const next = parseVaultRecord({ ...current, status: 'revoked' })
     this.writeRecord(next, projectId)
     return next
+  }
+
+  /**
+   * Erase a record that held a secret: the body becomes a plain marker, the fact key goes away, the record is revoked and every
+   * version of it is deleted, so the plaintext stays neither in `vault_record` nor in `vault_version`.
+   * @param id - Record id.
+   */
+  purgeSecret(id: string): void {
+    if (this.getRecord(id) === undefined) throw new StoreError('not-found', id)
+    this.store.tx((db) => {
+      run(db, 'UPDATE vault_record SET body = ?, fact_key = NULL, status = ? WHERE id = ?', [SECRET_PURGED_BODY, 'revoked', id])
+      run(db, 'DELETE FROM vault_version WHERE target_kind = ? AND target_id = ?', ['record', id])
+    })
   }
 
   /**

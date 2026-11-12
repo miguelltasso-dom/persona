@@ -162,8 +162,11 @@ describe('the gate keeps file-writing tools inside the draft (real HTTP, what th
     expect(await permission(gate, 'Write', { file_path: join(root, 'a.svg') }, root)).toBe('deny')
   })
 
-  it('the gate still gives no opinion on the other built-in tools (a shell is the CLI policy\'s business, not the gate\'s)', async () => {
+  it('the gate gives no opinion on the other built-in tools, and on a shell call that the authority table allows (COLHEITA 8: the shell is judged now; see permission-gate-commands.spec)', async () => {
     const { gate, root } = await armed({})
-    for (const tool of ['Read', 'Glob', 'Grep', 'Bash', 'PowerShell', 'WebFetch']) expect(await permission(gate, tool, { command: 'x' }, root)).toBeUndefined()
+    for (const tool of ['Read', 'Glob', 'Grep', 'WebFetch']) expect(await permission(gate, tool, { command: 'x' }, root)).toBeUndefined()
+    for (const tool of ['Bash', 'PowerShell']) expect(await permission(gate, tool, { command: 'ls' }, root)).toBeUndefined()
+    // what the table does not allow is not "no opinion" any more: a shell call it cannot read waits, it never rides on the persona's tool policy alone
+    expect(await permission(gate, 'Bash', { command: 'x' }, root)).toBe('deny')
   })
 })

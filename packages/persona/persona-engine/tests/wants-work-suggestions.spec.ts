@@ -37,13 +37,12 @@ const DM_CHIPS: Readonly<Record<string, Lane>> = {
   'dm.suggest.default.3': 'work', // Proponha uma primeira tarefa para você
 }
 
-/** Onboarding step 5 and the overview card: the requests the app sends for the person. */
+/** Onboarding step 5: the requests the app sends for the person (the overview card takes its request from the company profile, never from a locale string). */
 const OTHER: Readonly<Record<string, { file: string; lane: Lane }>> = {
   'step5.taskPreview': { file: 'onboarding', lane: 'work' },
   'step5.taskPreviewEmpty': { file: 'onboarding', lane: 'work' },
   'step5.activationPrompt': { file: 'onboarding', lane: 'work' },
   'step5.activationPromptEmpty': { file: 'onboarding', lane: 'work' },
-  'overview.suggestedTaskBody': { file: 'shell', lane: 'work' },
 }
 
 /** Suggestions the design docs promise (UX-BEYOND-T3 A-6 / A-7, NEXT-STEP): not in a locale file yet. */

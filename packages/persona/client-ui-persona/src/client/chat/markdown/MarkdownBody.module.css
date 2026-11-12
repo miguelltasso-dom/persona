@@ -162,6 +162,78 @@
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * Detalhe técnico recolhido (item 4 da colheita). Fechado é uma linha discreta ("› Detalhes"), sem caixa: a fala simples vem
+ * primeiro e o técnico fica a um toque. Aberto, o corpo ganha um fio de 2px (--persona-outline-control: no escuro o fio suave quase sumia).
+ * O chevron gira 90° (--motion-fast / --ease-standard); sem movimento se o sistema pedir. Caminhos e códigos aparecem em <code> mono sobre --persona-wash.
+ */
+.details {
+  margin: 0;
+  min-width: 0;
+}
+
+.summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  min-height: var(--control-h-s);
+  padding: 0 var(--persona-space-2);
+  margin-left: calc(var(--persona-space-2) * -1);
+  border-radius: var(--persona-radius-s);
+  font: 700 13px/20px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary:hover {
+  color: var(--persona-ink);
+  background: var(--persona-paper-sunken);
+}
+
+.summary:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--persona-focus-halo);
+}
+
+.summaryIcon {
+  flex: none;
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+.details[open] > .summary .summaryIcon {
+  transform: rotate(90deg);
+}
+
+.detailsBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  min-width: 0;
+  margin-top: var(--persona-space-1);
+  padding-left: var(--persona-space-3);
+  border-left: 2px solid var(--persona-outline-control);
+  color: var(--persona-ink-soft);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+/* the technical path, command or code inside the fold: mono on the wash, never the paper-sunken of the bubble */
+.detailsBody .inlineCode {
+  background: var(--persona-wash);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .summaryIcon {
+    transition: none;
+  }
+}
+
 .srOnly {
   position: absolute;
   width: 1px;

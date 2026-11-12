@@ -11,7 +11,6 @@ import editorStyles from './RoutineEditor.module.css'
 import { WEEK_DAYS, type QuietWindow, type RoutineRun } from './mock-data.ts'
 import { RoutineEditorModal, type EditorPersona, type EditorProject, type RoutineDraft, type RoutineSaved } from './RoutineEditorModal.tsx'
 import { DEFAULT_WHEN, describeWhen, weekRangeLabel, whenFromRrule } from './routine-schedule.ts'
-import { ProjectWorkspaceScopeChip } from '../data/ProjectWorkspaceScopeChip.tsx'
 import { pt as defaultDict } from '../locale/routines/locales.ts'
 import { NextStepBar } from '../next-step/NextStepBar.tsx'
 
@@ -56,6 +55,8 @@ export interface RoutineActions {
   readonly onDelete?: ((row: RoutineRow) => Promise<void>) | undefined
   /** Brings a deleted routine back (the "Desfazer" of the delete toast). */
   readonly onRestore?: ((row: RoutineRow) => Promise<void>) | undefined
+  /** Harvest 19b: the inbox rule section (built by the panel; absent = no section). */
+  readonly emailRule?: ReactNode | undefined
 }
 
 const UNDO_MS = 6000
@@ -89,7 +90,6 @@ export interface RoutinesViewProps {
   readonly quietWindows?: readonly QuietWindow[]
   readonly initialState?: RoutinesSurfaceState
   readonly onRemoteRetry?: () => void
-  readonly scopeProjectId?: string | null
   /** UX-14: empty → "Pedir sugestões à coordenação" (opens the coordinator DM with a ready request). */
   readonly onAskSuggestions?: (() => void) | undefined
   /** Saves a silence window ("22:00" – "07:00"). Without it the "Adicionar janela" button is not drawn. */
@@ -106,7 +106,6 @@ export function RoutinesView({
   quietWindows = [],
   initialState = 'ready',
   onRemoteRetry,
-  scopeProjectId = null,
   onAskSuggestions,
   onAddQuietWindow,
   routineRows = [],
@@ -182,6 +181,7 @@ export function RoutinesView({
         projects={actions.projects}
         onSave={actions.onSave}
         isTeamRoutine={editor.row?.system === true}
+        emailRule={actions.emailRule}
         onClose={() => { setEditor(null) }}
         {...(editor.row === undefined || actions.onTogglePause === undefined
           ? {}
@@ -222,13 +222,11 @@ export function RoutinesView({
           )}
       </ToastRegion>
     )
-  const scopeChip = <ProjectWorkspaceScopeChip dict={dict} projectId={scopeProjectId} />
 
   if (surfaceState === 'loading') {
     return (
       <Screen className={styles.shell} data-persona-surface="routines">
         {header}
-        {scopeChip}
         <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={7} />
       </Screen>
     )
@@ -237,7 +235,6 @@ export function RoutinesView({
     return (
       <Screen className={styles.shell} data-persona-surface="routines">
         {header}
-        {scopeChip}
         <PersonaSurfaceError
           dict={dict}
           titleKey="error.title"
@@ -256,7 +253,6 @@ export function RoutinesView({
     return (
       <Screen className={styles.shell} data-persona-surface="routines">
         {header}
-        {scopeChip}
         <EmptyState
           illustration={ILLUSTRATIONS['empty-routines']}
           title={t('empty.title')}
@@ -273,7 +269,6 @@ export function RoutinesView({
   return (
     <Screen className={styles.shell} data-persona-surface="routines">
       {header}
-      {scopeChip}
       <NextStepBar
         screen="routines"
         state={{

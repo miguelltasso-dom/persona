@@ -57,6 +57,11 @@ function clientKindOf(kind: ApprovalView['kind'], hasConnectorAsk: boolean, hasA
   return kind
 }
 
+/** A quiet-playbook offer (Item 16): a skill card whose id the host builds as `skill-offer-<noteId>[-<n>]`. */
+export function isSkillOffer(item: Pick<ApprovalView, 'kind' | 'id'>): boolean {
+  return item.kind === 'skill' && item.id.startsWith('skill-offer-')
+}
+
 /** One host card → reactive inbox card (status is the caller's business: the Decision store owns the lifecycle). */
 export function approvalViewToItem(item: HostHireCard): ApprovalItem {
   const dependsOnTitle = nonEmpty(item.dependsOnTitle)
@@ -70,7 +75,9 @@ export function approvalViewToItem(item: HostHireCard): ApprovalItem {
     kind,
     title: item.title,
     question: item.question,
-    primaryKey: PRIMARY[kind],
+    // Item 16: the host's "this way of working proved itself" offer (ids `skill-offer-…`) reads "Virar skill" / "Agora não", not "Revisar skill" / "Dispensar".
+    primaryKey: isSkillOffer(item) ? 'action.primary.skillOffer' : PRIMARY[kind],
+    ...(isSkillOffer(item) ? { dismissKey: 'action.dismiss.skillOffer', stampKey: 'stamp.skillOffer' } : {}),
     ...(connector === undefined ? {} : { connector }),
     ...(actionPreview === undefined ? {} : { actionPreview }),
     // An external action with no usable preview degrades to a plain card, but stays cancel-only: it must never be approved blind.

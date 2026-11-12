@@ -12,7 +12,7 @@ describe('pose crossfade on real state change (UX-GUIDE §3)', () => {
     const { container, rerender } = render(<PersonaTeamFigure member={member} breatheDelay="0s" />)
     const imgs = (): number => container.querySelectorAll('img').length
     const before = imgs()
-    rerender(<PersonaTeamFigure member={{ ...member, state: 'resting' }} breatheDelay="0s" />)
+    rerender(<PersonaTeamFigure member={{ ...member, state: 'resting', quiet: true }} breatheDelay="0s" />)
     expect(imgs()).toBe(before + 1)
     act(() => { vi.advanceTimersByTime(300) })
     expect(imgs()).toBe(before)

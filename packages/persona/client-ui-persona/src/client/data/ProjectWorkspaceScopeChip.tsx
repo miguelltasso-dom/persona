@@ -6,13 +6,14 @@ import styles from './ProjectWorkspaceScopeChip.module.css'
 
 export interface ProjectWorkspaceScopeChipProps {
   readonly dict: LocaleDict
-  readonly projectId: string | null | undefined
+  /** The NAME of the project of the moment (never its id). Null = nothing to say yet. */
+  readonly projectName: string | null | undefined
 }
 
-/** PB-5 hint when a data panel is scoped to the project opened from Quadros. */
-export function ProjectWorkspaceScopeChip({ dict, projectId }: ProjectWorkspaceScopeChipProps): ReactNode {
-  if (projectId === null || projectId === undefined || projectId.length === 0) return null
-  const label = bindLocale(dict, 'scope.project', { project: projectId })
+/** Says which project a data panel (Arquivos, Canvas) shows: the tabs of the Projetos place are of the project of the moment (DESIGN-01 #10). */
+export function ProjectWorkspaceScopeChip({ dict, projectName }: ProjectWorkspaceScopeChipProps): ReactNode {
+  if (projectName === null || projectName === undefined || projectName.length === 0) return null
+  const label = bindLocale(dict, 'scope.project', { project: projectName })
   return (
     <p className={styles.wrap}>
       <Chip tone="brand" size="s">{label}</Chip>

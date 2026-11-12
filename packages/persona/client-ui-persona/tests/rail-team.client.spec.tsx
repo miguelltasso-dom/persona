@@ -73,7 +73,7 @@ describe('RailTeam density', () => {
     render(<RailTeam t={shellTranslate} collapsed={false} members={[persona('nina', 'waiting', 2)]} />)
     const toggle = screen.getByRole('button', { name: /Sua equipe/u })
     expect(toggle.getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByRole('button', { name: /Conversar com Nina · Cargo · Aguardando você · 2 não lidas/u })).toBeTruthy()
+    expect(screen.getByRole('button', { name: /Conversar com Nina · Cargo · Esperando você · 2 não lidas/u })).toBeTruthy()
     fireEvent.click(toggle)
     expect(toggle.getAttribute('aria-expanded')).toBe('true')
   })

@@ -18,7 +18,8 @@ export interface WebhookDelivery {
 
 /** Host slice the route needs. */
 export interface GithubWebhookSink {
-  secretOf(projectId: string): string
+  /** The shared secret, read from the sealed store (H15c): async because the vault is. */
+  secretOf(projectId: string): Promise<string>
   ingest(projectId: string, event: string, action: string, repository: string, deliveryId: string, payload: Record<string, unknown>): GithubIngestView
   now(): number
 }
@@ -99,7 +100,7 @@ export function githubWebhookHandler(
       chunks.push(part)
     }
     const body = Buffer.concat(chunks)
-    const secret = sink.secretOf(projectId)
+    const secret = await sink.secretOf(projectId)
     const signature = headerOf(req, 'x-hub-signature-256')
     if (!verifyGithubSignature(secret, signature, body)) {
       res.writeHead(401).end()

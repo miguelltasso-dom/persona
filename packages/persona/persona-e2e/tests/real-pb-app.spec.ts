@@ -43,24 +43,30 @@ describe.skipIf(!run)('PB-9 app — Quadros por projeto: fluxo próprio, editar 
   const flowHeader = async (): Promise<string> =>
     (await mainText(s.page)).split('\n').find(line => /Fluxo próprio deste projeto/u.test(line)) ?? ''
 
+  // DESIGN-01 #10: Projetos opens on the board of the project of the moment; the grid of cards is "Ver todos os projetos" in the header switcher.
   const openBoard = async (): Promise<void> => {
-    const back = s.page.getByRole('button', { name: 'Voltar aos quadros' })
-    if (await back.count() > 0) await back.first().click()
     const health = await panelHealth(s, 'kanban')
     expect(health.fatals).toEqual([])
-    await s.page.getByText('Pessoal', { exact: true }).first().click()
-    await s.page.getByRole('button', { name: 'Editar fluxo' }).first().waitFor({ state: 'visible', timeout: 30_000 })
+    await s.page.getByRole('button', { name: 'Opções' }).first().waitFor({ state: 'visible', timeout: 30_000 })
   }
 
-  vitestIt('[PB-9 app] lista de Quadros e quadro do projeto: sem tela em branco, sem carregando preso, sem fatais, axe sem crítico/sério; capturas claro/escuro', async () => {
+  const openAllProjects = async (): Promise<void> => {
+    await s.page.getByRole('button', { name: /Trocar de projeto/u }).first().click()
+    await s.page.getByRole('menuitem', { name: 'Ver todos os projetos' }).click()
+    await s.page.locator('[data-persona-boards]').first().waitFor({ state: 'visible', timeout: 30_000 })
+  }
+
+  vitestIt('[PB-9 app] quadro do projeto (a porta de entrada) e grade de todos os projetos: sem tela em branco, sem carregando preso, sem fatais, axe sem crítico/sério; capturas claro/escuro', async () => {
     const health = await panelHealth(s, 'kanban')
     expect(health.fatals).toEqual([])
     expect(health.stuck, health.detail).toBe(false)
     expect(health.blank, health.detail).toBe(false)
     expect(health.axe.skipped, `axe: ${health.axe.reason ?? ''}`).toBe(false)
     expect(blockingAxe(health.axe).join(' || ')).toBe('')
+    await openAllProjects()
     await shootBothThemes(s.page, SUITE, 'pb-quadros-lista')
-    await openBoard()
+    await s.page.getByRole('article', { name: /Abrir quadro/u }).first().click()
+    await s.page.getByRole('button', { name: 'Opções' }).first().waitFor({ state: 'visible', timeout: 30_000 })
     const text = await mainText(s.page)
     expect(text).toMatch(/Fluxo próprio deste projeto/u)
     expect(text).not.toMatch(/undefined|\[object|NaN/u)
@@ -70,7 +76,8 @@ describe.skipIf(!run)('PB-9 app — Quadros por projeto: fluxo próprio, editar 
 
   vitestIt('[PB-9.3 app] Editar fluxo: adicionar coluna, salvar, recarregar (persistiu) e remover — o quadro acompanha', async () => {
     await openBoard()
-    await s.page.getByRole('button', { name: 'Editar fluxo' }).first().click()
+    await s.page.getByRole('button', { name: 'Opções' }).first().click()
+    await s.page.getByRole('menuitem', { name: 'Editar fluxo' }).click()
     const dlg = s.page.getByRole('dialog').last()
     await dlg.getByText('Editor de fluxo').waitFor({ state: 'visible', timeout: 15_000 })
     const before = await dlg.getByRole('button', { name: 'Remover coluna' }).count()
@@ -89,7 +96,8 @@ describe.skipIf(!run)('PB-9 app — Quadros por projeto: fluxo próprio, editar 
     await s.page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 120_000 })
     await openBoard()
     await s.page.getByText('Revisão final Gauge').first().waitFor({ state: 'visible', timeout: 20_000 })
-    await s.page.getByRole('button', { name: 'Editar fluxo' }).first().click()
+    await s.page.getByRole('button', { name: 'Opções' }).first().click()
+    await s.page.getByRole('menuitem', { name: 'Editar fluxo' }).click()
     const dlg2 = s.page.getByRole('dialog').last()
     const removeButtons = dlg2.getByRole('button', { name: 'Remover coluna' })
     await removeButtons.nth((await removeButtons.count()) - 1).click()
@@ -102,7 +110,8 @@ describe.skipIf(!run)('PB-9 app — Quadros por projeto: fluxo próprio, editar 
   vitestIt('[PB-9.5 app] Sugestão da Coordenação: mostra o fluxo proposto com as colunas; "Agora não" não muda o fluxo', async () => {
     await openBoard()
     const before = await flowHeader()
-    await s.page.getByRole('button', { name: 'Sugestão da Coordenação' }).click()
+    await s.page.getByRole('button', { name: 'Opções' }).first().click()
+    await s.page.getByRole('menuitem', { name: 'Sugestão da Coordenação' }).click()
     await s.page.getByText(/Usar este fluxo:/u).first().waitFor({ state: 'visible', timeout: 20_000 })
     expect(await s.page.getByRole('button', { name: 'Usar este fluxo' }).count()).toBeGreaterThan(0)
     await shootBothThemes(s.page, SUITE, 'pb-sugestao-da-coordenacao')
@@ -129,28 +138,30 @@ describe.skipIf(!run)('PB-9 app — Quadros por projeto: fluxo próprio, editar 
     await s.page.waitForTimeout(1_500)
     await snapDiag('pb9-nova-tarefa-depois')
     await s.page.getByPlaceholder(/Mensagem em /u).first().waitFor({ state: 'visible', timeout: 20_000 })
-    expect(await s.page.getByRole('button', { name: 'Voltar aos quadros' }).count(), 'ainda no quadro depois de "Nova tarefa"').toBe(0)
+    expect(await s.page.getByRole('button', { name: 'Opções' }).count(), 'ainda no quadro depois de "Nova tarefa"').toBe(0)
   }, 120_000)
 
-  // Comportamento ATUAL: o projeto novo nasce com o fluxo do modelo e o quadro DELE abre; o Pessoal não muda. Ao voltar, a lista tem um projeto a mais.
-  vitestIt('[PB-9.1 app] "Novo projeto" → modelo "Site / produto" → "Usar este modelo" CRIA um projeto novo (não troca o fluxo do Pessoal), ABRE o quadro dele e, ao voltar, a lista tem um projeto a mais', async () => {
+  // Comportamento ATUAL (DESIGN-01 #10): o projeto novo nasce com o fluxo do modelo e vira o projeto da vez (o quadro DELE abre); o Pessoal não muda. Na grade de todos os projetos há um cartão a mais.
+  vitestIt('[PB-9.1 app] "Novo projeto" → modelo "Site / produto" → "Usar este modelo" CRIA um projeto novo (não troca o fluxo do Pessoal), ABRE o quadro dele e, na grade, há um projeto a mais', async () => {
     const health = await panelHealth(s, 'kanban')
     expect(health.fatals).toEqual([])
+    await openAllProjects()
     const cardsBefore = await s.page.getByRole('button', { name: 'Ações do projeto' }).count()
     await s.page.getByRole('button', { name: 'Novo projeto' }).click()
     await s.page.getByRole('button', { name: 'Site / produto', exact: true }).click()
     await s.page.getByRole('button', { name: 'Usar este modelo' }).click()
-    await s.page.getByRole('button', { name: 'Voltar aos quadros' }).first().waitFor({ state: 'visible', timeout: 30_000 })
+    await s.page.getByRole('button', { name: 'Opções' }).first().waitFor({ state: 'visible', timeout: 30_000 })
     await snapDiag('pb9-novo-projeto-depois', `cartões de projeto antes: ${String(cardsBefore)}`)
-    await s.page.getByRole('button', { name: 'Voltar aos quadros' }).first().click()
+    await openAllProjects()
     await expect.poll(() => s.page.getByRole('button', { name: 'Ações do projeto' }).count(), { timeout: 20_000, message: 'nenhum projeto novo na lista' }).toBe(cardsBefore + 1)
   }, 120_000)
 
-  bug('Lumen', '[PB-9.1 app] a etiqueta do fluxo no cartão da lista de Quadros acompanha o fluxo real do quadro (depois de trocar o modelo o cartão diz "Simples" e o quadro "Contratação")', async () => {
+  bug('Lumen', '[PB-9.1 app] a etiqueta do fluxo no cartão da grade de projetos acompanha o fluxo real do quadro (depois de trocar o modelo o cartão diz "Simples" e o quadro "Contratação")', async () => {
     await panelHealth(s, 'kanban')
+    await openAllProjects()
     const listText = await mainText(s.page)
-    await s.page.getByText('Pessoal', { exact: true }).first().click()
-    await s.page.getByRole('button', { name: 'Editar fluxo' }).first().waitFor({ state: 'visible', timeout: 30_000 })
+    await s.page.getByRole('article', { name: 'Abrir quadro Pessoal' }).click()
+    await s.page.getByRole('button', { name: 'Opções' }).first().waitFor({ state: 'visible', timeout: 30_000 })
     const header = await flowHeader()
     const boardTemplate = /^(\S+)/u.exec((await mainText(s.page)).split('\n').find(line => /Fluxo próprio deste projeto/u.test(line)) ?? '')?.[1] ?? ''
     void boardTemplate

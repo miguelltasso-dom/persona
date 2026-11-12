@@ -1,5 +1,179 @@
 # Quill — relatos de implementação UI (mais recente no topo)
 
+## 2026-11-11 16:46 — AJUSTES do Carbon (quill-final) · bundle 12 · pré-aceite do delta pedido ao Ember
+
+- **Pedido do Keel (16:25:57):** quatro itens do `persona-spec/carbon/lotes/quill-final.md`.
+  1. **About:** `.inline` virou `.about.inline` (duas classes vencem `.about`, sem depender da ordem do CSS).
+  2. **Membros:** o convite só aparece com a equipe ligada, e o estado calmo "Ainda não ligada" (sem "Cofre indisponível") toma o lugar da seção remota enquanto não estiver ligada. Para isso, `remote-team/remote-team-status.ts` (loja pequena: o painel remoto publica o estado derivado, a Membros lê com `useSyncExternalStore`). O painel remoto segue montado, escondido, para publicar o estado. O cartão "Você" (isSelf) mostra "Dono · Neste computador" e perdeu a fileira de chips Dono/Ativo.
+  3. **Personas:** o chevron do chip está dentro do `Chip` ("Claude · Haiku · medium ▾"). O chevron do acordeão tem área própria, à direita do chip, com `aria-expanded` e um rótulo novo ("Mostrar os ajustes de {name}"), e gira 180° quando aberto.
+  4. **Capturas (bundle 12):** `settings-2-aparencia` e `settings-3-sobre` em 1440 claro+escuro (4 PNG); `personas-1-panel` e `personas-1b-open` em 960×640 e zoom200, claro+escuro (8 PNG). Axe 0 e console 0 em todas.
+- **Achado no caminho:** a primeira versão da seção remota mostrava o estado calmo sem montar o painel remoto, e o estado nunca chegava a "ligada". Corrigido com o painel montado e escondido (`hidden`).
+- **Provas:** 19 specs de equipe remota, Membros, acessibilidade, Personas e Sobre, 102 testes verdes. Um teste antigo (E13: "Equipe remota acessível com só o dono") foi reescrito para o contrato novo. Typecheck: 2 erros, nenhum nos meus arquivos.
+- **Manifestos restritos para o pré-aceite:** `scripts/persona/preaccept-manifests/quill-final-settings.json` e `quill-final-personas.json`.
+- **Pendências:** o chip de Personas mostra só "Padrão do motor" quando o host não reporta o provedor (caso da persona de teste em 960). A Membros não entrou no delta de capturas.
+
+## 2026-11-11 15:38 — AJUSTES do Carbon (quill-b8-lote2) · bundle 11 · pré-aceite do delta pedido ao Ember
+
+- **Pedido do Keel (15:21:04):** opção (a) para a foto `settings-2-aparencia` (960 claro, sonda nova) + os ajustes do Carbon no `quill-b8-lote2`.
+- **Feito no código:**
+  - **Linha fechada de Personas em 64 px de conteúdo:** `.row` com `gap: 0`, `min-height: 64px`, `box-sizing: border-box`, padding vertical zerado; `.rowToggle` com 62 px (mais a borda, 64). Corpo aberto ganha padding próprio (`.accordion[data-open='true'] .accordionInner`).
+  - **Resumo da autonomia e chevron na linha fechada:** resumo (`personasTab.autonomy.*`) e chevron 12 px que gira 180° em `--motion-fast` (`.rowToggle[aria-expanded='true'] .chevron`).
+  - **Chip "Claude · {modelo} · {esforço}"**: o provedor vem de `row.engine.runnerCli` (`engineProviderLabel`: claude→Claude, codex→Codex, cursor, opencode, dsh→DeepSeek). Chevron 12 no próprio chip. Dado do host, sem texto inventado.
+  - **Ordem da lista = ordem do rail:** `ConnectedPersonasSettings` usa `sortPersonasForUi` (o mesmo do rail). Atlas no topo.
+  - **Máscara de 12 px fora do corpo que rola:** novo `shell/SettingsScrollFrame` (moldura fixa, não rola; `data-scrolled` por `onScrollCapture`; a máscara só ativa com `scrollTop > 0`). Usada em Personas, Aparência, Sobre e na pilha de Conexões. As máscaras antigas saíram dos CSS.
+- **Captura (bundle 11, `.maestri/tmp/shots/quill/bundle11`):**
+  - Personas 1440 claro+escuro, 6 PNG: `personas-1-panel`, `personas-1b-open` (Atlas aberta, novo estado), `personas-1c-team-review`. Axe 0, console 0.
+  - `settings-2-aparencia` 960 claro, 1 PNG, com a sonda nova (`.probe.json` gravado).
+- **Pré-aceite pedido ao Ember:** dois manifestos restritos — `scripts/persona/preaccept-manifests/quill-b11-aparencia-960.json` (1 PNG) e `quill-b11-personas.json` (6 PNG).
+- **Provas:** typecheck do pacote com 15 erros, nenhum nos meus arquivos (são de `generated-imports.ts`, de outro builder). 29 specs afetados verdes após um ajuste: `settings-personas` aceita o texto da autonomia no resumo e na opção.
+- **Fora de mim:** a pílula "Claude · —" do rail é do Prism/Zinc. Uso e limites e Importadores são de outros donos e ainda não usam a moldura. Membros (MembersView) também não usa a moldura: fica para a próxima onda.
+
+## 2026-11-11 15:15 — REENTREGA (REFAZER do Carbon, quill-b7-settings) · bundle 10 · 960x640 claro+escuro · pré-aceite pedido ao Ember
+
+- **Pedido do Keel (14:53:57) e revisão do Carbon (`persona-spec/carbon/lotes/quill-b7-settings.md`):** meus itens fechados.
+  1. **Sobre:** `AboutSettingsPanel` sem o cartão "Versão e avisos", sem o botão do DSW e sem `Ctrl ,`. `AboutPersona` com a prop `inline` (grade da página: `max-width: none`, `margin: 0`, sombra `--persona-shadow-sticker`), direto sob o cabeçalho. Aba "Sobre".
+  2. **200%:** `PlaceTabsBar.module.css` com `[role=tablist]` em `max-content` e `[role=tab]` com `nowrap`. Guilhotina de 12 px (`mask-image`) no corpo rolável de Aparência, Sobre, Personas e na pilha de Conexões.
+  3. **Aparência:** `.mini` com 100% da largura e 16:9 acima de 1024 px (120 × 72 abaixo); posições internas em % do quadro. Leque com Atlas (entrega), Nina (bom dia) e Sol (fim de expediente). Desligado: fundo `--persona-wash`, sem o disco lilás fixo. `settings-2b` capturado com o interruptor desligado.
+  4. **Equipe à distância:** um só cartão. O `ConnectedRemoteTeamPanel` é o próprio cartão (`title` = "Equipe à distância", `calm`), sem cartão de fora. No cofre indisponível, modo calmo: chip "Ainda não ligada" em tom neutro, texto neutro, sem ícone de alerta nem botão de ajuda. Chaves novas `remote.calm.status` e `remote.calm.body` (pt e en).
+  - **Personas (cena 16):** linhas com 64 px de conteúdo (padding vertical zerado; cabeçalho de 64 px; 1 px de borda).
+  - **7:** capturas em 960 × 640, claro e escuro: 18 PNG em `bundle10` (Configurações 12, Personas 4, Membros 2). Axe 0, console 0, sem rolagem lateral.
+- **Fora de mim:** o id `dsh` no cartão DeepSeek e o "Recomendado" do seletor de política de contas (Zinc, #12); o rodapé do rail (Prism/Zinc).
+- **Testes:** 29 arquivos e 202 testes verdes (19 de equipe remota, mais Sobre, Conexões, navegação, Aparência, figurinhas, Personas, Membros e a11y). Typecheck do pacote: 2 erros, nenhum nos meus arquivos.
+- **Manifesto restrito para o pré-aceite:** `scripts/persona/preaccept-manifests/quill-b10-reentrega.json` (9 cenas × 2 esquemas, 960 × 640).
+- **Pendente:** prefixo "Claude ·" no chip (dado do host).
+
+## 2026-11-11 15:03 — DELTA do lote 2 (bundle 9): alvos do chip em 24 px + Membros com remoteTeamTab ligada · pré-aceite pedido ao Ember
+
+- **Pré-aceite do bundle 8 (Ember 14:46 e Keel 14:47):** 12 passou / 0 falhou, 6 de 6 cenas, axe 0, console 0, GPU 0. Os avisos que sobraram: 5 alvos de 22 px no chip "Trocar modelo e esforço" (personas-1-panel e personas-1c-team-review) e o "Recomendado" do cartão de contas (Zinc, em settings-1-conexoes e 1b).
+- **Correção (pedido do Keel, 14:47 e 14:47:22):** `.engineChipButton` com `display: inline-flex` e `min-height: 24px` (a área clicável tem 24 px, WCAG 2.2 AA 2.5.8; o chip em si segue com 22 px).
+- **Delta, bundle 9** (`.maestri/tmp/shots/quill/bundle9`, 1440 claro+escuro, 6 PNG):
+  - `personas-1-panel` e `personas-1c-team-review` (4 PNG): substituem as de bundle 8, agora com o chip em 24 px.
+  - `membros-1-membros` (2 PNG, novo): cenário `membros` do `quill-shots.mjs`, com `persona.flag.remoteTeamTab` ligada; a aba Membros aparece entre Personas e Importadores. Uma tentativa no escuro caiu no clique e a segunda passou.
+  - Axe 0 e console 0 nas três cenas; sem rolagem lateral.
+- **Manifesto restrito para o pré-aceite:** `scripts/persona/preaccept-manifests/quill-b9-delta.json` (3 cenas × claro/escuro, 1440).
+- **Pendências do lote 2 que ficam:** o prefixo "Claude · " do chip continua sem dado do host (`PersonaEngineChoiceView` não traz o provedor); o "Recomendado" do seletor de contas é do Zinc.
+
+## 2026-11-11 14:46 — LOTE 2: Personas (cena 16) + revisão (cena 17) + ajustes de Configurações · bundle 8 · pré-aceite pedido ao Ember
+
+- **Pedidos do Keel (14:22, 14:24, 14:27, 14:29):** rótulo da aba = "Sobre" (aba e título da tela, pt e en), com os testes ajustados; título interno "Equipe remota" escondido dentro do cartão Equipe à distância (`titleHidden` em `RemoteTeamPanel` e `ConnectedRemoteTeamPanel`; o cartão passa a prop); recapturar as cenas 1-conexoes, 1b, 2-aparencia e 3-sobre em 1440 claro+escuro (8 PNG); cena 16 e 17 em 1440 (4 PNG). **2b e 3b não recapturadas**, como pedido.
+- **Cena 16 (Personas):**
+  - linhas de 64 px: o cabeçalho (`rowToggle`, `min-height: 64px`) abre o corpo em acordeão por `grid-template-rows` 0fr→1fr, com `--motion-base` e `--ease-standard`; estado por linha (`openRows`), `aria-expanded` e `aria-controls`.
+  - aviso de pasta único no topo da lista (`#persona-no-folder-banner`) com "Escolher pasta"; o interruptor sem pasta fica **desligado e desabilitado** e aponta para esse aviso (`aria-describedby`).
+  - selects crus viraram `primitives/Select.tsx` (novo). O DS não tinha Select e o DESIGN-SYSTEM proíbe `<select>` nativo sem estilo; o primitivo é o mesmo elemento nativo, com os tokens. Quatro usos: limite diário de ajuda, rodadas de opinião, projeto e "Quem revisa".
+  - chip com "▾". **Falta o prefixo "Claude · "**: precisa do provedor da persona no DTO, não mexi.
+  - guilhotina de 12 px: `mask-image` no `Screen` da lista; a faixa fica na folga do padding de 32 px, então não esconde conteúdo.
+- **Cena 17 (revisão):** a frase estática já existia (`reviewAlwaysOn`); o bloco com os selects só aparece com o host (`reviewBeforeDelivery`) e agora usa o Select do DS.
+- **"Recomendado":** fora de motor, esforço (o EFF-1 já não tem selo) e autonomia. Sobra só o seletor de política de contas em Conexões (Zinc).
+- **Provas:**
+  - 5 specs de Personas e efeito = 37 verdes. Dois testes ajustados ao comportamento novo: `personas-save-files` (aviso único no topo, aponta o interruptor) e `settings-personas` (botões só de acordeão).
+  - Typecheck do pacote: 15 erros TS, **nenhum nos meus arquivos** (são de `ConnectedGlobalKanban` e de specs de outros builders).
+  - Bundle 8 montado (exclusivo). Captura 1440 claro+escuro: `.maestri/tmp/shots/quill/bundle8` (settings 8 PNG, personas 4 PNG; axe 0, console 0, sem rolagem lateral).
+  - Manifesto restrito para o pré-aceite: `scripts/persona/preaccept-manifests/quill-b8-lote2.json`.
+- **Pendente:** prefixo "Claude · " no chip; captura da aba Membros com `remoteTeamTab` ligada; "Recomendado" do seletor de contas (Zinc).
+
+## 2026-11-11 14:25 — LOTE 1 do #08 + #20: RED→GREEN, captura no shell real, pré-aceite pedido ao Ember · Personas (cena 16) e cena 17 ainda não
+
+**Estado em uma linha:** abas de Configurações, cartão Equipe à distância em Conexões, Aparência com figurinhas, Sobre inline e Membros atrás da flag `remoteTeamTab` estão no tree, testados e capturados. Falta a Personas (cena 16) e a cena 17.
+
+- **Decisões do Keel aplicadas** (recados 12:59, 13:03, 13:37, 13:37:51): flag `remoteTeamTab` (OFF na v1.1); cartão Equipe à distância sempre em Conexões (wrapper `SettingsConnectionsTab`, com `ConnectedRemoteTeamPanel`); 254 (Lumen) e 399 (Prism) editados e avisados com diff; 389 e 411 intocados; Importadores fica até a aba Importar existir (onda 3); sem "som ao concluir"; `AboutPersona` com `version?` (sem ponte de versão, a linha "Versão" não aparece).
+- **Arquivos novos:** `src/client/members/members-flag.ts`, `members/RemoteTeamCard.tsx` + `.module.css`, `shell/SettingsConnectionsTab.tsx` + `.module.css`, `figurinhas/StickersSection.tsx` + `.module.css`; specs `tests/members-owner-row`, `tests/settings-connections-team-card`, `tests/appearance-stickers`, `tests/about-persona-inline` (`.client.spec.tsx`).
+- **Arquivos alterados:** `src/client/flags.ts` (remoteTeamTab), `shell/nav-places.ts` (abas + aliases), `shell/AppearanceSettingsPanel.tsx`, `shell/AboutSettingsPanel.tsx`, `members/MembersView.tsx` (dono "Neste computador", e-mail `@workspace.local` não aparece, convite só com handler), `primitives/About.tsx` (`version?`), `locale-sources/members.{pt,en}.json` (+ gen), `kanban/register-lumen-ui.tsx:254` (Lumen, avisado), `shell/register-prism-screens.tsx:399` (Prism, avisado), `tests/nav-places.client.spec.tsx`, `tests/figurinhas.client.spec.tsx`, `tests/flags-defaults.client.spec.ts` (a pedido do Prism), `tests/lumen-a11y.client.spec.tsx` (onInvite, a pedido do Prism), `persona-spec/contracts/flags-defaults.md` (linha remoteTeamTab), `scripts/persona/quill-shots.mjs` (cenário `settings`).
+- **Apagados:** `figurinhas/PersonalitySettingsPanel.tsx` e `.module.css` (conteúdo migrou para `StickersSection`; Prism já tirou a importação e o registro).
+- **Provas:**
+  - RED (lote 1): 7 falhas, 18 passes, nos casos esperados (abas, alias, e-mail e convite de Membros, leque, `AboutPersona` sem versão, módulo do cartão).
+  - GREEN: 7 specs do lote = 78 testes verdes; depois, 9 arquivos com flags/a11y = 169 verdes; suíte inteira do `client-ui-persona`: **407 arquivos / 3099 testes verdes** (`.maestri/tmp/quill/suite-client.txt`).
+  - Typecheck: `check-pkg client-ui-persona` com 0 erros TS na última rodada.
+  - Locales geradas (`gen-client-ui-persona-locales.mjs`, trava exclusiva). Bundle 7 montado duas vezes (exclusivo), a 2ª após o ajuste de layout.
+  - Captura no shell real: `quill-shots.mjs settings` = 36 PNG (6 telas × claro/escuro × 3 viewports), axe 0 (mine e outside), console 0, sem rolagem lateral. Manifesto `.maestri/tmp/quill/manifests/quill-b7-settings.json` enviado ao Ember para o pré-aceite.
+- **Bugs que achei na captura e corrigi:** (1) o cartão caía em cima do painel de contas, porque o `Screen` do painel tem `height: 100%` e rolagem própria; a pilha `SettingsConnectionsTab` agora é a rolagem, e o cartão usa a mesma coluna (`max-width` 1180 px e recuo de space-8); (2) o seletor da aba Sobre era "Sobre", mas o rótulo é "Sobre e atualizações".
+- **Limitações e decisões a registrar:**
+  - Membros só existe com a flag `remoteTeamTab` ligada. Ainda **não capturei a aba Membros** (preciso ligar a flag na captura).
+  - "Som ao concluir": sem backend, fora da Aparência (decisão confirmada pelo Keel).
+  - Versão no Sobre: sem ponte de versão (`personaAppVersion()` devolve `dev`), a linha "Versão" não aparece; o item do Cobalt liga depois.
+  - A aba se chama "Sobre e atualizações" (rótulo atual). A cena 24 da Muse fala em "Sobre": decidir com a Muse se o rótulo muda.
+  - O painel interno de equipe remota mostra o título "Equipe remota" dentro do cartão "Equipe à distância". É copy do E13 (Lumen/Muse decidem).
+  - **Conexões (Zinc):** "Perguntar antes de trocar" mostra o selo "Recomendado" (regra 0.1 da Muse). É conteúdo do Zinc, não toquei.
+  - Importadores continua em Configurações até a onda 3.
+- **Pendente (lote 2):** Personas (cena 16): linhas de 64 px com acordeão de 220 ms (`grid-template-rows` 0fr→1fr), um Notice único de pasta no topo, o Select do design system no lugar do `<select>` cru, chip "Claude · Haiku · medium ▾", interruptor sem pasta desligado e desabilitado, sem "Recomendado" nas preferências de motor e modelo. Cena 17: frase estática e guilhotina de 12 px no topo do corpo rolável. Captura da aba Membros com a flag ligada.
+
+## 2026-11-11 13:05 — Keel autorizou as edições de registro (recado 13:03:27) · plano para quando ele chamar · STANDBY segue
+
+- **Importadores:** só sai de Configurações quando a aba Importar existir na Memória da empresa (Lumen, onda 3). Até lá fica onde está. Logo, `shell/register-prism-screens.tsx:411` NÃO muda agora.
+- **Autorizado** (Keel 13:03): editar `kanban/register-lumen-ui.tsx:254` (Lumen) e `shell/register-prism-screens.tsx:389/399/411` (Prism) com Edit de trecho mínimo, sem reescrever o arquivo. Releio o arquivo antes de editar (eles editam ao mesmo tempo) e aviso o dono por tell.mjs com o diff exato logo depois.
+- **Plano quando eu for chamado, nesta ordem:**
+  1. `register-lumen-ui.tsx:254`: `RemoteConnectionsPanel` → `SettingsConnectionsTab` (wrapper meu: painel existente + cartão `RemoteTeamCard`).
+  2. `register-prism-screens.tsx:389` (members) e `:399` (personality): proponho ZERO edição. O gate da aba Membros (só com a remota ligada) e a remoção da aba Personalidade ficam em `shell/nav-places.ts`, que é meu. Só edito essas linhas se o gate exigir; nesse caso aviso o Prism com o diff.
+  3. `:411` (importers): só na onda 3, junto com a aba Importar na Memória.
+- **Padrão confirmado:** cartão "Equipe à distância" sempre em Conexões; aba Membros só com a equipe remota ligada.
+
+## 2026-11-11 13:02 — Keel respondeu (recado 12:59:41): escopo fechado · achados de montagem · STANDBY segue
+
+**Decisões do Keel (vigentes):**
+- 5 abas: Conexões · Personas · Uso e limites · Aparência · Sobre (o PLAN DESIGN01-1 já foi corrigido pelo Keel). Cena 22 = fusão Aparência + Personalidade; o "6 abas" era rascunho.
+- Meus: `shell/` das telas de Configurações (Aparência, Sobre inline, nav de abas), `settings-personas/`, `figurinhas/` (Personalidade → dentro de Aparência), `members/`, e as locales e testes tocados.
+- Não são meus: `connections/` e `usage/` (conteúdo de Conexões #12 e Uso #13 = Zinc, em fila). Eu só monto o cartão "Equipe à distância" dentro de Conexões, combinado com o Zinc por tell.mjs. `shell/register-prism-screens.tsx` = Prism (peço a ele se precisar registrar tela). `SettingsLauncher` (FL-2) = Flint.
+- Congelamento: acabou com a publicação da v1.1 (09/11). Sem lib congelada. Baseline: persona-dev publicado = `3213b015e3` (12:45, gate verde).
+
+**Achados de montagem (leitura; nada editado):** a proposta de slot `footer` no `ConnectionsView` que eu ia mandar ao Zinc NÃO serve, e não a mandei.
+- A aba Conexões é registrada em `kanban/register-lumen-ui.tsx:254` (Lumen), com `RemoteConnectionsPanel` de `data/lumen-remote-panels.tsx`, que monta o `ConnectionsView` na linha 693. A aba Uso fica em `register-lumen-ui.tsx:253`.
+- No arquivo do Prism (`shell/register-prism-screens.tsx`) estão Membros (389), Sobre (390), Aparência (395–398), Personalidade (399), Personas (402–410) e Importadores (411).
+- A lista de abas (`shell/nav-places.ts`, bloco `settings`, linhas 78–90) tem hoje 8 entradas: connections, personas (flag), usage, members (sempre), importers, appearance, personality (flag de figurinhas), about. Esse bloco é compartilhado com o rail.
+
+**O que muda para chegar às 5 abas:**
+1. `importers` sai de Configurações. A cena 21 da Muse manda Importar para a aba da Memória da empresa (Lumen). O recado do Keel não listou Importadores, então pergunto (ver abaixo).
+2. `members` deixa de ser aba fixa: vira o cartão "Equipe à distância" em Conexões; a aba só existe com a equipe remota ligada (flag a confirmar). Registro em `register-prism-screens.tsx:389`.
+3. `personality` sai como aba: o `PersonalitySettingsPanel` entra em Aparência (meu). Registro em `register-prism-screens.tsx:399`.
+4. Cartão em Conexões: um wrapper meu (`SettingsConnectionsTab` = painel existente + cartão `RemoteTeamCard`) substitui `RemoteConnectionsPanel` no registro da aba `connections` (`register-lumen-ui.tsx:254`). O Zinc não precisa mexer em `connections/`.
+5. `nav-places.ts`: edito só o bloco `settings` e aviso Prism e Flint.
+
+**Proposta de dono:** cada dono troca as próprias linhas de registro (Prism: 389, 399, 411; Lumen: 254), e eu entrego o diff exato quando começar. Alternativa, se o Keel preferir: autorizar a mudança de 4 linhas direto, com aviso aos donos.
+
+**Em aberto:**
+- Com a remota ligada, a aba Membros entra além do cartão ou o cartão some? Padrão que vou usar: cartão sempre + aba só com a remota ligada (mesmo painel). O Keel confirma ou corrige.
+- `shell/nav-groups.ts` (navegação antiga, flag desligada) ainda lista Conexões e Uso (linhas 59–60). Não mexo sem decisão.
+- Versão do "Sobre": ainda não verifiquei se o host expõe a versão instalada.
+
+**Limitações:** nada editado nesta etapa; sem teste rodado. Zinc, Prism e Lumen não foram acionados: só o Keel decide quem muda o quê.
+
+## 2026-11-11 — STANDBY · spec de Configurações lida (TOP 20 #08 e #20)
+
+**Estado em uma linha:** nada editado no repo. Keel mandou standby (recado 12:53): não começar; limite de 3 Claude simultâneos (Prism, Flint, Lumen); ele me chama quando o Flint liberar. Li a spec e mapeei os arquivos.
+
+**Leituras:** BRIEFING.md, AGENTS.md, PLAN.md (cabeçalho, DESIGN01-1, FL-2 e as linhas de Configurações), BUILDER-RULES.md, DESIGN-01-MUSE.md §0, §1.0, §1 (cenas 16–24), §2 (movimento), §3, §4 e §5.2 (TOP 20 #08 e #20).
+
+**Escopo que entendi:**
+- **#08 Configurações em 5 abas:** Conexões · Personas · Uso e limites · Aparência · Sobre. "Membros" vira o cartão "Equipe à distância" dentro de Conexões e só vira aba com a equipe remota ligada. "Personalidade" entra em Aparência (cenas 22–23).
+- **#20 Membros:** "Dono · Neste computador"; some o `owner@workspace.local`; sem equipe remota, estado calmo ilustrado; "Convidar por link" só com a remota ligada (cena 20).
+- **Personas (cena 16):** linhas de 64 px com acordeão de 220 ms (`grid-template-rows` 0fr→1fr, sem animar `height`); um Notice único de pasta no topo; `<select>` cru vira o Select do design system; chip "Claude · Haiku · medium ▾"; interruptor sem pasta aparece desligado e desabilitado.
+- **Revisão antes de entregar (cena 17):** frase estática até o host ligar `setReviewPolicy` (Forge). Sem controle falso. Guilhotina de 12 px no topo do corpo rolável.
+- **Conexões (cena 18):** ferramentas conectadas no topo; troca de conta só com 2+ contas; sem "Recomendado" (regra 0.1); `claude` vira "Conta do Claude neste computador".
+- **Uso e limites (cena 19):** "Conferindo…" termina em até 2 s; motores não conectados em grupo recolhido; placar local real; sem US$ na assinatura (D-092).
+- **Sobre (cena 24):** `AboutPersona` inline com a versão instalada; "Procurar atualizações" só se o Rivet tiver canal; sem canal, "Baixe a nova versão em…".
+- **Transversal:** regras 0.1–0.4 (selo "Recomendado" só onde evita perder dados; vocabulário de estado único; "Nada esperando por você"); tokens de movimento e curvas da Muse (§2.2–2.3, eu consumo, não edito); reduced-motion e forced-colors (§2.6).
+
+**Divergências para o Keel:**
+1. **5 ou 6 abas?** PLAN DESIGN01-1 (onda 2) diz "Configurações em 6 abas (Quill)"; DESIGN-01 §4 e a cena 22 também dizem 6. O TOP 20 #08 (§5.2) e a sua mensagem dizem 5. Sigo 5 (decisão mais recente e específica). Pedido: atualizar a linha do PLAN (só o Keel edita).
+2. **Fronteira do rail:** a engrenagem (`shell/SettingsLauncher.tsx`, `shell/settings-launcher-bridge.ts`) é do FL-2 (Flint). Não toco; só o conteúdo de Configurações.
+
+**Mapa de arquivos atuais (só leitura; nada editado), em `packages/persona/client-ui-persona/src/client/`:**
+- `settings-personas/`: PersonasSettingsPanel.tsx, ConnectedPersonasSettings.tsx, file-tools.ts
+- `connections/ConnectionsView.tsx` (+ Connections.module.css, AccountDialogs.tsx)
+- `members/MembersView.tsx` (vira cartão em Conexões) · `data/adapters/members.ts`
+- `usage/UsageLimits.tsx`, UsageTokenPanel.tsx, UsageProviderPoolCard.tsx · `data/usage-panel-remote.ts`
+- `shell/AppearanceSettingsPanel.tsx` + `figurinhas/PersonalitySettingsPanel.tsx` (vira Aparência)
+- `shell/AboutSettingsPanel.tsx`, `shell/PersonaAboutSettingsSection.tsx`, `shell/register-persona-about-settings.ts`, `primitives/About.tsx`
+- ponto de montagem das abas: `shell/register-prism-screens.tsx` (o nome sugere Prism; preciso de confirmação para editar)
+- locales: `locale-sources/*.{pt,en}.json` (shell, profile, …) → gen em `src/client/locale/<área>/locales.ts`
+- testes que vão mudar: settings-personas*.client.spec.tsx, appearance-settings.client.spec.tsx, personas-team-panel.client.spec.tsx, usd-money-surfaces.client.spec.tsx, persona-faces-quill-screens.client.spec.tsx
+
+**Decisões que tomo ao começar (salvo objeção):**
+- "Dono · Neste computador": nome do perfil do dono; sem nome, só "Dono". E-mail nunca aparece.
+- Versão do "Sobre": se o host não expõe a versão instalada, isso afeta outro builder, então pergunto ao Keel por `maestri ask` só nesse caso.
+
+**Preciso de você antes de começar:** (a) confirmar os diretórios (proposta: as pastas do mapa, locales e testes; `shell/register-prism-screens.tsx` só com o OK do Prism); (b) o status do CONGELAMENTO (D-082) e o último hash de lib publicado.
+
+**Limitações:** sem código, então nenhum teste rodado nesta etapa. Não usei `maestri ask` (nada bloqueante).
+
 ## 2026-11-07 16:24 — LIB 6b MONTADO (`2f57e66cfe501b9a5a17af7bfc60e6d74beb3ba5`) · EFF-1 NATIVO com DESIGN ACEITO · 6c no tree (interruptor "Pode salvar arquivos no rascunho" + conserto do snap) · espero o lib 6c
 
 **Estado em uma linha:** lib 6b anunciado (15:36); capturas do EFF-1 nativo refeitas com um axe só (60/60 no pré-aceite) e enviadas à Muse (ela ACEITOU o desenho às 16:08 e reprovou só a linha do snap sob o degradê, já consertada no tree); o 6c está NO TREE (check-pkg OK 81,9 s, 16:18); falta o lib 6c (Keel, com o Remote do Anvil) e as capturas dele. Nada rodando em segundo plano; nada pela metade.

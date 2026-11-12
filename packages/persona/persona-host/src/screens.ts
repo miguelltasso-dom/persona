@@ -32,6 +32,9 @@ import {
 } from '@deepseek-ai/dsh-persona-store'
 import { canSaveFiles } from './file-tools.ts'
 import { resolveHireIdentity, type HireIdentity } from './hire-identity.ts'
+import { HouseRules, KIND_QUIET, KIND_RULE, isHouseRuleKind } from './house-rules.ts'
+import { memoryProofOf } from './owner-memory.ts'
+import { declinePlaybookOffer } from './playbook.ts'
 import type { Orchestration } from './orchestration.ts'
 import type {
   ApprovalView,
@@ -63,8 +66,6 @@ import type {
   TriageRuleView,
 } from './types.ts'
 
-const KIND_RULE = 'triage_rule'
-const KIND_QUIET = 'quiet_window'
 const KIND_LIMITS = 'project_limits'
 const KIND_HIRE = 'hire_proposal'
 const KIND_VAULT = 'vault_proposal'
@@ -91,6 +92,7 @@ interface SkillProposal {
   readonly title: string
   readonly status: 'pending' | 'approved' | 'rejected'
   readonly creatorPersonaId: string
+  readonly question?: string
 }
 
 /**
@@ -100,6 +102,8 @@ export class ScreensHost {
   readonly product: ProductRepos
   readonly vault: VaultRepos
   readonly screens: ScreenRepos
+  /** HONEST-1: the rules and windows the host obeys, and the books of how many times they applied. */
+  readonly houseRules: HouseRules
   readonly invites: SqliteInviteBook
   readonly imports: SqliteImportStore
   readonly orchestration: Orchestration
@@ -131,6 +135,7 @@ export class ScreensHost {
     this.product = product
     this.vault = vault
     this.screens = screens
+    this.houseRules = new HouseRules(screens, now)
     this.invites = invites
     this.imports = imports
     this.orchestration = orchestration
@@ -248,22 +253,25 @@ export class ScreensHost {
    * @param projectId - Tenant.
    */
   listRules(projectId: string): TriageRuleView[] {
-    return this.screens.list<TriageRuleView>(projectId, KIND_RULE)
+    return this.houseRules.rules(projectId).map(row => this.houseRules.ruleView(projectId, row))
   }
 
   /**
    * @param request - Rule.
    */
   putRule(request: PutTriageRuleRequest): TriageRuleView {
+    // HONEST-1: only a kind the host obeys is stored as a lock; anything else is refused, never kept as if it worked.
+    if (request.kind !== undefined && !isHouseRuleKind(request.kind)) throw new Error('rule-kind-unknown')
     const row: TriageRuleView = {
       id: request.id,
       gateText: request.gateText,
       assessmentText: request.assessmentText,
       logOnly: request.logOnly,
       speculativeEnabled: request.speculativeEnabled,
+      ...(request.kind === undefined ? {} : { kind: request.kind }),
     }
     this.screens.put(request.projectId, KIND_RULE, request.id, row)
-    return row
+    return this.houseRules.ruleView(request.projectId, row)
   }
 
   /**
@@ -272,6 +280,7 @@ export class ScreensHost {
    */
   deleteRule(projectId: string, id: string): boolean {
     this.screens.delete(projectId, KIND_RULE, id)
+    this.houseRules.forget(projectId, id)
     return true
   }
 
@@ -279,7 +288,7 @@ export class ScreensHost {
    * @param projectId - Tenant.
    */
   listQuiet(projectId: string): QuietWindowView[] {
-    return this.screens.list<QuietWindowView>(projectId, KIND_QUIET)
+    return this.houseRules.windows(projectId).map(row => this.houseRules.windowView(projectId, row))
   }
 
   /**
@@ -290,7 +299,7 @@ export class ScreensHost {
       id: request.id, label: request.label, start: request.start, end: request.end,
     }
     this.screens.put(request.projectId, KIND_QUIET, request.id, row)
-    return row
+    return this.houseRules.windowView(request.projectId, row)
   }
 
   /**
@@ -426,10 +435,11 @@ export class ScreensHost {
     const row: SkillProposal = {
       id: request.id, skillId: request.skillId, title: request.title, status: 'pending',
       creatorPersonaId: request.creatorPersonaId,
+      ...(request.question === undefined ? {} : { question: request.question }),
     }
     this.screens.put(request.projectId, KIND_SKILL_PROP, request.id, row)
     return {
-      id: row.id, kind: 'skill', title: row.title, question: `Ativar ${row.title}?`,
+      id: row.id, kind: 'skill', title: row.title, question: row.question ?? `Ativar ${row.title}?`,
       status: 'pending', personaId: request.creatorPersonaId, personaName: this.personaName(request.projectId, request.creatorPersonaId),
       permissionAction: 'skill.activate', permissionTarget: `skill:${row.skillId}`,
     }
@@ -518,7 +528,7 @@ export class ScreensHost {
       ...this.screens.list<StoredHire>(projectId, KIND_HIRE).map(row => hireCard(row, this.personaName(projectId, row.creatorPersonaId))),
       ...this.screens.list<VaultProposal>(projectId, KIND_VAULT).map(row => vaultCard(row, this.personaName(projectId, row.creatorPersonaId))),
       ...this.screens.list<SkillProposal>(projectId, KIND_SKILL_PROP).map(row => ({
-        id: row.id, kind: 'skill' as const, title: row.title, question: `Ativar ${row.title}?`, status: row.status,
+        id: row.id, kind: 'skill' as const, title: row.title, question: row.question ?? `Ativar ${row.title}?`, status: row.status,
         personaId: row.creatorPersonaId, personaName: this.personaName(projectId, row.creatorPersonaId),
         permissionAction: 'skill.activate', permissionTarget: `skill:${row.skillId}`,
       })),
@@ -559,19 +569,38 @@ export class ScreensHost {
 
   /**
    * @param projectId - Tenant.
+   * @param viewerId - The member looking at the list: a memory they said themselves reads "Você disse…".
    */
-  listMemory(projectId: string): MemoryView[] {
+  listMemory(projectId: string, viewerId: string = ''): MemoryView[] {
     const pending = this.screens.list<MemoryProposal>(projectId, KIND_MEMORY).map(row => ({
       id: row.id, body: row.body, status: 'pending' as const, origin: 'conversation' as const,
     }))
+    // Item 16: a memory the owner asked for carries its proof (the words, who, where, when); a RULE the owner dictated is listed too.
     const stored = this.vault.listRecords(projectId)
-      .filter(record => record.kind === 'memory')
-      .map(record => ({
-        id: record.id, body: record.body,
-        status: record.status === 'revoked' ? 'revoked' as const : 'active' as const,
-        origin: 'vault' as const,
-      }))
+      .flatMap((record): MemoryView[] => {
+        const proof = memoryProofOf(this.screens, projectId, record.id)
+        if (record.kind !== 'memory' && proof === undefined) return []
+        // "Revisão aceita: <id do ticket>" (written by the review, not by anyone): a technical receipt, not a memory. The playbook notes what matters, quietly.
+        if (record.authorId === 'review') return []
+        return [{
+          id: record.id, body: record.body,
+          status: record.status === 'revoked' ? 'revoked' as const : 'active' as const,
+          origin: 'vault' as const,
+          ...(proof === undefined ? {} : {
+            source: { quote: proof.quote, by: proof.by, mine: viewerId !== '' && proof.byId === viewerId, at: proof.at, where: proof.where, place: proof.place },
+            scope: proof.scope,
+            rule: record.kind === 'constraint',
+            ...(record.visibility.kind === 'persona' ? this.dmTarget(projectId, record.visibility.personaId) : {}),
+          }),
+        }]
+      })
     return [...pending, ...stored]
+  }
+
+  /** The persona a DM memory was said to (her name, no article: the product keeps no gender); nothing when she is gone. */
+  private dmTarget(projectId: string, personaId: string): Pick<MemoryView, 'to'> {
+    const name = this.personaName(projectId, personaId)
+    return name === personaId ? {} : { to: { name } }
   }
 
   /**
@@ -829,9 +858,12 @@ export class ScreensHost {
       if (skill !== undefined) {
         this.screens.put(request.projectId, KIND_SKILL, skill.id, { ...skill, enabled: true })
       }
+    } else {
+      // "Agora não" on what a persona learned by herself: the note stays, and the offer comes back only after three more uses (playbook.ts).
+      declinePlaybookOffer({ screens: this, now: this.now }, request.projectId, request.id)
     }
     return {
-      id: next.id, kind: 'skill', title: next.title, question: `Ativar ${next.title}?`, status: next.status,
+      id: next.id, kind: 'skill', title: next.title, question: next.question ?? `Ativar ${next.title}?`, status: next.status,
       personaId: next.creatorPersonaId, personaName: this.personaName(request.projectId, next.creatorPersonaId),
     }
   }

@@ -7,7 +7,7 @@
   "action.deleteDocument": "Delete",
   "documents.uploadHint": "PDF, DOCX, MD, TXT, or CSV — up to 8 MB, processed on this device.",
   "field.chunks": "{count} indexed chunks",
-  "title": "Company vault",
+  "title": "Documents and records",
   "subtitle": "Briefs, constraints, decisions, and memory — with versions and visibility",
   "tab.records": "Records",
   "tab.documents": "Documents",
@@ -29,9 +29,10 @@
   "empty.title": "Tell us about your company",
   "empty.hint": "Share the basics of your company and the team uses it in every request. Versions and who sees each record live here.",
   "empty.action": "Describe the company",
-  "empty.illustration": "Illustration: open vault with documents",
-  "loading": "Loading vault…",
+  "empty.illustration": "Illustration: company documents",
+  "loading": "Loading documents…",
   "error.title": "Couldn't reach the team right now",
   "error.retry": "Try again",
-  "search.placeholder": "Search vault…"
+  "search.placeholder": "Search records…",
+  "embedded.empty": "No documents or records yet. Upload a file or bring what you already have."
 }

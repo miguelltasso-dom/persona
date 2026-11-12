@@ -303,9 +303,8 @@ async function dialogGeom(page, step, tag) {
 /** "Revisar mudanças" in the complete shell: the list + preview, the clash moment, the success moment. */
 async function reviewShots(page, scheme, viewport) {
   const tag = `${scheme}-${viewport.tag}`
+  // DESIGN-01 #10: Projetos opens straight on the board of the project of the moment; the sample review opens on its own
   await nav(page, 'Quadros')
-  // the first project card (its title, not the ⋯ menu): the board opens and the sample review opens on its own
-  await page.locator('[data-persona-boards] article').first().click({ position: { x: 90, y: 28 }, timeout: 10_000 })
   await page.locator('[data-testid="review-panel"]').waitFor({ timeout: 20_000 })
   await page.waitForTimeout(700)
   await shoot(page, `${outDir}/revisar-lista-${tag}.png`)
@@ -496,7 +495,6 @@ async function teamworkShots(page, scheme, viewport) {
   // The "Revisar" sample auto-opens when a board mounts while this key is set (the review scenario ran before): the chips need the plain board.
   await page.evaluate(() => { try { localStorage.removeItem('persona.devSeed.review') } catch { /* storage blocked */ } })
   await nav(page, 'Quadros')
-  await page.locator('[data-persona-boards] article').first().click({ position: { x: 90, y: 28 }, timeout: 10_000 })
   await page.getByText('Pedido por Nina').first().waitFor({ timeout: 20_000 })
   await page.waitForTimeout(500)
   await shoot(page, `${outDir}/equipe-quadro-${tag}.png`)
@@ -583,9 +581,8 @@ const onData = async (chunk) => {
         for (const label of (process.env.LUMEN_SKIP_PANELS === '1' ? [] : panels)) {
           try {
             if (label === 'Quadros › projeto') {
-              // The board columns live inside a project: open the first project card from Quadros.
+              // DESIGN-01 #10: the place opens on the board of the project of the moment.
               await nav(page, 'Quadros')
-              await page.locator('[data-persona-boards] li button, [data-persona-boards] article button').first().click({ timeout: 8000 })
               await page.waitForTimeout(2500)
               await page.locator('[aria-busy="true"]').first().waitFor({ state: 'detached', timeout: 15_000 }).catch(() => undefined)
             } else {

@@ -3,6 +3,7 @@ import type { HostObservable, InjectFace, PropsLocale, PropsRenderSlots, PropsRu
 import type { MainPanelId, ShellState } from './create-shell-store.ts'
 import { PlaceTabsBar } from './PlaceTabsBar.tsx'
 import { ShortcutTipToast } from './ShortcutTipToast.tsx'
+import { SearchPalette } from './SearchPalette.tsx'
 import { isPlacesNavEnabled } from './nav-flag.ts'
 import { installComposerFocusRestore } from '../chat/composer-focus.ts'
 import { ErrorState, PanelBoundary } from '../primitives/index.ts'
@@ -86,6 +87,10 @@ export function PersonaAppFrame({ renderSlot, useShell, selectPanel, t }: Person
       <div className={styles.overlayLayer}>
         {renderSlot('shell.overlay', {})}
       </div>
+      {/* Ctrl K (DESIGN-01-MUSE §5.2 #11): a modal over the screen that is open, which stays mounted. Closing keeps the same panel. */}
+      <SearchPalette open={shell.searchOpen === true} onClose={() => { selectPanel(shell.activePanel) }} label={t('search.label')}>
+        {shell.searchOpen === true ? renderSlot('main', {}, { entryKey: 'search' }) : null}
+      </SearchPalette>
       {/* P1-11: a dica de atalho (Toast neutro de 6 s) na 3ª chegada pelo mouse à mesma tela. */}
       <ShortcutTipToast t={t} activePanel={shell.activePanel} />
     </div>

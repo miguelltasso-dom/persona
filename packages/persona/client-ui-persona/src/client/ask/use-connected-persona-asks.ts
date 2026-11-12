@@ -9,7 +9,7 @@ import type { PersonaTenantScope } from '../remote/persona-remote-types.ts'
 import { isPersonaAskEnabled } from './ask-flag.ts'
 import { hasAskChips } from './PersonaAskCard.tsx'
 import type { PersonaAskLiveUi, PersonaAskUi } from './persona-ask-model.ts'
-import { answerAskChoices, listAskStates, personaAsksRemoteFrom } from './persona-asks-remote.ts'
+import { answerAskChoices, answerEndOfTurnChoice, listAskStates, personaAsksRemoteFrom } from './persona-asks-remote.ts'
 
 export interface PersonaAsksBinding {
   /** O estado vivo por `askId`; pergunta que o host ainda não listou conta como aberta. */
@@ -51,8 +51,10 @@ export function useConnectedPersonaAsks({ remote, tenant, messages, refreshKey }
 
   const onAnswer = useCallback(async (ask: PersonaAskUi, optionIds: readonly string[]): Promise<void> => {
     if (host === undefined) throw new Error('sem host')
-    await answerAskChoices(host, { workspaceId, projectId }, ask.ticketId, optionIds)
-    setMine(current => ({ ...current, [ask.askId]: { status: 'answered', optionIds, text: '' } }))
+    // The end-of-turn card has no Task: its tap is a short message of the person (the host posts it and a new turn opens).
+    if (ask.kind === 'fimDoTurno') await answerEndOfTurnChoice(host, { workspaceId, projectId }, ask.askId, optionIds[0] ?? '')
+    else await answerAskChoices(host, { workspaceId, projectId }, ask.ticketId, optionIds)
+    setMine(current => ({ ...current, [ask.askId]: { status: 'answered', optionIds, text: '', answeredAt: new Date().toISOString() } }))
     setBump(value => value + 1)
   }, [host, workspaceId, projectId])
 

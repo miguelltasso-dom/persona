@@ -39,23 +39,26 @@ export interface AboutLabels {
 }
 
 export interface AboutPersonaProps {
-  readonly version: string
+  /** Versão instalada: sem ela, a linha "Versão" não aparece (a ponte de versão chega com o item do Cobalt). */
+  readonly version?: string | undefined
   readonly labels: AboutLabels
   readonly credits?: readonly CreditEntry[]
   /** Open THIRD_PARTY_NOTICES (host decides how: file, window or link). */
   readonly onOpenNotices?: (() => void) | undefined
   /** Open an external URL through the host (never navigate the app window). */
   readonly onOpenUrl?: ((url: string) => void) | undefined
+  /** Dentro de Configurações › Sobre: na grade da página (sem a coluna de 560 px) e com a sombra sticker do kit. */
+  readonly inline?: boolean | undefined
 }
 
-export function AboutPersona({ version, labels, credits = PERSONA_CREDITS, onOpenNotices, onOpenUrl }: AboutPersonaProps): ReactNode {
+export function AboutPersona({ version, labels, credits = PERSONA_CREDITS, onOpenNotices, onOpenUrl, inline }: AboutPersonaProps): ReactNode {
   const art = ILLUSTRATIONS['about-team']
   return (
-    <section className={styles.about} aria-labelledby="persona-about-title">
+    <section className={inline === true ? `${styles.about} ${styles.inline}` : styles.about} aria-labelledby="persona-about-title">
       {art !== undefined && <img className={styles.art} src={art} alt={labels.artAlt} width={480} height={270} />}
       <div className={styles.head}>
         <h2 id="persona-about-title" className={styles.title}>{labels.title}</h2>
-        <span className={styles.version}>{labels.version(version)}</span>
+        {version !== undefined && <span className={styles.version}>{labels.version(version)}</span>}
       </div>
       <p className={styles.tagline}>{labels.tagline}</p>
       <p className={styles.body}>{labels.body}</p>

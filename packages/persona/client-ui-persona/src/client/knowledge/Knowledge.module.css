@@ -176,3 +176,16 @@
   font-weight: 600;
   border-bottom: 1px dashed var(--persona-outline);
 }
+
+/* #16: the documents and records drawn inside Memória › Páginas (no screen of their own). */
+.embedded {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+}
+
+.embeddedTitle {
+  margin: 0;
+  font: 800 20px/28px var(--persona-font-display, var(--persona-font-text));
+  color: var(--persona-ink);
+}

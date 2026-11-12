@@ -46,7 +46,13 @@
   "account.menu": "More actions for {provider} · {label}",
   "account.inUseNow": "In use now",
   "accountPolicy.legend": "When a seat hits its limit",
+  "emailRule.legend": "Receive requests by email",
   "accountPolicy.recommended": "Recommended",
+  "account.label.claude": "Claude account on this computer",
+  "account.label.dsh": "DeepSeek account on this computer",
+  "capability.full": "Full",
+  "capability.readOnly": "Read only",
+  "capability.readOnly.note": "In the connectors, this engine only reads. Sending, publishing, paying or deleting don't run here.",
   "accountPolicy.fixed.title": "Stay on this account",
   "accountPolicy.fixed.body": "At the limit, the task waits for the quota to come back.",
   "accountPolicy.next_on_limit.title": "Switch on its own to the next account",
@@ -104,5 +110,8 @@
   "swapPolicy.saved": "Rule saved.",
   "swapPolicy.saveError": "I could not save the rule right now. Try again.",
   "account.add.showCommand": "See the command",
-  "swapPolicy.legacyRule": "The option to split use across accounts is gone. Pick one of the three."
+  "swapPolicy.legacyRule": "The option to split use across accounts is gone. Pick one of the three.",
+  "status.checking": "Checking…",
+  "status.unconfirmed": "Could not check",
+  "action.retryCheck": "Try again"
 }

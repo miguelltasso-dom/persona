@@ -5,17 +5,17 @@ import type {} from '@deepseek-ai/dsh-client-ui-slots'
 import { createLiveTenantObservable } from '../data/live-tenant-bridge.ts'
 import type { LumenRemoteInjected } from '../data/lumen-inject.ts'
 import {
-  RemoteConnectionsPanel,
   RemoteFilesPanel,
-  RemoteKnowledgePanel,
+  RemotePagesPanel,
   RemoteRoutinesPanel,
   RemoteUsagePanel,
 } from '../data/lumen-remote-panels.tsx'
+import { SettingsConnectionsTab } from '../shell/SettingsConnectionsTab.tsx'
+import { SettingsCofreTab } from '../cofre/SettingsCofreTab.tsx'
 import { ConnectedGlobalKanban } from '../remote/ConnectedGlobalKanban.tsx'
 import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
 import type { HostObservable } from '@deepseek-ai/dsh-client-ui-slots'
 import type { MainPanelId, ShellState } from '../shell/create-shell-store.ts'
-import type { ProjectWorkspaceTab } from '../shell/ProjectWorkspaceTabs.tsx'
 import {
   de as connectionsDe, en as connectionsEn, es as connectionsEs, fr as connectionsFr,
   ja as connectionsJa, CONNECTIONS_NS, pt as connectionsPt, ru as connectionsRu, zh as connectionsZh,
@@ -77,6 +77,10 @@ import {
   de as secondBrainDe, en as secondBrainEn, es as secondBrainEs, fr as secondBrainFr, ja as secondBrainJa,
   SECOND_BRAIN_NS, pt as secondBrainPt, ru as secondBrainRu, zh as secondBrainZh, type SecondBrainKey,
 } from '../locale/second-brain/locales.ts'
+import {
+  de as cofreDe, en as cofreEn, es as cofreEs, fr as cofreFr, ja as cofreJa, COFRE_NS,
+  pt as cofrePt, ru as cofreRu, zh as cofreZh, type CofreKey,
+} from '../locale/cofre/locales.ts'
 import { ConnectedOrgChartPanel } from '../remote/ConnectedOrgChartPanel.tsx'
 import { ConnectedTeamHealthPanel } from '../remote/ConnectedTeamHealthPanel.tsx'
 
@@ -97,6 +101,7 @@ declare module '@deepseek-ai/dsh-client-ui-slots' {
     'persona.canvas': CanvasKey
     'persona.governance': GovernanceKey
     'persona.secondBrain': SecondBrainKey
+    'persona.cofre': CofreKey
   }
 }
 
@@ -116,15 +121,6 @@ export interface LumenShellBridge {
   openHelp?(docId: string): void
   shell: HostObservable<ShellState>
   personaCard?: LumenPersonaCardBridge
-}
-
-function mainPanelForProjectTab(tab: ProjectWorkspaceTab): MainPanelId | null {
-  if (tab === 'board') return null
-  if (tab === 'conversation') return 'channels'
-  if (tab === 'files') return 'files'
-  if (tab === 'routines') return 'routines'
-  if (tab === 'sprints') return 'kanban'
-  return null
 }
 
 /** Register Lumen locale namespaces and queue-1 `main` keys (host Remote). */
@@ -150,6 +146,9 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
     zh: connectionsZh, en: connectionsEn, ja: connectionsJa, es: connectionsEs, fr: connectionsFr,
     de: connectionsDe, ru: connectionsRu, pt: connectionsPt,
   }), 'persona: connections dictionaries')
+  ctx.effect(() => ctx.locale.register(COFRE_NS, {
+    zh: cofreZh, en: cofreEn, ja: cofreJa, es: cofreEs, fr: cofreFr, de: cofreDe, ru: cofreRu, pt: cofrePt,
+  }), 'persona: cofre dictionaries')
   ctx.effect(() => ctx.locale.register(REVIEW_NS, {
     zh: reviewZh, en: reviewEn, ja: reviewJa, es: reviewEs, fr: reviewFr, de: reviewDe, ru: reviewRu, pt: reviewPt,
   }), 'persona: review dictionaries')
@@ -217,41 +216,39 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
     ...(shell?.openHelp === undefined ? {} : { openHelp: (docId: string) => { shell.openHelp!(docId) } }),
   })
 
-  ctx.slots.register({
-    name: 'main',
-    key: 'kanban',
-    locale: KANBAN_NS,
-    inject: () => ({
-      persona: ctx.remote.persona,
-      refreshKanban: () => live.refresh(),
-      navigateProjectTab: (tab: ProjectWorkspaceTab) => {
-        const panel = mainPanelForProjectTab(tab)
-        if (panel !== null) shell?.selectPanel(panel)
-      },
-      clearBoardsFocusProject: () => { shell?.clearBoardsFocusProject() },
-      clearKanbanFocusTicket: () => { shell?.clearKanbanFocusTicket() },
-      setProjectWorkspaceProjectId: (projectId: string | null) => { shell?.setProjectWorkspaceProjectId(projectId) },
-      ...(shell?.selectPanel === undefined ? {} : { selectMainPanel: (panel: 'channels') => { shell.selectPanel(panel) } }),
-      ...(shell?.personaCard === undefined
-        ? {}
-        : {
-          personaCard: shell.personaCard,
-          openPersonaProfile: shell.openPersonaProfile,
-        }),
-      hooks: {
-        live: live.observable,
-        tenant: tenantObservable,
-        shell: shell?.shell ?? shellStub,
-      },
-    }),
-  }, ConnectedGlobalKanban)
+  // DESIGN-01 #10: ONE place, two screens of the same component. `kanban` is the board of the project of the moment (what the rail opens);
+  // `projects` is the grid of cards that "Ver todos os projetos" in the header switcher leads to.
+  const projectsPlaceInject = (view: 'board' | 'grid') => () => ({
+    persona: ctx.remote.persona,
+    refreshKanban: () => live.refresh(),
+    clearBoardsFocusProject: () => { shell?.clearBoardsFocusProject() },
+    clearKanbanFocusTicket: () => { shell?.clearKanbanFocusTicket() },
+    setProjectWorkspaceProjectId: (projectId: string | null) => { shell?.setProjectWorkspaceProjectId(projectId) },
+    view,
+    ...(shell?.selectPanel === undefined ? {} : { selectMainPanel: (panel: 'channels' | 'kanban' | 'projects') => { shell.selectPanel(panel) } }),
+    ...(shell?.personaCard === undefined
+      ? {}
+      : {
+        personaCard: shell.personaCard,
+        openPersonaProfile: shell.openPersonaProfile,
+      }),
+    hooks: {
+      live: live.observable,
+      tenant: tenantObservable,
+      shell: shell?.shell ?? shellStub,
+    },
+  })
+  ctx.slots.register({ name: 'main', key: 'kanban', locale: KANBAN_NS, inject: projectsPlaceInject('board') }, ConnectedGlobalKanban)
+  ctx.slots.register({ name: 'main', key: 'projects', locale: KANBAN_NS, inject: projectsPlaceInject('grid') }, ConnectedGlobalKanban)
 
   const panels = [
-    { key: 'knowledge', locale: KNOWLEDGE_NS, Panel: RemoteKnowledgePanel },
+    // Memória da empresa › Páginas (D16): the list of every page, with the documents (the old Cofre) under it.
+    { key: 'knowledge', locale: KNOWLEDGE_NS, Panel: RemotePagesPanel },
     { key: 'routines', locale: ROUTINES_NS, Panel: RemoteRoutinesPanel },
     { key: 'files', locale: FILES_NS, Panel: RemoteFilesPanel },
     { key: 'usage', locale: USAGE_NS, Panel: RemoteUsagePanel },
-    { key: 'connections', locale: CONNECTIONS_NS, Panel: RemoteConnectionsPanel },
+    { key: 'connections', locale: CONNECTIONS_NS, Panel: SettingsConnectionsTab },
+    { key: 'cofre', locale: COFRE_NS, Panel: SettingsCofreTab },
   ] as const
 
   for (const { key, locale, Panel } of panels) {

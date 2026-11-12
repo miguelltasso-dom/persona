@@ -23,14 +23,22 @@ export interface AwayWhileOutPanelProps extends PropsLocale<'persona.shell'> {
   readonly onDismiss?: (() => void) | undefined
   /** The items the "Precisa de você" card shows on this screen (its first three). A waiting row that is one of them is not listed twice. */
   readonly onScreenAttention?: readonly AttentionItemRef[] | undefined
-  /** "Ver em Precisa de você": moves the focus to that card. Without it the count stays and no link is drawn. */
-  readonly onOpenAttention?: (() => void) | undefined
+  /** The delivery the "Sua equipe entregou o primeiro trabalho!" card above already highlights: it is not listed twice. */
+  readonly omitDelivery?: { readonly taskId: string; readonly title: string } | undefined
 }
 
 /** Um item do cartão "Precisa de você": o id da decisão (= id da aprovação) e o título visível. */
 export interface AttentionItemRef {
   readonly id: string
   readonly title: string
+}
+
+/** A delivery the milestone card (first delivery) already shows: same task id or same title. */
+function isOmittedDelivery(row: { readonly taskId?: string | undefined; readonly taskLabel?: string | undefined; readonly deliveredTitle?: string | undefined }, omit: AwayWhileOutPanelProps['omitDelivery']): boolean {
+  if (omit === undefined) return false
+  const title = omit.title.trim()
+  return (row.taskId !== undefined && row.taskId === omit.taskId)
+    || (title !== '' && (row.deliveredTitle?.trim() === title || row.taskLabel?.trim() === title))
 }
 
 /** Uma linha de "Espera você" que o cartão "Precisa de você" já mostra: mesmo id de aprovação, mesmo id de tarefa ou mesmo título. */
@@ -130,21 +138,25 @@ function DoneRow({ t, row, onOpenTask }: {
   )
 }
 
-function RealAway({ t, away, onOpenTask, onOpenApproval, onDismiss, onScreenAttention, onOpenAttention }: {
+function RealAway({ t, away, onOpenTask, onOpenApproval, onDismiss, onScreenAttention, omitDelivery }: {
   readonly t: Translate
   readonly away: AwayLive
   readonly onOpenTask: ((taskId: string) => void) | undefined
   readonly onOpenApproval: ((approvalId: string) => void) | undefined
   readonly onDismiss: (() => void) | undefined
   readonly onScreenAttention: readonly AttentionItemRef[] | undefined
-  readonly onOpenAttention: (() => void) | undefined
+  readonly omitDelivery: AwayWhileOutPanelProps['omitDelivery']
 }): ReactNode {
   const [hidden, setHidden] = useState(false)
   const dismiss = useCallback((): void => {
     setHidden(true)
     onDismiss?.()
   }, [onDismiss])
-  if (hidden || (away.done.length === 0 && away.waiting.length === 0)) return null
+  // What the cards above already show (Precisa de você, the first-delivery milestone) is not said twice (Carbon): only what is new is listed here.
+  const attention = onScreenAttention ?? []
+  const waitingShown = away.waiting.filter(row => !isOnAttention(row, attention))
+  const doneShown = away.done.filter(row => !isOmittedDelivery(row, omitDelivery))
+  if (hidden || (doneShown.length === 0 && waitingShown.length === 0)) return null
 
   // On the very first visit the host has no earlier "last here" and sends the epoch: that is "unknown", never "Desde 1 jan 1970".
   const sinceKnown = Date.parse(away.since) > Date.UTC(2000, 0, 1)
@@ -154,13 +166,7 @@ function RealAway({ t, away, onOpenTask, onOpenApproval, onDismiss, onScreenAtte
     : away.awayMinutes === undefined
       ? t('overview.awaySince', { when: formatWhen(away.since) })
       : t('overview.awaySinceFor', { when: formatWhen(away.since), duration: awayDuration(t, away.awayMinutes) })
-  // Quem já está em "Precisa de você" (o cartão ao lado) não se repete aqui: vira a contagem com o link.
-  const attention = onScreenAttention ?? []
-  const waitingOnScreen = away.waiting.filter(row => isOnAttention(row, attention))
-  const waitingOthers = away.waiting.filter(row => !isOnAttention(row, attention))
-  // Muse (04:18): with every waiting item already in "Precisa de você" the top summary only repeats the count; the done items stay in "Ficou pronto".
-  const allWaitingOnScreen = away.waiting.length > 0 && waitingOthers.length === 0
-  const summary = allWaitingOnScreen ? '' : summaryLine(t, away.waiting.length, away.done.length)
+  const summary = summaryLine(t, waitingShown.length, doneShown.length)
 
   return (
     <Card
@@ -182,34 +188,21 @@ function RealAway({ t, away, onOpenTask, onOpenApproval, onDismiss, onScreenAtte
         <div className={styles.content}>
           {since !== '' && <p className={styles.lead}>{since}</p>}
           {summary !== '' && <p className={styles.summary}>{summary}</p>}
-          {away.waiting.length > 0 && (
+          {waitingShown.length > 0 && (
             <section className={styles.group} aria-labelledby="persona-away-waiting">
               <h3 id="persona-away-waiting" className={styles.groupTitle}>{t('overview.awayWaitingTitle')}</h3>
-              {waitingOnScreen.length > 0 && (
-                <p className={styles.lead}>
-                  {waitingOnScreen.length === 1 ? t('overview.awayNeedsOne') : t('overview.awayNeedsMany', { n: waitingOnScreen.length })}
-                  {onOpenAttention !== undefined && (
-                    <>
-                      {' · '}
-                      <Button variant="ghost" size="s" onClick={onOpenAttention}>{t('overview.awaySeeAttention')}</Button>
-                    </>
-                  )}
-                </p>
-              )}
-              {waitingOthers.length > 0 && (
-                <ul className={styles.rows}>
-                  {waitingOthers.map(row => (
-                    <WaitingRow key={row.id} t={t} row={row} onOpenTask={onOpenTask} onOpenApproval={onOpenApproval} />
-                  ))}
-                </ul>
-              )}
+              <ul className={styles.rows}>
+                {waitingShown.map(row => (
+                  <WaitingRow key={row.id} t={t} row={row} onOpenTask={onOpenTask} onOpenApproval={onOpenApproval} />
+                ))}
+              </ul>
             </section>
           )}
-          {away.done.length > 0 && (
+          {doneShown.length > 0 && (
             <section className={styles.group} aria-labelledby="persona-away-done">
               <h3 id="persona-away-done" className={styles.groupTitle}>{t('overview.awayDoneTitle')}</h3>
               <ul className={styles.rows}>
-                {away.done.map(row => <DoneRow key={row.id} t={t} row={row} onOpenTask={onOpenTask} />)}
+                {doneShown.map(row => <DoneRow key={row.id} t={t} row={row} onOpenTask={onOpenTask} />)}
               </ul>
             </section>
           )}
@@ -223,7 +216,7 @@ function RealAway({ t, away, onOpenTask, onOpenApproval, onDismiss, onScreenAtte
 }
 
 /** Peak-end summary when the app opens (PROACTIVITY §7): what waits for the person and what got done while they were away. */
-export function AwayWhileOutPanel({ t, events, away, onOpenTask, onOpenApproval, onDismiss, onScreenAttention, onOpenAttention }: AwayWhileOutPanelProps): ReactNode {
+export function AwayWhileOutPanel({ t, events, away, onOpenTask, onOpenApproval, onDismiss, onScreenAttention, omitDelivery }: AwayWhileOutPanelProps): ReactNode {
   const [visible, setVisible] = useState(() => {
     if (events.length === 0) return false
     try {
@@ -244,10 +237,12 @@ export function AwayWhileOutPanel({ t, events, away, onOpenTask, onOpenApproval,
 
   // The host's real window wins whenever it is wired (null = nothing to show or already dismissed).
   if (away !== undefined) {
-    return away === null ? null : <RealAway t={t} away={away} onOpenTask={onOpenTask} onOpenApproval={onOpenApproval} onDismiss={onDismiss} onScreenAttention={onScreenAttention} onOpenAttention={onOpenAttention} />
+    return away === null ? null : <RealAway t={t} away={away} onOpenTask={onOpenTask} onOpenApproval={onOpenApproval} onDismiss={onDismiss} onScreenAttention={onScreenAttention} omitDelivery={omitDelivery} />
   }
 
-  if (!visible) return null
+  // The older shape: the same rule (a delivery the milestone card shows is not repeated; nothing left = no card).
+  const shownEvents = events.filter(event => !isOmittedDelivery({ taskId: event.taskId, taskLabel: event.taskLabel }, omitDelivery))
+  if (!visible || shownEvents.length === 0) return null
 
   return (
     <Card
@@ -268,7 +263,7 @@ export function AwayWhileOutPanel({ t, events, away, onOpenTask, onOpenApproval,
         <div className={styles.content}>
           <p className={styles.lead}>{t('overview.awayLead')}</p>
           <ol className={styles.timeline}>
-            {events.map((event, index) => (
+            {shownEvents.map((event, index) => (
               <li key={event.id} className={styles.item} style={{ animationDelay: `${index * 80}ms` }}>
                 <span className={styles.dot} aria-hidden="true" />
                 <p className={styles.body}>{event.body ?? (event.bodyKey !== undefined ? t(event.bodyKey) : '')}</p>

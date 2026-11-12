@@ -9,7 +9,7 @@ export type ToolLevel = 'none' | 'read' | 'write'
 const RANK: Record<ToolLevel, number> = { none: 0, read: 1, write: 2 }
 
 const WRITE = /^(?:bash|powershell|shell|write|edit|str_replace|apply_patch|rm|delete|notebook_edit|persona_report|persona_browser_act|persona_computer_click|persona_computer_type|persona_telegram_send|persona_email_send|brain_propose|gestor_hire|gestor_allocate|gestor_reorganize|gestor_assemble)$/iu
-const READ = /^(?:read|glob|grep|list|ls|search|web_fetch|persona_recall|persona_ask|persona_browser_open|persona_browser_read|persona_computer_screenshot|brain_search|brain_read|board_list|sprint_list|routine_list|review_verdict|ask_colleague|pass_forward|ask_team_opinion|toolsearch)$/iu
+const READ = /^(?:read|glob|grep|list|ls|search|web_fetch|persona_recall|persona_ask|persona_browser_open|persona_browser_read|persona_computer_screenshot|brain_search|brain_read|board_list|sprint_list|routine_list|review_verdict|ask_colleague|pass_forward|ask_team_opinion|ask_vault_code|browser_login|toolsearch)$/iu
 // D-097: asking a colleague, passing work on and asking the team's opinion are COORDINATION, not acts on the person's files or the world: they work for a persona with
 // no file/shell grant too (the host holds their ACL: the persona's own switch, the caps, the circle, and the colleague's Task runs with the COLLEAGUE's grant).
 // `ToolSearch` is the CLI's own lookup of a tool's schema (it only loads a definition into the context; no side effect). The CLI defers the schemas of an MCP
@@ -35,6 +35,21 @@ export function classifyToolAccess(name: string): ToolLevel {
  */
 export function allowsTool(level: ToolLevel, name: string): boolean {
   return RANK[level] >= RANK[classifyToolAccess(name)]
+}
+
+/** The CLIs' own tool names the two classifiers above do not spell out (other vendors, other casing), normalized without `_`, `-` and spaces. */
+const NATIVE_ALIASES: ReadonlySet<string> = new Set(['multiedit', 'applypatch', 'strreplace', 'strreplaceeditor', 'webfetch', 'websearch', 'notebookedit', 'todowrite', 'todoread', 'task', 'shell', 'terminal'])
+
+/**
+ * D-103a: true for a tool the CLI itself ships (Bash, Edit, Read, ApplyPatch...): the persona's own tool level governs it. A server-qualified name (`mcp__server__tool`, `server.tool`,
+ * `server__tool`, `server/tool`) never is: that is a connector of the person's, and an unknown bare name is not trusted as native either.
+ * @param name - Tool id from a run event.
+ */
+export function isNativeToolName(name: string): boolean {
+  const id = name.trim()
+  if (id === '' || /^mcp[_.:/-]/iu.test(id) || /[./:]|__/u.test(id)) return false
+  if (WRITE.test(id) || READ.test(id)) return true
+  return NATIVE_ALIASES.has(id.toLowerCase().replace(/[_\-\s]/gu, ''))
 }
 
 /** The persona `tools` keys that mean NATIVE file writing (`grantsOf` aliases): they steer the CLI's own Edit/Write, never the Persona's harness tools. */
@@ -78,7 +93,7 @@ export function toolNameFromEvent(event: RunEvent): string | undefined {
  * Every spelling a CLI event may use for a served product tool (Claude `mcp__server__tool`, others `server.tool` / `server__tool`).
  * @param set - Tools the turn was offered.
  */
-function offeredNames(set: NonNullable<StartTurnInput['mcpTools']>): ReadonlySet<string> {
+export function offeredNames(set: NonNullable<StartTurnInput['mcpTools']>): ReadonlySet<string> {
   const server = serverNameOf(set)
   const names = new Set<string>()
   for (const tool of set.tools) {

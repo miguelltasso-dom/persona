@@ -60,6 +60,10 @@ describe('cliPolicyOf', () => {
     expect(cliPolicyOf('cursor', { files: 'read' }, 'deny').disallowedTools).toEqual(
       expect.arrayContaining(['Write', 'Bash']),
     )
+    // D-103a: with no command or draft gate on Cursor, the widest grant still refuses the native shell and file tools.
+    expect(cliPolicyOf('cursor', { files: 'write', shell: 'write' }, 'allow-once').disallowedTools).toEqual(
+      expect.arrayContaining(['Write', 'Edit', 'Bash', 'Shell']),
+    )
     expect(cliPolicyOf('opencode', { files: 'write' }, 'allow-once').disallowedTools).toEqual([])
     expect(cliPolicyOf('opencode', { files: 'write' }, 'allow-once').launchArgs).toEqual([])
   })

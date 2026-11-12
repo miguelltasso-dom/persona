@@ -1,0 +1,177 @@
+/*
+ * "Jeito de trabalhar" (item 16, Muse §16b). The Memória card language: no new box, no motion. Controls are 32 or 40 px (the control ruler);
+ * amber is never used (it means "waiting for you"); the quote line is the Memória one (14px italic, ink, a 3px lilac rule).
+ */
+.sectionTitle {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--persona-ink);
+}
+
+.sectionSubtitle {
+  margin: var(--persona-space-1) 0 var(--persona-space-4);
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--persona-ink-muted);
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.item {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 700;
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}
+
+.metaRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-1);
+}
+
+.meta {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--persona-ink-muted);
+}
+
+.link,
+.more {
+  min-height: var(--control-h-s);
+  padding: 0 var(--persona-space-1);
+  border: 0;
+  border-radius: var(--persona-radius-s);
+  background: none;
+  font: 700 13px/20px var(--persona-font-text);
+  color: var(--persona-brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.link:focus-visible,
+.more:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--persona-focus-halo);
+}
+
+.adjustments {
+  margin-top: var(--persona-space-2);
+}
+
+.adjustLabel {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--persona-ink-muted);
+}
+
+.adjustList {
+  list-style: none;
+  margin: var(--persona-space-1) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+}
+
+.adjustQuote {
+  padding-left: var(--persona-space-3);
+  border-left: 3px solid var(--persona-outline-control);
+  font-size: 14px;
+  font-style: italic;
+  line-height: 20px;
+  color: var(--persona-ink);
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-3);
+}
+
+.confirm {
+  margin-top: var(--persona-space-3);
+}
+
+.confirmText {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--persona-ink);
+}
+
+.failed {
+  margin: var(--persona-space-2) 0 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--persona-danger-ink, var(--persona-ink));
+}
+
+/* the states: text only, no illustration (the Brush queue is for what is new) */
+.state {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--persona-space-2);
+  padding: var(--persona-space-4) 0;
+}
+
+.stateTitle {
+  margin: 0;
+  font-size: 15px;
+  line-height: 22px;
+  font-weight: 700;
+  color: var(--persona-ink);
+}
+
+.stateBody {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--persona-ink-muted);
+}
+
+/* loading: two quiet blocks, NOT animated (no shimmer) */
+.skeletonCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  padding: var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper-sunken);
+}
+
+.skeletonLine {
+  display: block;
+  height: 14px;
+  width: 40%;
+  border-radius: var(--persona-radius-s);
+  background: var(--persona-wash);
+}
+
+.skeletonLine[data-wide] {
+  width: 70%;
+}

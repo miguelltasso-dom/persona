@@ -3,7 +3,10 @@
  * publicar, pagar, apagar). TUDO o que sai da empresa é visto antes: o cartão mostra a coisa real (para quem, assunto, corpo; o valor e quem recebe;
  * a lista a apagar) e só deixa Enviar com a prévia completa. É uma mensagem da persona no fio, com a borda esquerda âmbar.
  *
- *  - Enviar (o verbo muda: Publicar · Pagar · Apagar) · Editar (email/post: abre o conteúdo no próprio cartão, com "Salvar e enviar") · Cancelar.
+ *  - Segure para enviar (o verbo muda: publicar · pagar · apagar; COLHEITA 5: 1,2 s de pressão, `HoldToApproveButton`; um clique curto só mostra a dica)
+ *    · Editar (email/post: abre o conteúdo no próprio cartão, com "Salvar e enviar") · Cancelar. Quem marcou "Não perguntar de novo" (enviar/publicar)
+ *    aprova com um clique. O selo de prazo ("Vale até hoje, 18h" · "Vence em 40 min") vem do `expiresAt` do host; vencido, o cartão fica só de leitura
+ *    com "Pedir de novo".
  *  - A caixinha "Não perguntar de novo para {persona} no {conector}" NUNCA vem marcada e só existe em enviar/publicar: pagar e apagar sempre pedem.
  *  - Pagar e apagar levam o aviso "Isso não dá para desfazer depois."
  *  - Prévia cortada (ou sem o que conferir): sem Enviar ("não dá para enviar às cegas"), a mesma falha fechada do host.
@@ -13,12 +16,14 @@
  * Atrás de `persona.flag.actionPreview` (quem monta decide). Cada botão só existe com `onDecide` (nenhum botão morto). O texto da persona é só texto.
  */
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
 import { Avatar, BrandIcon, Button, Card, Input, Notice, Textarea, UiIcon } from '../primitives/index.ts'
 import type { ActionPreviewUi } from '../remote/map-host-ui.ts'
 import { ActionContent } from './ActionContent.tsx'
+import { approvalDeadline, DEADLINE_REFRESH_MS, type DeadlineView } from './hold-approve.ts'
+import { HoldToApproveButton } from './HoldToApproveButton.tsx'
 import styles from './ActionPreviewCard.module.css'
 
 type ChatT = PropsLocale<'persona.chat'>['t']
@@ -26,7 +31,7 @@ type ChatT = PropsLocale<'persona.chat'>['t']
 /** O que a pessoa decidiu (o formato do `decideApproval({ kind: 'action', … })` do contrato). */
 export interface ActionDecision {
   readonly approvalId: string
-  readonly choice: 'send' | 'edit' | 'cancel'
+  readonly choice: 'send' | 'edit' | 'cancel' | 'retry'
   readonly edited?: { readonly subject?: string; readonly body?: string }
   /** A caixinha "Não perguntar de novo" (só em enviar/publicar; o host ignora em pagar/apagar). */
   readonly remember?: boolean
@@ -38,6 +43,8 @@ export interface ActionPreviewCardProps {
   readonly rowTag?: 'li' | 'div'
   /** Sem ele o cartão é só leitura (nenhum botão). */
   readonly onDecide?: ((decision: ActionDecision) => void | Promise<void>) | undefined
+  /** Relógio injetável (testes): o selo de prazo conta a partir dele. */
+  readonly now?: (() => number) | undefined
 }
 
 export { ACTION_BODY_LINES, ACTION_ITEMS_MAX } from './ActionContent.tsx'
@@ -70,7 +77,42 @@ function timeOf(iso: string | undefined): string {
   return Number.isNaN(parsed.getTime()) ? '' : parsed.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }
 
-export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide }: ActionPreviewCardProps): ReactNode {
+/** COLHEITA 5: "Segure para enviar" (o verbo muda: publicar · pagar · apagar). */
+function holdLabel(t: ChatT, preview: ActionPreviewUi): string {
+  switch (preview.verb) {
+    case 'post': return t('action.hold.publish')
+    case 'pay': return t('action.hold.pay')
+    case 'delete': return t('action.hold.delete')
+    default: return t('action.hold.send')
+  }
+}
+
+/** O texto do selo de prazo; o vencido leva o nome de quem não enviou. */
+function deadlineText(t: ChatT, deadline: DeadlineView, name: string): string {
+  switch (deadline.state) {
+    case 'soon': return t('action.deadline.soon', { n: deadline.minutes })
+    case 'expired': return t('action.deadline.expired', { name })
+    default:
+      return deadline.day === 'today' ? t('action.deadline.today', { time: deadline.time })
+        : deadline.day === 'tomorrow' ? t('action.deadline.tomorrow', { time: deadline.time })
+          : t('action.deadline.date', { date: deadline.date, time: deadline.time })
+  }
+}
+
+/** O relógio do selo: relê a cada {@link DEADLINE_REFRESH_MS} enquanto o cartão espera (o "Vence em 40 min" não fica parado). */
+function useClock(read: () => number, active: boolean): number {
+  const readRef = useRef(read)
+  readRef.current = read
+  const [now, setNow] = useState(() => read())
+  useEffect(() => {
+    if (!active) return undefined
+    const id = window.setInterval(() => { setNow(readRef.current()) }, DEADLINE_REFRESH_MS)
+    return () => { window.clearInterval(id) }
+  }, [active])
+  return now
+}
+
+export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide, now }: ActionPreviewCardProps): ReactNode {
   const Tag = rowTag
   const [editing, setEditing] = useState(false)
   const [subject, setSubject] = useState(preview.subject ?? '')
@@ -79,6 +121,8 @@ export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide }: Actio
   const [busy, setBusy] = useState(false)
   const name = preview.personaName ?? t('action.somePersona')
   const face = preview.characterId === undefined ? undefined : AVATAR_96[preview.characterId as keyof typeof AVATAR_96]
+  const nowMs = useClock(now ?? Date.now, preview.status === 'pending')
+  const deadline = approvalDeadline(preview.expiresAt, nowMs)
 
   // O que já aconteceu vira uma linha (o cartão some): enviado · cancelado · ajustado · falha.
   if (preview.status === 'sent') {
@@ -94,7 +138,8 @@ export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide }: Actio
       </Tag>
     )
   }
-  if (preview.status === 'cancelled') {
+  // Um cartão que venceu sem resposta (`expired`) não é "cancelado": segue como cartão só de leitura, com "Pedir de novo".
+  if (preview.status === 'cancelled' && preview.expired !== true) {
     return <Tag className={styles.done} data-action-preview="cancelled"><span>{t('action.cancelled', { name })}</span></Tag>
   }
   if (preview.status === 'adjusted') {
@@ -116,17 +161,56 @@ export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide }: Actio
   const canEdit = (preview.verb === 'email' || preview.verb === 'post') && !preview.blind
   const eyebrow = eyebrowText(t, preview)
 
-  const decide = (choice: ActionDecision['choice'], edited?: ActionDecision['edited']): void => {
-    if (onDecide === undefined || sending) return
+  const decide = (choice: ActionDecision['choice'], edited?: ActionDecision['edited']): Promise<void> => {
+    if (onDecide === undefined || sending) return Promise.resolve()
     setBusy(true)
     const decision: ActionDecision = {
       approvalId: preview.approvalId,
       choice,
       ...(edited === undefined ? {} : { edited }),
-      ...(canRemember && remember && choice !== 'cancel' ? { remember: true } : {}),
+      ...(canRemember && remember && choice !== 'cancel' && choice !== 'retry' ? { remember: true } : {}),
     }
-    void Promise.resolve(onDecide(decision)).finally(() => { setBusy(false) })
+    return Promise.resolve(onDecide(decision)).finally(() => { setBusy(false) })
   }
+
+  // COLHEITA 5: passou do prazo (a seleção do host ou o relógio daqui): só leitura, sem sombra, conteúdo a 60%, e "Pedir de novo".
+  if (preview.expired === true || (preview.status === 'pending' && deadline?.state === 'expired')) {
+    return (
+      <Tag className={styles.row} data-action-preview="expired" data-action-class={preview.actionClass}>
+        {/* Sem a barra âmbar: o âmbar é "esperando você" e o vencido não espera mais (Muse/Carbon). */}
+        <Card
+          as="article"
+          padding="s"
+          aria-label={eyebrow}
+          className={`${styles.card} ${styles.expiredCard}`}
+          eyebrow={(
+            <span className={styles.eyebrowRow}>
+              <Avatar name={name} src={face} shape="portrait" size={24} decorative />
+              <BrandIcon name={VERB_ICON[preview.verb]} size={18} />
+              <span>{eyebrow}</span>
+            </span>
+          )}
+        >
+          <p className={styles.deadline} data-deadline="expired">
+            <UiIcon name="clock" size={14} />
+            <span>{t('action.deadline.expired', { name })}</span>
+          </p>
+          <div className={styles.expiredBody}>
+            {preview.missing !== true && <ActionContent t={t} verb={preview.verb} content={preview} />}
+          </div>
+          {preview.retried === true
+            ? <p className={styles.retried}>{t('action.deadline.retried', { name })}</p>
+            : onDecide !== undefined && (
+              <div className={styles.actions}>
+                <Button size="s" variant="secondary" loading={sending} onClick={() => { void decide('retry') }}>{t('action.retry')}</Button>
+              </div>
+            )}
+        </Card>
+      </Tag>
+    )
+  }
+
+  const needsHold = !(canRemember && remember)
 
   return (
     <Tag className={styles.row} data-action-preview="pending" data-action-class={preview.actionClass}>
@@ -144,6 +228,12 @@ export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide }: Actio
           </span>
         )}
       >
+        {deadline !== undefined && deadline.state !== 'expired' && (
+          <p className={styles.deadline} data-deadline={deadline.state}>
+            <UiIcon name="clock" size={14} />
+            <span>{deadlineText(t, deadline, name)}</span>
+          </p>
+        )}
         {preview.requestedByPerson && <p className={styles.asked}>{t('action.youAsked', { name })}</p>}
 
         {editing
@@ -177,7 +267,7 @@ export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide }: Actio
             {editing
               ? (
                 <>
-                  <Button size="s" variant="primary" loading={sending} disabled={body.trim() === ''} onClick={() => { decide('edit', { ...(preview.verb === 'email' ? { subject } : {}), body }) }}>
+                  <Button size="s" variant="primary" loading={sending} disabled={body.trim() === ''} onClick={() => { void decide('edit', { ...(preview.verb === 'email' ? { subject } : {}), body }) }}>
                     {sending ? t('action.sending') : t('action.saveAndSend')}
                   </Button>
                   <Button size="s" variant="ghost" disabled={sending} onClick={() => { setEditing(false) }}>{t('action.back')}</Button>
@@ -185,13 +275,26 @@ export function ActionPreviewCard({ t, preview, rowTag = 'li', onDecide }: Actio
               )
               : (
                 <>
-                  {preview.missing !== true && (
-                    <Button size="s" variant="primary" loading={sending} disabled={preview.blind} onClick={() => { decide('send') }}>
-                      {sending ? t('action.sending') : ctaText(t, preview)}
-                    </Button>
-                  )}
+                  {preview.missing !== true && (needsHold
+                    // Pagar, apagar, enviar e publicar pedem o "segure"; só quem marcou "Não perguntar de novo" (enviar/publicar) o dispensa.
+                    ? (
+                      <HoldToApproveButton
+                        t={t}
+                        label={holdLabel(t, preview)}
+                        busyLabel={t('action.sending')}
+                        variant={preview.actionClass === 'delete' ? 'danger' : 'primary'}
+                        locked={sending}
+                        disabled={preview.blind}
+                        onConfirm={() => decide('send')}
+                      />
+                    )
+                    : (
+                      <Button size="s" variant="primary" loading={sending} disabled={preview.blind} onClick={() => { void decide('send') }}>
+                        {sending ? t('action.sending') : ctaText(t, preview)}
+                      </Button>
+                    ))}
                   {canEdit && <Button size="s" variant="secondary" disabled={sending} onClick={() => { setEditing(true) }}>{t('action.edit')}</Button>}
-                  <Button size="s" variant="ghost" disabled={sending} onClick={() => { decide('cancel') }}>{t('action.cancel')}</Button>
+                  <Button size="s" variant="ghost" disabled={sending} onClick={() => { void decide('cancel') }}>{t('action.cancel')}</Button>
                 </>
               )}
           </div>

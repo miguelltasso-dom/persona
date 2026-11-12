@@ -3,15 +3,29 @@ import type { BrainGrantView, BrainHomeView, BrainKindView, BrainPageView, Proje
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import { canExportBrainVault, canRestoreBrainPage, exportBrainVaultRemote, getBrainPageRemote, listBrainVersionsRemote, putBrainPageRemote, restoreBrainPageRemote } from '../data/brain-remote.ts'
 import { personaDesktopBridge } from '../bring-context/persona-desktop-bridge.ts'
-import { bindLocale } from '../preview/locale-bind.ts'
-import { Toast, ToastRegion } from '../primitives/index.ts'
+import { bindLocale, type LocaleDict } from '../preview/locale-bind.ts'
+import { Screen, ScreenHeader, Toast, ToastRegion } from '../primitives/index.ts'
+import { PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import type { MainPanelId } from '../shell/create-shell-store.ts'
+import { CompanyBriefDialog } from './CompanyBriefDialog.tsx'
 import { NewPageDialog } from './NewPageDialog.tsx'
+import { SecondBrainPagesView } from './SecondBrainPagesView.tsx'
 import { SecondBrainHome, type SecondBrainSurfaceState } from './SecondBrainHome.tsx'
 import { SecondBrainKindListView } from './SecondBrainKindListView.tsx'
 import { SecondBrainPageView } from './SecondBrainPageView.tsx'
 import { SecondBrainPermissionsView } from './SecondBrainPermissionsView.tsx'
 import { pt as brainDict } from '../locale/second-brain/locales.ts'
+import styles from './SecondBrain.module.css'
+
+/** Páginas while it loads or failed: the same header, then the state. */
+function PagesFrame({ dict, children }: { readonly dict: LocaleDict; readonly children: ReactNode }): ReactNode {
+  return (
+    <Screen className={styles.shell} data-persona-surface="knowledge">
+      <ScreenHeader icon="conhecimento-memoria" eyebrow={bindLocale(dict, 'header.eyebrow')} title={bindLocale(dict, 'pages.title')} subtitle={bindLocale(dict, 'pages.subtitle')} />
+      {children}
+    </Screen>
+  )
+}
 
 type BrainRoute =
   | { readonly kind: 'home' }
@@ -36,6 +50,14 @@ export interface SecondBrainShellProps {
   readonly onRevokeGrant?: (grantId: string) => void
   readonly onReload?: () => void
   readonly selectMainPanel?: ((panel: MainPanelId) => void) | undefined
+  /** The first real lines of the company profile (the Cofre `brief`); empty = nobody described the company yet. */
+  readonly companyLines?: readonly string[] | undefined
+  /** Saves what the person wrote about the company. Absent = the host cannot store it, so the invitation is not drawn. */
+  readonly onSaveCompanyBrief?: ((text: string) => Promise<void>) | undefined
+  /** Which tab of the Memória this is: the Resumo (default) or Páginas (the list of every page, with the documents in `footer`). */
+  readonly view?: 'summary' | 'pages' | undefined
+  /** Drawn at the bottom of Páginas: the uploaded documents of the company. */
+  readonly footer?: ReactNode
 }
 
 export function SecondBrainShell({
@@ -53,11 +75,18 @@ export function SecondBrainShell({
   onRevokeGrant,
   onReload,
   selectMainPanel,
+  companyLines,
+  onSaveCompanyBrief,
+  view = 'summary',
+  footer,
 }: SecondBrainShellProps): ReactNode {
   const [route, setRoute] = useState<BrainRoute>({ kind: 'home' })
+  const [briefOpen, setBriefOpen] = useState(false)
   const [pageDetail, setPageDetail] = useState<BrainPageView | null>(null)
   const [pageVersions, setPageVersions] = useState<Awaited<ReturnType<typeof listBrainVersionsRemote>>>([])
   const [newPageOpen, setNewPageOpen] = useState(false)
+  /** The type the "+ Tipo" chip asked for; the dialog opens on it. */
+  const [newPageKind, setNewPageKind] = useState<BrainKindView | undefined>(undefined)
   const [exportNote, setExportNote] = useState<{ readonly kind: 'done'; readonly count: number; readonly folder: string } | { readonly kind: 'failed' } | null>(null)
   /** Same words if this build's generated locale does not carry the new keys yet. */
   const tr = (key: string, fallback: string): string => {
@@ -71,7 +100,7 @@ export function SecondBrainShell({
   const exportVault = async (): Promise<void> => {
     const bridge = personaDesktopBridge()
     if (bridge === undefined || scope === null) return
-    const picked = await bridge.pickDirectory({ title: tr('export.pickTitle', 'Escolha a pasta para exportar o Segundo cérebro') })
+    const picked = await bridge.pickDirectory({ title: tr('export.pickTitle', 'Escolha a pasta para exportar a Memória da empresa') })
     if (picked === null || picked === '') return
     try {
       const result = await exportBrainVaultRemote(persona, scope, picked)
@@ -204,6 +233,35 @@ export function SecondBrainShell({
     )
   }
 
+  if (view === 'pages') {
+    const writePage = scope === null ? undefined : () => { setNewPageKind(undefined); setNewPageOpen(true) }
+    return (
+      <>
+        {surfaceState === 'loading' ? (
+          <PagesFrame dict={brainDict}><PersonaSurfaceLoading dict={brainDict} messageKey="loading" skeletonColumns={1} /></PagesFrame>
+        ) : surfaceState === 'error' ? (
+          <PagesFrame dict={brainDict}>
+            <PersonaSurfaceError dict={brainDict} titleKey="error.title" retryKey="error.retry" onRetry={() => { onRemoteRetry?.() }} />
+          </PagesFrame>
+        ) : (
+          <SecondBrainPagesView
+            dict={brainDict}
+            pages={pages}
+            personaNames={personaNames}
+            memberNames={memberNames}
+            onOpenPage={(pageId) => { void openPage(pageId) }}
+            onWritePage={writePage}
+          >
+            {footer}
+          </SecondBrainPagesView>
+        )}
+        {newPageOpen && (
+          <NewPageDialog dict={brainDict} initialKind={newPageKind} onClose={() => { setNewPageOpen(false) }} onCreate={createPage} />
+        )}
+      </>
+    )
+  }
+
   return (
     <>
       <SecondBrainHome
@@ -221,13 +279,25 @@ export function SecondBrainShell({
         {...(selectMainPanel === undefined
           ? {}
           : { onBringContext: () => { selectMainPanel('importers') } })}
-        {...(scope === null ? {} : { onWritePage: () => { setNewPageOpen(true) } })}
+        {...(scope === null ? {} : { onWritePage: (kind?: BrainKindView) => { setNewPageKind(kind); setNewPageOpen(true) } })}
         vaultFolderAvailable={vaultFolderAvailable}
         {...(canExportBrainVault(persona) ? { onExportVault: () => { void exportVault() } } : {})}
         {...(selectMainPanel === undefined ? {} : { onImportFolder: () => { selectMainPanel('importers') } })}
+        {...(companyLines === undefined ? {} : { companyLines })}
+        {...(onSaveCompanyBrief === undefined ? {} : { onDescribeCompany: () => { setBriefOpen(true) } })}
       />
       {newPageOpen && (
-        <NewPageDialog dict={brainDict} onClose={() => { setNewPageOpen(false) }} onCreate={createPage} />
+        <NewPageDialog dict={brainDict} initialKind={newPageKind} onClose={() => { setNewPageOpen(false) }} onCreate={createPage} />
+      )}
+      {briefOpen && onSaveCompanyBrief !== undefined && (
+        <CompanyBriefDialog
+          dict={brainDict}
+          onClose={() => { setBriefOpen(false) }}
+          onSave={async (text) => {
+            await onSaveCompanyBrief(text)
+            setBriefOpen(false)
+          }}
+        />
       )}
       {exportNote !== null && (
         <ToastRegion label={tr('menu.more', 'Mais ações')}>

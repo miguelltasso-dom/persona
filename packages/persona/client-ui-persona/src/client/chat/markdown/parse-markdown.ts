@@ -4,7 +4,8 @@
  * `<script>` nem atributo de evento possível; links só com http, https ou mailto.
  *
  * Subconjunto: parágrafos; **negrito** e *itálico*; listas com marcador e numeradas (2 níveis); links; `código`;
- * blocos de código; citação; tabelas; títulos `#`, `##` e `###`.
+ * blocos de código; citação; tabelas; títulos `#`, `##` e `###`; e o bloco recolhido `<details><summary>…</summary>…</details>`
+ * (a única tag HTML lida; o resumo é texto, o corpo é Markdown).
  *
  * Durante o streaming (`streaming: true`) o markdown incompleto não pisca: um bloco de código ainda sem a cerca de
  * fechamento aparece como texto até fechar. Marcadores inline sem par ficam como texto.
@@ -40,6 +41,16 @@ export interface MarkdownTable {
   readonly rows: readonly (readonly (readonly Inline[])[])[]
 }
 
+/**
+ * Detalhe técnico recolhido (item 4 da colheita: fala simples por padrão). Única peça de HTML que o parser lê: `<details>` com
+ * `<summary>` opcional, e o corpo é Markdown comum. O resumo é sempre texto; o resto do HTML continua virando texto.
+ */
+export interface MarkdownDetails {
+  readonly type: 'details'
+  readonly summary: string
+  readonly blocks: readonly MarkdownBlock[]
+}
+
 export type MarkdownBlock =
   | { readonly type: 'paragraph'; readonly inline: readonly Inline[] }
   | { readonly type: 'heading'; readonly level: 1 | 2 | 3; readonly inline: readonly Inline[] }
@@ -47,6 +58,7 @@ export type MarkdownBlock =
   | { readonly type: 'quote'; readonly blocks: readonly MarkdownBlock[] }
   | MarkdownList
   | MarkdownTable
+  | MarkdownDetails
 
 export interface ParseMarkdownOptions {
   /** A resposta ainda está chegando: bloco de código sem fechamento fica como texto. */
@@ -238,7 +250,79 @@ const startsTable = (line: string, next: string | undefined): boolean =>
   line.includes('|') && next !== undefined && next.includes('-') && TABLE_SEPARATOR.test(next)
 
 function startsBlock(line: string, next: string | undefined): boolean {
-  return FENCE_OPEN.test(line) || HEADING.test(line) || QUOTE.test(line) || LIST_ITEM.test(line) || startsTable(line, next)
+  return FENCE_OPEN.test(line) || HEADING.test(line) || QUOTE.test(line) || LIST_ITEM.test(line) || startsTable(line, next) || DETAILS_OPEN.test(line)
+}
+
+const DETAILS_OPEN = /^ {0,3}<details\b[^>]*>/iu
+const DETAILS_TAG = /<details\b[^>]*>|<\/details\s*>/giu
+const SUMMARY_OPEN = /^\s*<summary\b[^>]*>/iu
+const SUMMARY_FULL = /^\s*<summary\b[^>]*>([\s\S]*?)<\/summary\s*>/iu
+export const DETAILS_FALLBACK_SUMMARY = 'Detalhes'
+const SUMMARY_LIMIT = 80
+
+/** O resumo é texto puro: sem marcação, sem tags, uma linha, curto. */
+function summaryText(raw: string): string {
+  const text = raw.replace(/<[^>]*>/gu, '').replace(/\s+/gu, ' ').trim()
+  if (text === '') return DETAILS_FALLBACK_SUMMARY
+  return text.length > SUMMARY_LIMIT ? `${text.slice(0, SUMMARY_LIMIT - 1).trimEnd()}…` : text
+}
+
+/**
+ * Lê um `<details>` que começa em `lines[at]`. O fecho pode estar no fim de qualquer linha (um `<details>` dentro de bloco de código não
+ * conta); aberto e sem fecho, vai até o fim (assim a resposta que ainda chega não mostra a tag crua). O que vem depois do fecho, na mesma
+ * linha, volta como `trail` para virar o próximo bloco.
+ */
+function parseDetails(
+  lines: readonly string[],
+  at: number,
+  streaming: boolean,
+): { readonly block: MarkdownDetails; readonly next: number; readonly trail: string } {
+  let depth = 0
+  let fence: string | undefined
+  let offset = 0
+  let openEnd = -1
+  let closeStart = -1
+  let closeEnd = -1
+  let next = at
+  scan: for (; next < lines.length; next += 1) {
+    const line = lines[next] ?? ''
+    const opened = FENCE_OPEN.exec(line)
+    if (fence !== undefined) {
+      const closer = /^ {0,3}(`{3,}|~{3,})[ \t]*$/u.exec(line)
+      if (closer !== null && closer[1]?.charAt(0) === fence.charAt(0) && (closer[1]?.length ?? 0) >= fence.length) fence = undefined
+    } else if (next > at && opened !== null) {
+      fence = opened[1] ?? '```'
+    } else {
+      DETAILS_TAG.lastIndex = 0
+      for (let tag = DETAILS_TAG.exec(line); tag !== null; tag = DETAILS_TAG.exec(line)) {
+        if (tag[0].charAt(1) !== '/') {
+          depth += 1
+          if (depth === 1 && openEnd === -1) openEnd = offset + tag.index + tag[0].length
+        } else {
+          depth -= 1
+          if (depth === 0) {
+            closeStart = offset + tag.index
+            closeEnd = closeStart + tag[0].length
+            break scan
+          }
+        }
+      }
+    }
+    offset += line.length + 1
+  }
+  const raw = lines.slice(at, Math.min(next + 1, lines.length)).join('\n')
+  const closed = closeStart !== -1
+  const inner = raw.slice(openEnd, closed ? closeStart : raw.length)
+  const trail = closed ? raw.slice(closeEnd).trim() : ''
+  const full = SUMMARY_FULL.exec(inner)
+  const pending = full === null && SUMMARY_OPEN.test(inner)
+  const summary = pending ? DETAILS_FALLBACK_SUMMARY : summaryText(full?.[1] ?? '')
+  const body = pending ? '' : full === null ? inner : inner.slice(full[0].length)
+  return {
+    block: { type: 'details', summary, blocks: body.trim() === '' ? [] : parseLines(body.replace(/^\n+/u, '').split('\n'), streaming) },
+    next: closed ? next + 1 : lines.length,
+    trail,
+  }
 }
 
 function parseTable(lines: readonly string[], at: number): { readonly table: MarkdownTable; readonly next: number } {
@@ -371,6 +455,14 @@ function parseLines(lines: readonly string[], streaming: boolean): MarkdownBlock
       const stop = end === -1 ? lines.length : end
       blocks.push({ type: 'code', lang: fence[2] ?? '', text: lines.slice(i + 1, stop).join('\n') })
       i = end === -1 ? lines.length : end + 1
+      continue
+    }
+
+    if (DETAILS_OPEN.test(line)) {
+      const { block, next, trail } = parseDetails(lines, i, streaming)
+      blocks.push(block)
+      if (trail !== '') blocks.push(...parseLines([trail], streaming))
+      i = next
       continue
     }
 

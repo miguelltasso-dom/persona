@@ -64,6 +64,8 @@ describe('textos', () => {
     [{ verb: 'sprint_start', target: 'Sprint 12' }, 'Nina iniciou a sprint “Sprint 12”'],
     [{ verb: 'routine_pause', target: 'Resumo da manhã' }, 'Nina pausou a rotina “Resumo da manhã”'],
     [{ verb: 'persona_hire', target: 'Bolota' }, 'Nina contratou Bolota'],
+    [{ verb: 'browser_click', target: 'loja.exemplo.com.br' }, 'Nina clicou em loja.exemplo.com.br'],
+    [{ verb: 'browser_fill', target: 'loja.exemplo.com.br' }, 'Nina preencheu em loja.exemplo.com.br'],
     [{ verb: 'verbo_que_ninguem_conhece', connectorName: 'Quadros', target: 'Logo da padaria' }, 'Nina mexeu em “Logo da padaria” · Quadros'],
   ] as const)('%j', (extra, text) => {
     const { subject: _s, ...base } = wire()

@@ -1,5 +1,20 @@
 # Muse — Diretor de Design (relatos)
 
+## 11/11 22:03 · COLHEITA agentes.chat: a spec de tela entregue
+- **Spec:** `persona-spec/design/COLHEITA-MUSE.md` cobre os itens 5, 6, 11, 13, 14, 18, 19a e 20, com estados, medidas, movimento sobre os tokens que já existem e o texto PT-BR. Saiu em sala limpa: nomes nossos e nenhum nome interno deles.
+- **Decisões:**
+  - o painel do 19a é a seção **"Seus números"** da Visão geral (não "Minha Casa");
+  - o estado de conta não conferida chama `naoConferido`, e o vermelho fica só no logout confirmado;
+  - o "segure" usa o verbo da ação: `Segure para enviar/publicar/pagar/apagar`;
+  - a régua usa os tokens `--control-h-*` e `--control-r-*` (o Quill cria).
+- **Donos avisados:** Prism, Quill, Rivet, Flint, Cobalt e Gauge.
+- **Arte com o Brush:**
+  - vazio **Seus números** (dia e noite): aprovado no design depois da limpeza de alfa;
+  - **conversa da tarefa**: o balão "…" deve ficar vazio, e falta a noite;
+  - **cofre**: ficar só com o cofre e uma chave na pata.
+  - Para o acabamento, a ferramenta `.maestri/tmp/muse/alpha-clean.py`: o halo sai e o alfa vai a 255, com 4% de margem.
+- **Próximo:** o aceite final de cada item com tela, depois do pré-aceite do Ember e do Carbon.
+
 ## ✅ 09/11 19:25 — ACEITE DO INSTALADO v1.1 (Setup 39b2b6165b, sha256 4acf5b7a…9a04; cliente lib 6c 1688d21b)
 - **Escuro:** 24/24 cenas × 1440/960/200% (pré-aceite 72/72).
 - **Claro:** 24/24 (72/72 no 3660c033a5, com o mesmo cliente); geral/dm/personas refeitos no Setup novo (9/9).

@@ -68,7 +68,7 @@ function mountBoard(moveTicket: ReturnType<typeof vi.fn>) {
   const persona = { getProjectBoard: vi.fn(async () => ({ ok: true as const, value: BOARD })), moveTicket } as unknown as PersonaRemoteClient
   return render(
     <PreviewFrame brandLabel="Persona">
-      <ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onBack={() => {}} onMutate={() => {}} />
+      <ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onMutate={() => {}} />
     </PreviewFrame>,
   )
 }

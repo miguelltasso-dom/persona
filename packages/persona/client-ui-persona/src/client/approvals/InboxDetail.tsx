@@ -122,7 +122,7 @@ export function InboxDetail({
     >
       {stamped && (
         <div className={styles.stampSlot}>
-          <ApprovedStamp label={t('stamp.approved')} animate />
+          <ApprovedStamp label={t(item?.stampKey ?? 'stamp.approved')} animate />
           {rememberStampNote !== null && <p className={styles.sectionBody}>{rememberStampNote}</p>}
         </div>
       )}
@@ -237,7 +237,7 @@ export function InboxDetail({
           ) : actionPreview === undefined && (
             <div className={styles.detailActions}>
               {onReply !== undefined && <Button variant="primary" onClick={onReply} disabled={leaving || deciding || locked}>{t('action.reply')}</Button>}
-              <Tooltip content={t('inbox.tip.approve')} shortcut={['A']} side="bottom">
+              <Tooltip content={item?.dismissKey === undefined ? t('inbox.tip.approve') : primaryLabel} shortcut={['A']} side="bottom">
                 <Button variant={onReply === undefined ? 'primary' : 'secondary'} loading={deciding} aria-keyshortcuts="A" onClick={onApprove} disabled={blocked || !canDecide || leaving || locked}>
                   {primaryLabel}
                 </Button>
@@ -247,9 +247,9 @@ export function InboxDetail({
                   <Button variant="secondary" onClick={() => { onDetailsChange(true) }}>{t('hire.details')}</Button>
                 </Tooltip>
               )}
-              <Tooltip content={t('inbox.tip.dismiss')} shortcut={['D']} side="bottom">
+              <Tooltip content={t(item?.dismissKey ?? 'inbox.tip.dismiss')} shortcut={['D']} side="bottom">
                 <Button variant="secondary" aria-keyshortcuts="D" onClick={onDismiss} disabled={!canDecide || leaving || deciding || locked}>
-                  {t('action.dismiss')}
+                  {t(item?.dismissKey ?? 'action.dismiss')}
                 </Button>
               </Tooltip>
             </div>

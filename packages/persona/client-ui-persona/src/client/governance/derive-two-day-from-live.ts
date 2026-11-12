@@ -72,7 +72,8 @@ export function deriveTwoDayFromLive(
 
   if (live.team !== null) {
     for (const persona of live.team.personas) {
-      if (live.nowRows.some(row => personaIdsEquivalent(row.member.id, persona.id))) continue
+      // The "Agora" strip names a persona by her character id ("luna"), the team by the hired id ("onb-5"): same name and role is the same person.
+      if (live.nowRows.some(row => personaIdsEquivalent(row.member.id, persona.id) || (row.member.name === persona.name && row.member.role === persona.title))) continue
       if (persona.systemRoles.includes('watchdog')) {
         rows.push({
           id: `live-persona-${persona.id}`,

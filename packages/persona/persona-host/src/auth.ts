@@ -22,6 +22,9 @@ export const ACL_EXCEPTIONS: Record<string, string> = {
   previewCliSkills: 'local Claude/Codex skill scan; no tenant',
   getStoreHealth: 'local db health; no tenant',
   restoreBackup: 'local backup restore; no tenant',
+  ensureVoiceModel: 'item 20: installs the pinned voice model on demand; machine-wide public file, no tenant',
+  voiceModelState: 'item 20: whether the voice model is installed; machine-wide, no tenant',
+  listEmailPresets: 'item 19b: frozen catalog of Brazilian mail-provider presets (host and port); no tenant, no secret',
 }
 
 /**

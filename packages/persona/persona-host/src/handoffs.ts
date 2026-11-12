@@ -52,11 +52,15 @@ import {
 } from '@deepseek-ai/dsh-persona-engine'
 import type { EventRepos, ProductRepos, ScreenRepos, StoredEvent, StoredPersona } from '@deepseek-ai/dsh-persona-store'
 import { carryFile, carryFiles, filesNamedIn, INBOX_ATTACHMENTS_DIR, inboxParagraph, savedSince, type InboxLine } from './draft-inbox.ts'
+import { artText, spillArts } from './artifact-spill.ts'
+import { fileLevelOf } from './file-tools.ts'
 import { handoffBody, handoffSentence } from './handoff-wire.ts'
+import { trackedStateOf, waitsForColleague, type TrackedRequest } from './handoff-track.ts'
 import { sanitizeUploadName } from './media-detect.ts'
 import { mentionsOf } from './mentions.ts'
 import { FIRST_DELIVERY_EVENT_ID } from './onboarding.ts'
 import { reviewBody, reviewSentence } from './review-wire.ts'
+import { SPLIT_HOLD, SPLIT_NEXT, type SplitHold, type SplitNext } from './split-chain.ts'
 import type { TurnImage } from './turn-images.ts'
 import type { HandoffCardView, HandoffStatus, ReviewCardView } from './types.ts'
 
@@ -84,6 +88,8 @@ interface EntregaDoc {
   readonly text: string
   /** The text was longer than {@link ENTREGA_MAX}: how long it was, and the file in the draft that holds all of it when it could be written. */
   readonly cut?: { readonly total: number; readonly file?: string }
+  /** Item 9b: the file (in the SENDER's draft) of each big SVG/code block of her whole words, by order; '' = not written. The receiver's block points to it once it reached her draft. */
+  readonly arts?: readonly string[]
 }
 
 interface InboxDoc {
@@ -209,6 +215,8 @@ export interface HandoffDeps {
     attachmentNamesOf?(eventId: string): string[]
     /** P0-1: copy the files attached to a message into `<destDir>/inputs/` (the host's media store). */
     stageAttachments?(eventId: string, destDir: string, hasVision?: boolean): string[]
+    /** D-100: the other parts of the plan this Task is one of (a request split by function); empty when it is not a part. Optional: absent = no plan. */
+    plannedPartsOf?(projectId: string, ticketId: string): readonly { readonly personaId: string }[]
   }
 }
 
@@ -435,9 +443,11 @@ export class Handoffs {
     if (text === '' || (kind === 'review' && text.length <= NOTE_LINE_MAX)) return
     const long = text.length > ENTREGA_MAX
     const file = long ? this.spillEntrega(ticket, requestId, text) : undefined
+    const arts = spillArts(ticket.execution?.directory, requestId, text, confineWorktreeWrite) // item 9b: the big art of her words, as files in her draft
     const doc: EntregaDoc = {
       kind, fromName: from.name, text: long ? text.slice(0, ENTREGA_MAX) : text,
       ...(long ? { cut: { total: text.length, ...(file === undefined ? {} : { file }) } } : {}),
+      ...(arts.length === 0 ? {} : { arts }),
     }
     this.deps.screens.put(projectId, ENTREGA, requestId, doc)
   }
@@ -448,6 +458,10 @@ export class Handoffs {
     const ticket = this.deps.orchestration.runtime(projectId).repo.tickets.get(ticketId)
     const from = ticket === undefined ? undefined : this.deps.product.listPersonas(projectId).find(row => row.name === ticket.execution?.name)
     if (ticket === undefined || from === undefined) return
+    // D-100: the part that comes after this one in a split chain (the art after the text) gets what she wrote, WHOLE: the host's own bilhete, since the chain has no `pass_forward`.
+    // Every turn overwrites it (the review may send her back to adjust): what the consumer reads when it starts is the text she finally delivered.
+    const follower = this.deps.screens.get<SplitNext>(projectId, SPLIT_NEXT, ticket.origin.triggerId)
+    if (follower !== undefined) this.keepEntrega(projectId, follower.nextId, 'next', from, ticket, delivered)
     for (const row of this.records(projectId)) {
       if (row.fromTicketId !== ticketId || row.kind !== 'next' || row.status === 'delivered' || row.status === 'resumed') continue
       if (this.deps.screens.get(projectId, ENTREGA, row.id) !== undefined) continue
@@ -485,7 +499,11 @@ export class Handoffs {
       : [doc.cut.file === undefined
         ? `[O texto tem ${String(doc.cut.total)} caracteres e foi cortado em ${String(ENTREGA_MAX)}; o resto ficou na resposta de ${doc.fromName}.]`
         : `[O texto tem ${String(doc.cut.total)} caracteres e foi cortado em ${String(ENTREGA_MAX)}; o texto completo está no arquivo ${doc.cut.file}, no rascunho de ${doc.fromName}${inbox?.lines.some(line => line.at.endsWith(doc.cut?.file ?? '\0')) === true ? ' (e uma cópia dele está no seu)' : ''}.]`]
-    return [lead, '<entrega>', doc.text, '</entrega>', ...notice, ...(inbox === undefined ? [] : ['', inbox.paragraph])].join('\n')
+    // Item 9b: a big SVG/code block becomes one line saying where its file is, only when the file REACHED the receiver's draft and she can open files; otherwise it stays here whole.
+    const reader = this.deps.orchestration.runtime(projectId).repo.tickets.list().find(row => row.origin.triggerId === requestId)
+    const readerTools = this.deps.product.listPersonas(projectId).find(row => row.name === reader?.execution?.name)?.tools
+    const words = artText(doc.text, doc.arts, inbox?.lines, readerTools !== undefined && fileLevelOf(readerTools) !== 'none')
+    return [lead, '<entrega>', words, '</entrega>', ...notice, ...(inbox === undefined ? [] : ['', inbox.paragraph])].join('\n')
   }
 
   /**
@@ -560,16 +578,21 @@ export class Handoffs {
   /** What the sender of the request cited (the bilhete, her words) and saved in her draft, copied into this one. */
   private senderFiles(projectId: string, ticket: Ticket, to: string): InboxLine[] {
     const record = this.records(projectId).find(row => row.id === ticket.origin.triggerId)
-    if (record === undefined) return []
-    const from = draftOf(this.deps.orchestration.runtime(projectId).repo.tickets.get(record.fromTicketId))
-    const owner = this.deps.product.getPersona(record.fromPersonaId)?.name
-    if (from === undefined || owner === undefined) return []
-    const entrega = this.deps.screens.get<EntregaDoc>(projectId, ENTREGA, record.id)
-    const sent = this.deps.screens.get<InboxDoc>(projectId, INBOX, record.fromTicketId)
-    const said = [...record.note.done, ...record.note.needed, ...record.note.decisions, entrega?.text ?? ''].join('\n')
+    // D-100: a part that waited for the part before it in a split (the art after the text) has no bilhete record, but the same sender: the producer of its chain.
+    const chain = record === undefined ? this.deps.screens.get<SplitHold>(projectId, SPLIT_HOLD, ticket.origin.triggerId) : undefined
+    if (record === undefined && chain === undefined) return []
+    const tickets = this.deps.orchestration.runtime(projectId).repo.tickets
+    const fromTicketId = record?.fromTicketId ?? tickets.list().find(row => row.origin.triggerId === chain?.afterId)?.id
+    const from = fromTicketId === undefined ? undefined : draftOf(tickets.get(fromTicketId))
+    const owner = record === undefined ? chain?.afterName : this.deps.product.getPersona(record.fromPersonaId)?.name
+    if (fromTicketId === undefined || from === undefined || owner === undefined) return []
+    const entrega = this.deps.screens.get<EntregaDoc>(projectId, ENTREGA, ticket.origin.triggerId)
+    const sent = this.deps.screens.get<InboxDoc>(projectId, INBOX, fromTicketId)
+    const said = [...(record?.note.done ?? []), ...(record?.note.needed ?? []), ...(record?.note.decisions ?? []), entrega?.text ?? ''].join('\n')
     return carriedLines(from, to, owner, [
-      ...record.note.files,
+      ...(record?.note.files ?? []),
       ...(entrega?.cut?.file === undefined ? [] : [entrega.cut.file]),
+      ...(entrega?.arts ?? []).filter(name => name !== ''), // item 9b: her big art, written as files in her draft: it travels like any file she saved
       ...filesNamedIn(said),
       ...(sent === undefined ? [] : savedSince(from, sent.at)),
       // What the sender RECEIVED (not written by her: a copy keeps the old time of the original, so it is not "saved since") goes on with the work (a campaign, a chain of passes).
@@ -837,10 +860,13 @@ export class Handoffs {
     const assignment = latestAssignment(ticket)
     if (author === undefined || assignment === undefined) return
     const lines = (assignment.report?.summary ?? '').split(/\r?\n/u).map(line => line.trim()).filter(line => line !== '')
+    // D-100: a colleague who already has her part in the host's plan of this request starts it by herself; a line "@Teo faça a arte" must not open a second one.
+    const planned = this.deps.orchestration.plannedPartsOf?.(projectId, ticket.id) ?? []
     for (const line of lines) {
       if (!line.startsWith('@')) continue
       const cited = mentionsOf(personas, line)[0]
       if (cited === undefined || cited.id === author.id || !line.toLocaleLowerCase('pt-BR').startsWith(`@${cited.name.toLocaleLowerCase('pt-BR')}`)) continue
+      if (planned.some(part => part.personaId === cited.id)) continue
       const rest = line.slice(1 + cited.name.length).replace(/^[\s,:;–—-]+/u, '')
       if (!wantsWork(rest)) continue
       if (this.passedTo(projectId, ticket.id, cited.id)) return // the persona already passed it on with the tool
@@ -1056,6 +1082,31 @@ export class Handoffs {
       out.push({ requestId: row.id, role, fromPersonaId: row.fromPersonaId, toPersonaId: row.toPersonaId, title: row.title, status: row.status, note: row.note, at: row.askedAt })
     }
     return out.sort((a, b) => a.at.localeCompare(b.at))
+  }
+
+  /**
+   * Item 1: the work this Task handed to colleagues (help and pass-on; never the review step), oldest first, in the words of {@link TrackedState}. Pure read: it changes nothing.
+   * @param projectId - Tenant.
+   * @param ticketId - The Task that asked.
+   */
+  trackedOf(projectId: string, ticketId: string): TrackedRequest[] {
+    if (!this.deps.enabled()) return []
+    return this.records(projectId)
+      .filter(row => row.fromTicketId === ticketId && row.kind !== 'review')
+      .sort((a, b) => a.askedAt.localeCompare(b.askedAt))
+      .map(row => ({
+        requestId: row.id, mode: row.mode, toName: this.deps.product.getPersona(row.toPersonaId)?.name ?? 'um colega', title: row.title,
+        state: trackedStateOf(row.status, row.awaiting !== undefined),
+      }))
+  }
+
+  /**
+   * Item 1: does this Task have a help it asked for that is not back yet (the end of its turn is then "esperando colega", never "Pronto")? Pure read, stable signature for the turn closer.
+   * @param projectId - Tenant.
+   * @param ticketId - The Task that asked.
+   */
+  waitingOnColleague(projectId: string, ticketId: string): boolean {
+    return waitsForColleague(this.trackedOf(projectId, ticketId))
   }
 
   private ticketOf(projectId: string, record: HandoffRecord): Ticket | undefined {

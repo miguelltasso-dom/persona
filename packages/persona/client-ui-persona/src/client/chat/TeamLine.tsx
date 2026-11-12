@@ -18,13 +18,23 @@ import {
   type ReviewLineUi,
   type TeamPersonaUi,
 } from '../teamwork/team-lines-model.ts'
+import { faceTone, sameFace } from './team-line-faces.ts'
 import styles from './TeamLine.module.css'
 
 type ChatT = PropsLocale<'persona.chat'>['t']
 
-function face(persona: TeamPersonaUi): ReactNode {
+/** DESIGN-01 (Fio real c): o rosto de 28 px com o anel da função; com `named` (rostos iguais) o nome vem ao lado do rosto. */
+function face(persona: TeamPersonaUi, named = false): ReactNode {
   const src = persona.characterId === undefined ? undefined : AVATAR_96[persona.characterId as keyof typeof AVATAR_96]
-  return <Avatar name={persona.name} src={src} shape="portrait" size={24} decorative />
+  const tone = faceTone(persona)
+  return (
+    <>
+      <span className={styles.face} data-team-face="" data-tint={tone === undefined ? undefined : String(tone)}>
+        <Avatar name={persona.name} src={src} shape="portrait" size={28} decorative />
+      </span>
+      {named && <span className={styles.faceName} data-team-face-name="">{persona.name}</span>}
+    </>
+  )
 }
 
 /** A frase da linha, sem marcação (também usada pelos testes). `undefined` = sem texto na spec: o corpo simples do host aparece. */
@@ -46,12 +56,14 @@ interface EventShellProps {
 
 function EventShell({ left, right, rowTag, kind, sentence, timeLabel, actions, icon }: EventShellProps): ReactNode {
   const Tag = rowTag
+  // Se os dois rostos se confundem (o mesmo bicho e a mesma função), o nome vem antes da seta.
+  const named = sameFace(left, right)
   return (
     <Tag className={styles.line} data-team-line={kind}>
       <span className={styles.faces} aria-hidden="true">
-        {face(left)}
-        <span className={styles.arrow}><UiIcon name="arrowRight" size={14} /></span>
-        {face(right)}
+        {face(left, named)}
+        <span className={styles.arrow} data-team-arrow=""><UiIcon name="arrowRight" size={14} /></span>
+        {face(right, named)}
       </span>
       <div className={styles.body}>
         <p className={styles.text}>

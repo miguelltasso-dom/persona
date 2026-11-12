@@ -12,6 +12,15 @@ import { mapPersonaAskLive, type PersonaAskLiveUi } from './persona-ask-model.ts
 export interface PersonaAsksRemote {
   listPersonaAsks?(request: Record<string, unknown>): unknown
   answerAttention?(request: Record<string, unknown>): unknown
+  /** O toque num cartão de escolha do fim da vez (colheita item 11); um host sem ele deixa o cartão só em leitura. */
+  answerChoice?(request: Record<string, unknown>): unknown
+}
+
+const CHOICE_PREFIX = 'choice:'
+
+/** A mensagem da persona que carrega o cartão do fim da vez, a partir do `askId` (`choice:<id da mensagem>`). */
+export function choiceMessageIdOf(askId: string): string | undefined {
+  return askId.startsWith(CHOICE_PREFIX) && askId.length > CHOICE_PREFIX.length ? askId.slice(CHOICE_PREFIX.length) : undefined
 }
 
 export interface PersonaAsksScope {
@@ -62,4 +71,16 @@ export async function answerAskChoices(
     workspaceId: scope.workspaceId, projectId: scope.projectId, ticketId, text: '', optionIds: [...optionIds],
   })
   return done !== false
+}
+
+/**
+ * O toque numa opção do cartão do fim da vez: o host posta a mensagem curta da pessoa (`✓ B · …`) e ela abre o turno novo.
+ * Falha (já escolhida, opção inválida, sem host) lança com a frase do host.
+ * @param askId - O `askId` do cartão (`choice:<id da mensagem>`).
+ * @param optionId - A opção (`a`..`f`).
+ */
+export async function answerEndOfTurnChoice(remote: PersonaAsksRemote, scope: PersonaAsksScope, askId: string, optionId: string): Promise<void> {
+  const messageId = choiceMessageIdOf(askId)
+  if (messageId === undefined) throw new Error('cartão inválido')
+  await call<boolean>(remote, 'answerChoice', { workspaceId: scope.workspaceId, projectId: scope.projectId, messageId, optionId })
 }

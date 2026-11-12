@@ -153,10 +153,12 @@ describe('Um dia da equipe (host real, runner roteirizado, 0 IA)', () => {
 
     // ── 1 · 08:30 · a pessoa pede a campanha (UM pedido, sem dizer quem faz). A revisão da Coordenação está ligada (padrão do projeto) e o
     //    veredito dela é roteirizado: o texto do runner roteirizado só vale como veredito se começa com APROVADO / AJUSTES (Tally/Forge).
+    // D-100: the parts are a CHAIN (texto → arte → posts), so the runs go in this order: Bia, the Coordenação's verdict on her (returned), Bia adjusts, the second pass approves —
+    // and only then Teo with his verdict and Caio with his (they used to run side by side, the verdicts after all three).
     queueText(h, [
-      'Texto da campanha pronto.', 'Arte da campanha pronta.', 'Posts da campanha prontos.', // the 3 authors, in the order their runs end
-      'AJUSTES\n- faltou o nome do produto no texto', 'APROVADO\nTudo certo.', 'APROVADO\nTudo certo.', // the Coordenação's verdicts on Bia (returned), Teo, Caio
-      'Ajustei o nome do produto no texto.', 'APROVADO\nAgora sim.', // Bia adjusts; the second pass approves
+      'Texto da campanha pronto.', 'AJUSTES\n- faltou o nome do produto no texto', 'Ajustei o nome do produto no texto.', 'APROVADO\nAgora sim.',
+      'Arte da campanha pronta.', 'APROVADO\nTudo certo.',
+      'Posts da campanha prontos.', 'APROVADO\nTudo certo.',
     ])
     postAsAna(h, 'c1', REQUEST, nowIso())
     for (let pass = 0; pass < 12; pass += 1) await flush()

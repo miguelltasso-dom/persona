@@ -54,7 +54,7 @@ describe('lumen queue 2 previews', () => {
     wrap(<PersonaProfilePage dict={profilePt} snapshot={MOCK_PROFILE_ATLAS} />)
     expect(screen.getByRole('heading', { level: 1, name: 'Atlas' })).toBeTruthy()
     fireEvent.click(screen.getByRole('tab', { name: profilePt['tab.memory'] }))
-    expect(screen.getByRole('heading', { level: 2, name: 'Memória da persona' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: 'Memória da equipe' })).toBeTruthy()
   })
 
   it('shows gestor audit on profile when team_manager and items provided (GES-5)', () => {

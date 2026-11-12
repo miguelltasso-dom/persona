@@ -52,6 +52,17 @@ describe('mapRailTeamFromLive', () => {
     expect(rows[0]?.state).toBe('reviewing')
   })
 
+  it('o rail recebe do palco os fatos do vocabulário único: rascunho, janela de silêncio e pausa', () => {
+    const snap: PersonaLiveSnapshot = {
+      ...base,
+      kanbanCards: [],
+      nowRows: [{ member: { id: 'atlas', name: 'Atlas', role: 'Coordenação', state: 'working', draftFiles: 2, quiet: true, paused: false }, queueCount: 0 }],
+    }
+    expect(mapRailTeamFromLive(snap, true)[0]).toMatchObject({ state: 'working', draftFiles: 2, quiet: true, paused: false })
+    const idle: PersonaLiveSnapshot = { ...snap, nowRows: [], stripMembers: [{ id: 'atlas', name: 'Atlas', role: 'Coordenação', state: 'resting', quiet: true }] }
+    expect(mapRailTeamFromLive(idle, true)[0]).toMatchObject({ state: 'resting', quiet: true })
+  })
+
   it('marks offline when host is disconnected', () => {
     const rows = mapRailTeamFromLive(base, false)
     expect(rows[0]?.state).toBe('offline')

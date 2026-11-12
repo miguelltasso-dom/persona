@@ -36,7 +36,7 @@ describe('freePercentFromQuotas', () => {
     expect(freePercentFromQuotas([quota('claude', [18, 62])], 'claude')).toBe(38)
   })
 
-  it('sem número oficial é null (a pílula mostra "—"), nunca 0%', () => {
+  it('sem número oficial é null (a pílula diz "pronto", nunca um travessão), nunca 0%', () => {
     expect(freePercentFromQuotas(null, 'claude')).toBeNull()
     expect(freePercentFromQuotas([], 'claude')).toBeNull()
     expect(freePercentFromQuotas([quota('claude', [undefined])], 'claude')).toBeNull()
@@ -71,9 +71,17 @@ describe('deriveRailAiStatus', () => {
     expect(deriveRailAiStatus(READY, null, null)).toEqual({ kind: 'ready', engine: null, freePct: null, limited: false })
   })
 
-  it('nenhuma IA ou login pendente é "unavailable"', () => {
+  it('nenhuma IA instalada é "unavailable" sem motor; a CLI instalada SEM login nomeia o motor ("Claude · sem login")', () => {
     expect(deriveRailAiStatus({ readiness: 'unavailable', reason: 'none_connected', pending: 0 }, [], [])).toEqual({ kind: 'unavailable' })
-    expect(deriveRailAiStatus({ readiness: 'unavailable', reason: 'login_required', pending: 0 }, [connection('claude', { loggedIn: false })], [])).toEqual({ kind: 'unavailable' })
+    expect(deriveRailAiStatus({ readiness: 'unavailable', reason: 'none_connected', pending: 0 }, null, null)).toEqual({ kind: 'unavailable' })
+    expect(deriveRailAiStatus({ readiness: 'unavailable', reason: 'login_required', pending: 0 }, [connection('claude', { loggedIn: false })], []))
+      .toEqual({ kind: 'unavailable', engine: 'Claude' })
+    // Sem CLI instalada (available false) ou ainda sondando (phase checking) não há motor para nomear.
+    expect(deriveRailAiStatus({ readiness: 'unavailable', reason: 'none_connected', pending: 0 }, [connection('claude', { available: false, loggedIn: false })], [])).toEqual({ kind: 'unavailable' })
+    expect(deriveRailAiStatus({ readiness: 'unavailable', reason: 'none_connected', pending: 0 }, [connection('claude', { loggedIn: false, phase: 'checking' })], [])).toEqual({ kind: 'unavailable' })
+    // Entre vários, o primeiro instalado sem login.
+    expect(deriveRailAiStatus({ readiness: 'unavailable', reason: 'login_required', pending: 0 }, [connection('codex', { available: false, loggedIn: false }), connection('cursor', { loggedIn: false })], []))
+      .toEqual({ kind: 'unavailable', engine: 'Cursor' })
   })
 
   it('cota esgotada continua conectada: motor + número real + limited (não diz "sem IA")', () => {
@@ -108,26 +116,47 @@ describe('deriveRailPill: um texto por vez, na ordem da Muse', () => {
     expect(deriveRailPill({ ...base, awayText: 'Fora até 18h', ai: { kind: 'unavailable' } })).toEqual({ text: 'Fora até 18h', tone: 'away' })
   })
 
-  it('sem IA: "Sem IA conectada · Conectar" em warning', () => {
+  it('sem nenhum motor instalado: "Sem IA conectada · Conectar" em warning', () => {
     expect(deriveRailPill({ ...base, ai: { kind: 'unavailable' } })).toEqual({ text: 'Sem IA conectada · Conectar', tone: 'warning' })
   })
 
-  it('conferindo: "Conferindo a IA…" com o ponto lilás (pending), sem warning', () => {
-    expect(deriveRailPill({ ...base, ai: RAIL_AI_CHECKING })).toEqual({ text: 'Conferindo a IA…', tone: 'pending' })
+  it('motor instalado sem login: "Claude · sem login" em warning (Muse §1.0.2)', () => {
+    expect(deriveRailPill({ ...base, ai: { kind: 'unavailable', engine: 'Claude' } })).toEqual({ text: 'Claude · sem login', tone: 'warning' })
+    expect(deriveRailPill({ ...base, ai: { kind: 'unavailable', engine: 'Codex' } })).toEqual({ text: 'Codex · sem login', tone: 'warning' })
   })
 
-  it('pronta: "Claude · 82% livre"; sem cota: "Claude · —"; pouca folga: mesmo texto, ponto warning', () => {
+  it('conferindo: "Claude · conferindo…" com o ponto lilás (pending), sem warning; com o último motor conhecido, esse nome', () => {
+    expect(deriveRailPill({ ...base, ai: RAIL_AI_CHECKING })).toEqual({ text: 'Claude · conferindo…', tone: 'pending' })
+    expect(deriveRailPill({ ...base, ai: { kind: 'checking', engine: 'Codex' } })).toEqual({ text: 'Codex · conferindo…', tone: 'pending' })
+  })
+
+  it('pronta: "Claude · 82% livre"; sem cota publicada: "Claude · pronto" (o travessão nunca aparece); pouca folga: mesmo texto, ponto warning', () => {
     expect(deriveRailPill(base)).toEqual({ text: 'Claude · 82% livre', tone: 'online' })
-    expect(deriveRailPill({ ...base, ai: { ...ready, freePct: null } })).toEqual({ text: 'Claude · —', tone: 'online' })
+    expect(deriveRailPill({ ...base, ai: { ...ready, freePct: null } })).toEqual({ text: 'Claude · pronto', tone: 'online' })
     expect(deriveRailPill({ ...base, ai: { ...ready, freePct: 12 } })).toEqual({ text: 'Claude · 12% livre', tone: 'warning' })
+  })
+
+  it('parada no limite sem número: "Claude · no limite" em warning (nunca "pronto" para quem não consegue trabalhar)', () => {
+    expect(deriveRailPill({ ...base, ai: { ...ready, freePct: null, limited: true } })).toEqual({ text: 'Claude · no limite', tone: 'warning' })
+    expect(deriveRailPill({ ...base, ai: { ...ready, freePct: 0, limited: true } })).toEqual({ text: 'Claude · 0% livre', tone: 'warning' })
+  })
+
+  it('o travessão nunca aparece em texto nenhum da pílula, em nenhum estado', () => {
+    const states: readonly RailAiStatus[] = [
+      RAIL_AI_CHECKING, { kind: 'checking', engine: 'Claude' }, { kind: 'unavailable' }, { kind: 'unavailable', engine: 'Claude' },
+      { kind: 'ready', engine: 'Claude', freePct: null, limited: false }, { kind: 'ready', engine: 'Claude', freePct: null, limited: true },
+      { kind: 'ready', engine: 'Claude', freePct: 40, limited: false }, { kind: 'ready', engine: null, freePct: null, limited: false },
+    ]
+    for (const ai of states) expect(deriveRailPill({ ...base, ai }).text).not.toMatch(/—|–|\s-\s|·\s*$/u)
   })
 
   it('sem fonte de IA (preview/testes): o "Conectado" de sempre', () => {
     expect(deriveRailPill({ ...base, ai: undefined })).toEqual({ text: 'Conectado', tone: 'online' })
   })
 
-  it('a linha do popover não repete o "· Conectar" que o botão já diz', () => {
+  it('a linha do popover não repete o "· Conectar" que o botão já diz (e nomeia o motor sem login)', () => {
     expect(railAiRowText(t, { kind: 'unavailable' })).toBe('Sem IA conectada')
+    expect(railAiRowText(t, { kind: 'unavailable', engine: 'Claude' })).toBe('Claude · sem login')
     expect(railAiRowText(t, ready)).toBe('Claude · 82% livre')
     expect(railAiRowText(t, undefined)).toBeNull()
   })
@@ -220,7 +249,19 @@ describe('createRailAiObservable', () => {
     expect(failing.getSnapshot()).toEqual(RAIL_AI_CHECKING)
   })
 
-  it('falha só na cota: o motor aparece com "—", nunca 0%', async () => {
+  it('o host volta a sondar ("conferindo"): a pílula segue com o último motor conhecido ("Claude · conferindo…"), sem trocar de nome', async () => {
+    let state: unknown = { state: 'ready', pending: 0 }
+    const { remote } = fakeRemote({ getEngineStatus: vi.fn(() => state) })
+    const observable = createRailAiObservable({ remote, scope: () => scope, subscribeScope: () => () => {} })
+    observable.subscribe(() => {})
+    await vi.advanceTimersByTimeAsync(0)
+    expect(observable.getSnapshot()).toMatchObject({ kind: 'ready', engine: 'Claude' })
+    state = { state: 'checking', pending: 0 }
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(observable.getSnapshot()).toEqual({ kind: 'checking', engine: 'Claude' })
+  })
+
+  it('falha só na cota: o motor aparece (pronto, sem número), nunca 0%', async () => {
     const { remote } = fakeRemote({ getOfficialQuota: vi.fn(() => { throw new Error('sem cota') }) })
     const observable = createRailAiObservable({ remote, scope: () => scope, subscribeScope: () => () => {} })
     observable.subscribe(() => {})

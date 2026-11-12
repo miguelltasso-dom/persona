@@ -7,7 +7,7 @@
   "action.deleteDocument": "Apagar",
   "documents.uploadHint": "PDF, DOCX, MD, TXT ou CSV — até 8 MB, processado neste dispositivo.",
   "field.chunks": "{count} trechos indexados",
-  "title": "Cofre da empresa",
+  "title": "Documentos e registros",
   "subtitle": "Briefs, restrições, decisões e memória — com versões e quem pode ver",
   "tab.records": "Registros",
   "tab.documents": "Documentos",
@@ -29,9 +29,10 @@
   "empty.title": "Conte sobre a sua empresa",
   "empty.hint": "Conte o básico da sua empresa e a equipe passa a usar em todo pedido. Aqui ficam as versões e quem enxerga cada registro.",
   "empty.action": "Descrever a empresa",
-  "empty.illustration": "Ilustração: cofre aberto com documentos",
-  "loading": "Carregando cofre…",
+  "empty.illustration": "Ilustração: documentos da empresa",
+  "loading": "Carregando documentos…",
   "error.title": "Não consegui falar com a equipe agora",
   "error.retry": "Tentar de novo",
-  "search.placeholder": "Buscar no cofre…"
+  "search.placeholder": "Buscar nos registros…",
+  "embedded.empty": "Nenhum documento ou registro ainda. Envie um arquivo ou traga o que você já tem."
 }

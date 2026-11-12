@@ -38,7 +38,7 @@ describe('"com {nome}" on the board card', () => {
 
   it('says "com Bento", "com Bento, Luna e Sol", and nothing when nobody is with the lead', async () => {
     const persona = { getProjectBoard: vi.fn(async () => ({ ok: true as const, value: BOARD })), moveTicket: vi.fn() } as unknown as PersonaRemoteClient
-    render(<PreviewFrame brandLabel="Persona"><ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onBack={() => {}} onMutate={() => {}} /></PreviewFrame>)
+    render(<PreviewFrame brandLabel="Persona"><ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onMutate={() => {}} /></PreviewFrame>)
     expect(await screen.findByText('com Bento')).toBeTruthy()
     expect(screen.getByText('com Bento, Luna e Sol')).toBeTruthy()
     expect(screen.getAllByText(/^com /)).toHaveLength(2)

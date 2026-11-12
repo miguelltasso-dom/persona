@@ -86,9 +86,9 @@ describe('ConnectedGlobalKanban listBoards (PB-5/10)', () => {
     render(
       <PreviewFrame brandLabel="Persona">
         <ConnectedGlobalKanban
+          view="grid"
           persona={persona}
           refreshKanban={async () => {}}
-          navigateProjectTab={() => {}}
           clearBoardsFocusProject={() => { shellActions.clearBoardsFocusProject() }}
           clearKanbanFocusTicket={() => { shellActions.clearKanbanFocusTicket() }}
           setProjectWorkspaceProjectId={(id) => { shellActions.setProjectWorkspaceProjectId(id) }}
@@ -139,9 +139,9 @@ describe('ConnectedGlobalKanban listBoards (PB-5/10)', () => {
     render(
       <PreviewFrame brandLabel="Persona">
         <ConnectedGlobalKanban
+          view="grid"
           persona={persona}
           refreshKanban={async () => {}}
-          navigateProjectTab={() => {}}
           clearBoardsFocusProject={() => { shellActions.clearBoardsFocusProject() }}
           clearKanbanFocusTicket={() => { shellActions.clearKanbanFocusTicket() }}
           setProjectWorkspaceProjectId={(id) => { shellActions.setProjectWorkspaceProjectId(id) }}

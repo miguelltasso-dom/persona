@@ -173,7 +173,7 @@ describe('the entry line with no name (Muse 05:51)', () => {
 function connected(persona: PersonaRemoteClient, tasks: React.ComponentProps<typeof ConnectedProjectHistory>['tasks'] = []) {
   return render(
     <PreviewFrame brandLabel="Persona">
-      <ConnectedProjectHistory persona={persona} scope={{ workspaceId: 'ws', projectId: 'p' }} kanbanDict={kanbanPt} tasks={tasks} onBack={() => {}} onWorkspaceTabChange={() => {}} />
+      <ConnectedProjectHistory persona={persona} scope={{ workspaceId: 'ws', projectId: 'p' }} kanbanDict={kanbanPt} tasks={tasks} onBack={() => {}} />
     </PreviewFrame>,
   )
 }
@@ -182,7 +182,9 @@ describe('ConnectedProjectHistory', () => {
   it('a host without the history Remotes: honest "unavailable", no false Desfazer', async () => {
     connected({} as unknown as PersonaRemoteClient)
     await waitFor(() => { expect(screen.getByText('O histórico fica disponível quando a pasta do projeto tem a Persona ativa.')).toBeTruthy() })
-    expect(screen.getByRole('tab', { name: 'Histórico', selected: true })).toBeTruthy()
+    // the history is a view of the board (DESIGN-01 #10): one link back to it, no tab rail of its own
+    expect(screen.getByRole('button', { name: 'Voltar ao quadro' })).toBeTruthy()
+    expect(screen.queryByRole('tablist')).toBeNull()
     expect(screen.queryByRole('button', { name: 'Desfazer' })).toBeNull()
   })
 

@@ -19,10 +19,11 @@ afterEach(() => { cleanup() })
 const CSS = readFileSync(join(import.meta.dirname, '../src/client/team/TeamChannelStrip.module.css'), 'utf8').replaceAll('\r\n', '\n')
 
 const MEMBERS: readonly ChannelPersonaMember[] = [
-  { id: 'atlas', name: 'Atlas', role: 'Coordenação', state: 'resting', systemRoles: ['team_manager'] },
+  { id: 'atlas', name: 'Atlas', role: 'Coordenação', state: 'resting', quiet: true, systemRoles: ['team_manager'] },
   { id: 'nina', name: 'Nina', role: 'Pesquisa', state: 'working', draftFiles: 3 },
   { id: 'bento', name: 'Bento', role: 'Engenharia', state: 'working' },
   { id: 'sol', name: 'Sol', role: 'Relacionamento', state: 'waiting' },
+  { id: 'luna', name: 'Luna', role: 'Atendimento', state: 'resting' },
 ]
 
 /** Corpo do bloco `@container` informado (até a chave que o fecha), ou '' se não existir. */
@@ -47,6 +48,7 @@ describe('faixa da equipe: o estado fica legível sem a etiqueta mostrar o texto
       `Nina · ${pt['team.statusDraft']}`,
       `Bento · ${pt['team.statusWorking']}`,
       `Sol · ${pt['team.statusWaiting']}`,
+      `Luna · ${pt['team.statusAvailable']}`,
     ])
   })
 
@@ -55,6 +57,7 @@ describe('faixa da equipe: o estado fica legível sem a etiqueta mostrar o texto
     expect(screen.getByText(pt['team.statusResting'])).toBeTruthy()
     expect(screen.getByText(pt['team.statusWorking'])).toBeTruthy()
     expect(screen.getByText(pt['team.statusWaiting'])).toBeTruthy()
+    expect(screen.getByText(pt['team.statusAvailable'])).toBeTruthy()
     const draft = screen.getByText(pt['team.statusDraftSr'])
     expect(draft.className).toContain('persona-sr-only')
     // o texto curto do rascunho que a pessoa vê é decorativo (a frase do leitor já diz tudo): nunca lido duas vezes
@@ -62,7 +65,7 @@ describe('faixa da equipe: o estado fica legível sem a etiqueta mostrar o texto
   })
 
   it('o nome tem o próprio elemento (as reticências cortam o nome, nunca o ⋯ nem o ícone do Gestor)', () => {
-    const { container } = render(<TeamChannelStrip t={shellTranslate} members={MEMBERS} personaFace={() => ({ onClick: () => undefined, onPointerEnter: () => undefined, onPointerLeave: () => undefined, onKeyDown: () => undefined, 'aria-keyshortcuts': 'Shift+F10' })} personaMenu={(id) => ({ onClick: () => undefined, 'aria-haspopup': 'dialog', 'aria-expanded': false, 'data-persona-card-trigger': id })} />)
+    const { container } = render(<TeamChannelStrip t={shellTranslate} members={MEMBERS} personaFace={() => ({ onClick: () => undefined, onPointerEnter: () => undefined, onPointerLeave: () => undefined, onKeyDown: () => undefined, 'aria-keyshortcuts': 'Shift+F10' })} personaMenu={id => ({ onClick: () => undefined, 'aria-haspopup': 'dialog', 'aria-expanded': false, 'data-persona-card-trigger': id })} />)
     const atlas = screen.getByText('Atlas')
     // o nome é um span só com o texto; o ⋯ (botão) é irmão dele dentro da mesma linha, não filho
     expect(atlas.children.length).toBe(0)
@@ -100,7 +103,8 @@ describe('faixa da equipe: CSS que impede a sobreposição', () => {
     expect(hidden).toMatch(/width:\s*1px\s*;/u)
     expect(hidden).not.toMatch(/display:\s*none/u)
     expect(hidden).not.toMatch(/visibility:\s*hidden/u)
-    // a etiqueta compacta ganha a folga que o nome (+ ⋯) precisa
-    expect(compact).toMatch(/\.tag\s*\{[^}]*padding-inline:\s*6px\s*;/u)
+    // a etiqueta compacta fica numa LINHA só (o ponto à esquerda do nome, nunca órfão numa 2ª linha) e ganha a folga que o nome (+ ⋯) precisa
+    expect(compact).toMatch(/\.tag\s*\{[^}]*flex-direction:\s*row\s*;[^}]*gap:\s*6px\s*;[^}]*padding:\s*4px 8px\s*;/u)
+    expect(compact).toMatch(/\.tagStatus\s*\{[^}]*order:\s*-1\s*;/u)
   })
 })

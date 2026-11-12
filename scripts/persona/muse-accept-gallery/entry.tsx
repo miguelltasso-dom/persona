@@ -13,7 +13,7 @@ import { pt as editorPt } from '../../../packages/persona/client-ui-persona/src/
 import { pt as chatPt } from '../../../packages/persona/client-ui-persona/src/client/locale/chat/locales.ts'
 import { pt as governancePt } from '../../../packages/persona/client-ui-persona/src/client/locale/governance/locales.ts'
 import { ConversasPrototype } from './conversas.tsx'
-import { LodiPrototype } from './lodi.tsx'
+import { CartaoPerguntaPrototype } from './cartao-pergunta.tsx'
 import { BaloesPrototype } from './baloes.tsx'
 import { Sw7Draft } from './sw7.tsx'
 import { SubjectBar } from '../../../packages/persona/client-ui-persona/src/client/chat/SubjectBar.tsx'
@@ -105,8 +105,8 @@ const STATES: Readonly<Record<string, () => ReactNode>> = {
   'conversas-5': () => <ConversasPrototype many={false} dm />,
   'conversas-30': () => <ConversasPrototype many />,
   'conversas-30-picker': () => <ConversasPrototype many picker />,
-  'conversas-pergunta': () => <LodiPrototype state="question" />,
-  'conversas-figurinha': () => <LodiPrototype state="sticker" />,
+  'conversas-pergunta': () => <CartaoPerguntaPrototype state="question" />,
+  'conversas-figurinha': () => <CartaoPerguntaPrototype state="sticker" />,
   'conversas-baloes-dm': () => <BaloesPrototype state="dm" />,
   'conversas-baloes-canal': () => <BaloesPrototype state="channel" />,
   'conversas-baloes-dm-luz': () => <BaloesPrototype state="dm" lamp />,

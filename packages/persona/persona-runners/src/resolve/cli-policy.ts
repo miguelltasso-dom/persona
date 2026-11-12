@@ -153,9 +153,9 @@ function codexPolicy(mode: CliPermissionMode, grants: ToolGrants, toolLevel: Too
 }
 
 function cursorPolicy(mode: CliPermissionMode, grants: ToolGrants, toolLevel: ToolLevel): CliSessionPolicy {
-  const denied: string[] = []
-  if (mode === 'deny' || grants.files !== 'write') denied.push(...CURSOR_WRITE.filter(name => name !== 'Bash' && name !== 'Shell'))
-  if (mode === 'deny' || grants.shell === 'none') denied.push('Bash', 'Shell')
+  // D-103a: Cursor has no command or draft gate the product can rely on (`authority/cli-gates.ts`): the native shell
+  // and the file tools are refused whatever the persona's grant. Only the web grant is honoured.
+  const denied: string[] = [...CURSOR_WRITE]
   if (grants.web === 'none') denied.push(...CURSOR_NET)
   return {
     permissionMode: mode,

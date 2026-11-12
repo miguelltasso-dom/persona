@@ -18,9 +18,15 @@ export function minBytesFor(png) {
 }
 
 /** As checagens, na ordem em que aparecem no relatório. */
-export const CHECKS = ['cobertura', 'axe', 'alvos', 'overflow', 'dialogo', 'console', 'proibidos', 'artigo', 'fala', 'exemplo', 'tema', 'folhagem', 'imagens', 'icones', 'rosto', 'composer', 'popover', 'foco']
+export const CHECKS = ['cobertura', 'axe', 'alvos', 'overflow', 'dialogo', 'console', 'proibidos', 'artigo', 'fala', 'exemplo', 'tema', 'folhagem', 'imagens', 'icones', 'rosto', 'composer', 'popover', 'foco', 'gpu']
 /** D-103c: as checagens que só a sonda v3 mede (sidecar antigo = não verificado; `--legacy-ok` as dispensa em lote antigo). */
 export const D103C_CHECKS = ['fala', 'exemplo', 'rosto', 'composer', 'popover']
+/** DESIGN-01 §2.7 regra 6 (preaccept-gpu): só a sonda v4 mede as animações rodando sem foco; `--legacy-ok` a dispensa em lote antigo. */
+export const DESIGN01_CHECKS = ['gpu']
+/** DESIGN-01 §2.7 regra 6: orçamento de GPU ociosa, em % (contador "GPU Engine" do Windows). Com foco parado ≤ 1,5; sem foco (ou minimizada) ≤ 0,5. */
+export const GPU_LIMITS = { focusedPct: 1.5, unfocusedPct: 0.5 }
+/** Sem foco ou após 16 s sem turno ativo, `document.getAnimations()` tem 0 animações rodando. */
+export const GPU_IDLE_MS = 16_000
 
 /** A lista de proibidos NA TELA (pt e en). `re` roda sobre o texto visível da cena; `id` é estável (vai no relatório). */
 export const PROHIBITED = [
@@ -60,6 +66,18 @@ const HEX_RE = /\b(?=[0-9a-f]*[0-9])(?=[0-9a-f]*[a-f])[0-9a-f]{8,}\b/iu
 const TITLE_AT_RE = /^\s*@\S/u
 
 /** O que bate com a lista, com o trecho em volta (para a pessoa achar). */
+/**
+ * O crédito de licença do upstream na aba "Sobre": "Feito sobre o trabalho de / DeepSeek Harness / Licença MIT". É ATRIBUIÇÃO LEGAL exigida pela licença MIT
+ * (Keel 11/11 14:24: não se reescreve para sumir o nome). Regex FIXA: só esta sequência (frase de abertura + nome + licença, com quebra de linha entre os blocos);
+ * "harness" em qualquer outro lugar da cena continua reprovando.
+ */
+export const LICENSE_CREDIT_RE = /(?:Feito sobre o trabalho de|Built on the work of)\s+DeepSeek\s+Harness\s+(?:Licen[çc]a MIT|MIT License)/giu
+
+/** O texto da cena sem o bloco do crédito de licença (só para a dispensa `allowCreditoLicenca`; o resto do texto fica intacto). */
+export function stripLicenseCredit(text) {
+  return String(text ?? '').replace(LICENSE_CREDIT_RE, ' ')
+}
+
 export function findProhibited(text, { allowCurrency = false } = {}) {
   const found = []
   const body = String(text ?? '')
@@ -169,6 +187,13 @@ export function plan(manifest) {
           ...(spec.allowExample === true || manifest.allowExample === true ? { allowExample: true } : {}),
           ...(spec.allowPopover === true || manifest.allowPopover === true ? { allowPopover: true } : {}),
           ...(spec.allowPessoa === true || manifest.allowPessoa === true ? { allowPessoa: true } : {}),
+          // Só POR CENA (nunca no topo do manifesto): a cena Sobre mostra o crédito de licença MIT do upstream, que cita "DeepSeek Harness" por obrigação legal.
+          ...(spec.allowCreditoLicenca === true ? { allowCreditoLicenca: true } : {}),
+          // `skipChecks` POR CENA: a checagem não se aplica a esta cena (ex.: `["foco"]` quando a sonda roda com `focus: false` porque o Tab estragaria o estado: cena rolada, paleta aberta).
+          // Fica listada em "Dispensas" no relatório (a checagem NÃO foi feita; a 2ª leitura sabe). As do topo do manifesto (`skipChecks`) valem para todas as cenas.
+          ...(Array.isArray(spec.skipChecks) && spec.skipChecks.length > 0 ? { skipChecks: spec.skipChecks.filter(name => typeof name === 'string') } : {}),
+          // `avisos` POR CENA: nota do manifesto que a máquina não acha sozinha e que o Carbon deve ler (ex.: um texto que é de outro dono e não reprova esta cena). Vai para "Avisos" do relatório; não muda o veredito.
+          ...(Array.isArray(spec.avisos) && spec.avisos.length > 0 ? { avisos: spec.avisos.filter(text => typeof text === 'string' && text.trim() !== '') } : {}),
           // Uma cena que a Muse (ou o dono) já REJEITOU não volta como "pronta" só porque a máquina não achou defeito: `rejected: "motivo"` no manifesto.
           ...(typeof spec.rejected === 'string' && spec.rejected.trim() !== '' ? { rejected: spec.rejected.trim() } : {}),
           // A folhagem só se espera em cenas do shell inteiro (`shell !== false`) e nos tamanhos largos.
@@ -230,8 +255,15 @@ export function evaluateScene(row, { png, probe, legacy }, { roster = DEFAULT_RO
   if (probe !== undefined) {
     if (probe.dialogs === undefined) add('dialogo', 'ok', 'aviso: sidecar da sonda v1, sem a medida de diálogo (recapture com a sonda nova)')
     else {
-      const cut = probe.dialogs.filter(dialog => dialog.cut.length > 0)
-      add('dialogo', cut.length === 0 ? 'ok' : 'falhou', cut.map(dialog => `“${dialog.label}”: ${dialog.cut.join(', ')}`).join(' | '))
+      // "Último controle fora da janela" SOZINHO (a caixa cabe, sem topo/base/lado cortado) é lista rolável interna (o último item da paleta fica abaixo da dobra por desenho): aviso, não reprova.
+      // Com a caixa cortada o rodapé some junto e reprova. A sonda v4 já tira os controles de listas roláveis; este é o caso do sidecar que ainda os conta.
+      const isSoft = item => item.startsWith('último controle')
+      const describe = dialog => `“${dialog.label}”: ${dialog.cut.join(', ')}`
+      const hard = probe.dialogs.filter(dialog => dialog.cut.some(item => !isSoft(item)))
+      const soft = probe.dialogs.filter(dialog => dialog.cut.length > 0 && dialog.cut.every(isSoft))
+      if (hard.length > 0) add('dialogo', 'falhou', hard.map(describe).join(' | '))
+      else if (soft.length > 0) add('dialogo', 'ok', `aviso: ${soft.map(describe).join(' | ')} — a caixa cabe na janela, então o controle está numa lista rolável interna; confira na imagem`)
+      else add('dialogo', 'ok', '')
     }
   }
 
@@ -243,7 +275,7 @@ export function evaluateScene(row, { png, probe, legacy }, { roster = DEFAULT_RO
     add('proibidos', 'nao-verificado', 'sem texto visível (sonda ou tela.json)')
     add('artigo', 'nao-verificado', 'sem texto visível')
   } else {
-    const prohibited = [...findProhibited(text, { allowCurrency: row.allowCurrency }), ...findAtTitles(probe?.taskTitles)]
+    const prohibited = [...findProhibited(row.allowCreditoLicenca === true ? stripLicenseCredit(text) : text, { allowCurrency: row.allowCurrency }), ...findAtTitles(probe?.taskTitles)]
     add('proibidos', prohibited.length === 0 ? 'ok' : 'falhou', prohibited.slice(0, 4).map(item => `${item.label}: “${item.sample}”`).join(' | '))
     const articles = articleBeforePersona(text, roster)
     const hardArticles = articles.filter(item => item.severity === 'falhou')
@@ -284,6 +316,7 @@ export function evaluateScene(row, { png, probe, legacy }, { roster = DEFAULT_RO
     add('composer', 'nao-verificado', 'sem sonda')
     add('popover', 'nao-verificado', 'sem sonda')
     add('foco', 'nao-verificado', 'sem sonda')
+    add('gpu', 'nao-verificado', 'sem sonda')
     return checks
   }
   const brokenImages = probe.brokenImages ?? []
@@ -309,12 +342,86 @@ export function evaluateScene(row, { png, probe, legacy }, { roster = DEFAULT_RO
 
   if (probe.focus === undefined) add('foco', 'nao-verificado', 'a sonda não apertou Tab nesta cena')
   else add('foco', probe.focus.visible ? 'ok' : 'falhou', probe.focus.visible ? '' : `o 1º Tab não mostra foco visível (${probe.focus.element})`)
+
+  // DESIGN-01 §2.7 regra 6 (preaccept-gpu): com a janela sem foco (blur) ou após 16 s sem turno ativo, ZERO animações rodando.
+  if (probe.gpu === undefined) add('gpu', 'nao-verificado', probe.gpuError === undefined ? staleProbe(probe, 'a medida de animações sem foco', 'DESIGN-01 §2.7') : `a sonda de GPU falhou: ${probe.gpuError}`)
+  else {
+    const gate = gpuGate(probe.gpu)
+    add('gpu', gate.ok ? 'ok' : 'falhou', gate.detail)
+  }
   return checks
 }
 
-/** Por que uma checagem da D-103c não foi verificada com um sidecar de sonda anterior à v3. */
-function staleProbe(probe, what) {
-  return `sidecar da sonda v${probe.version ?? 1}, sem ${what}: recapture com a sonda nova (D-103c)`
+/** Por que uma checagem nova não foi verificada com um sidecar de sonda anterior (v3 = D-103c; v4 = DESIGN-01 §2.7). */
+function staleProbe(probe, what, rule = 'D-103c') {
+  return `sidecar da sonda v${probe.version ?? 1}, sem ${what}: recapture com a sonda nova (${rule})`
+}
+
+/** Uma animação em uma frase: "lampBreathe em div.lampLayer (∞ · 14000 ms)". */
+export function describeAnimation(item) {
+  const loops = item.iterations === null || item.iterations === undefined ? '' : item.iterations === 'Infinity' || item.iterations === Infinity ? '∞' : `${String(item.iterations)}×`
+  const span = item.durationMs === null || item.durationMs === undefined ? '' : `${String(Math.round(item.durationMs))} ms`
+  const timing = [loops, span, item.easing === 'steps' ? 'steps' : ''].filter(part => part !== '').join(' · ')
+  return `${item.name} em ${item.target}${timing === '' ? '' : ` (${timing})`}`
+}
+
+/**
+ * DESIGN-01 §2.7 regra 6: o gate `preaccept-gpu`. `gpu` é o que a sonda mede: `{ focusedRunning, afterBlur: {count, items}, afterIdle?: {count, items, idleMs} }`.
+ * Com a janela sem foco (blur) e, se medido, após 16 s sem turno ativo, `document.getAnimations()` com `playState === 'running'` tem de ser 0.
+ * Com foco, a regra 5 permite no máximo 2 animações contínuas simultâneas: passar disso NÃO reprova (o gate lê o repouso), vira AVISO para o Carbon (`focusedWarning`).
+ */
+export function gpuGate(gpu) {
+  const problems = []
+  const idleSeconds = Math.round((gpu.afterIdle?.idleMs ?? GPU_IDLE_MS) / 1000)
+  const phases = [['com a janela sem foco', gpu.afterBlur], [`após ${String(idleSeconds)} s sem turno ativo`, gpu.afterIdle]]
+  for (const [when, phase] of phases) {
+    if (phase === undefined || phase.count === 0) continue
+    const shown = phase.items.slice(0, 3).map(describeAnimation).join(' | ')
+    const more = phase.count > 3 ? ` (+${String(phase.count - 3)})` : ''
+    problems.push(`${String(phase.count)} animação(ões) rodando ${when} (o certo é 0): ${shown}${more}`)
+  }
+  if (problems.length > 0) return { ok: false, detail: problems.join(' ‖ ') }
+  const idle = gpu.afterIdle === undefined ? '' : ` e após ${String(idleSeconds)} s parada`
+  const steps = gpu.focusedSteps === undefined || gpu.focusedSteps === 0 ? '' : ` · ${String(gpu.focusedSteps)} infinitas em steps`
+  const resting = `0 animações rodando sem foco${idle}${gpu.focusedRunning === undefined ? '' : ` (com foco: ${String(gpu.focusedRunning)}${steps})`}`
+  const warning = focusedWarning(gpu)
+  return { ok: true, detail: warning === undefined ? resting : `aviso: ${warning} — ${resting}` }
+}
+
+/** "Ygg5Gq_personaBreathe em div.Ygg5Gq_figure ×5 | …": as iguais (mesmo nome e alvo) juntas, com a contagem. */
+export function groupAnimations(items) {
+  const counts = new Map()
+  for (const item of items) counts.set(describeAnimation(item), (counts.get(describeAnimation(item)) ?? 0) + 1)
+  return [...counts].map(([text, count]) => (count > 1 ? `${text} ×${String(count)}` : text))
+}
+
+/**
+ * Regra 5 do §2.7: no máximo 2 animações CONTÍNUAS infinitas simultâneas com foco. A infinita com easing `steps(...)` (troca discreta de frame: o piscar e o rabo das figuras)
+ * NÃO conta como contínua (o contador de GPU mediu 0,0% com foco; Keel 11/11 16:55, o Cobalt documenta os steps como exceção no GPU-BUDGET): a sonda marca cada uma
+ * como 'steps' ou 'continua' e traz `focusedContinuous`. Sidecar sem essa classificação (sonda de antes) não tem como separar: sem aviso (recapture para saber).
+ * Devolve o texto do aviso ou undefined.
+ */
+export function focusedWarning(gpu, limit = 2) {
+  if (gpu.focusedContinuous === undefined || gpu.focusedContinuous <= limit) return undefined
+  const continuous = (gpu.focusedItems ?? []).filter(item => item.iterations === 'Infinity' && item.easing !== 'steps')
+  const groups = groupAnimations(continuous)
+  const shown = groups.slice(0, 3).join(' | ')
+  const more = groups.length > 3 ? ` (+${String(groups.length - 3)} grupos)` : ''
+  const steps = gpu.focusedSteps === undefined || gpu.focusedSteps === 0 ? '' : `; as ${String(gpu.focusedSteps)} em steps (troca de frame) ficam de fora`
+  return `${String(gpu.focusedContinuous)} animações infinitas CONTÍNUAS rodando COM foco (a regra 5 manda no máximo ${String(limit)}${steps})${shown === '' ? '' : `: ${shown}${more}`}`
+}
+
+/**
+ * A meta de GPU ociosa (DESIGN-01 §2.7): `{ focused, unfocused, minimized }` em % de GPU (qualquer um pode faltar) → `[{ state, pct, limit, status }]`.
+ * `status` = 'ok' | 'falhou' | 'nao-medido' (sem número não há PASSOU).
+ */
+export function gpuIdleVerdict(measured, limits = GPU_LIMITS) {
+  const rows = [['focused', 'com foco parado', limits.focusedPct], ['unfocused', 'sem foco', limits.unfocusedPct], ['minimized', 'minimizada', limits.unfocusedPct]]
+  return rows.filter(([key]) => key in measured).map(([key, label, limit]) => {
+    const pct = measured[key]
+    const status = typeof pct !== 'number' || Number.isNaN(pct) ? 'nao-medido' : pct <= limit ? 'ok' : 'falhou'
+    return { state: key, label, pct: typeof pct === 'number' ? pct : null, limit, status }
+  })
 }
 
 /** PASSOU só se nada falhou E nada ficou sem verificar; "INCOMPLETO" = não falhou mas falta sonda (captura antiga). */
@@ -432,10 +539,23 @@ export function buildReport(manifest, rows, results, { generatedAt = new Date().
   const waivers = []
   const waived = new Set()
   for (const item of rows) {
-    for (const [key, rule] of [['allowExample', 'exemplo'], ['allowPopover', 'popover'], ['allowPessoa', 'fala']]) {
+    for (const [key, rule] of [['allowExample', 'exemplo'], ['allowPopover', 'popover'], ['allowPessoa', 'fala'], ['allowCreditoLicenca', 'proibidos: só o crédito de licença MIT (“Feito sobre o trabalho de DeepSeek Harness”); “harness” em outro lugar continua reprovando']]) {
       if (item[key] !== true || waived.has(`${item.scene}|${rule}`)) continue
       waived.add(`${item.scene}|${rule}`)
       waivers.push({ scene: item.scene, rule })
+    }
+    for (const name of item.skipChecks ?? []) {
+      if (waived.has(`${item.scene}|skip:${name}`)) continue
+      waived.add(`${item.scene}|skip:${name}`)
+      waivers.push({ scene: item.scene, rule: `${name}: NÃO conferida nesta cena (dispensada no manifesto)` })
+    }
+  }
+  const noted = new Set()
+  for (const item of rows) {
+    for (const text of item.avisos ?? []) {
+      if (noted.has(`${item.scene}|${text}`)) continue
+      noted.add(`${item.scene}|${text}`)
+      warnings.push({ scene: item.scene, check: 'nota', detail: text, mode: 'manifesto', otherModes: 0 })
     }
   }
   if (oldProbeScenes.size > 0) warnings.unshift({ scene: `${oldProbeScenes.size} cena(s)`, check: 'dialogo', detail: 'sidecar da sonda v1, sem a medida de diálogo (cabe na janela, rodapé à vista): recapture com a sonda nova se a cena tiver diálogo', mode: 'lote' })
@@ -459,7 +579,7 @@ export function renderMarkdown(report) {
   out.push(`# Pré-aceite mecânico · ${report.owner} · bundle ${report.bundle}`)
   out.push('')
   out.push(`${report.totals.scenes} cenas, ${report.totals.captures} capturas: **${report.totals.passou} passou**, ${report.totals.falhou} falhou, ${report.totals.incompleto} incompleto (falta sonda ou log). Cenas prontas para a Muse: **${report.totals.scenesReady} de ${report.totals.scenes}**.`)
-  if (report.legacyOk) out.push('\n> **Lote antigo (sem sonda).** Valem cobertura, axe e overflow (pelos logs) e o que o log der de tema; console, texto proibido, artigo, folhagem, imagens, ícones e foco NÃO foram conferidos, nem as da D-103c (fala de persona, chip "Exemplo", rosto em inicial, composer duplicado, popover sobre mensagem) quando o sidecar é anterior à sonda v3. Recapture com o preaccept-probe antes de chamar a Muse.')
+  if (report.legacyOk) out.push('\n> **Lote antigo (sem sonda).** Valem cobertura, axe e overflow (pelos logs) e o que o log der de tema; console, texto proibido, artigo, folhagem, imagens, ícones e foco NÃO foram conferidos, nem as da D-103c (fala de persona, chip "Exemplo", rosto em inicial, composer duplicado, popover sobre mensagem) quando o sidecar é anterior à sonda v3, nem a GPU ociosa (animações rodando sem foco, DESIGN-01 §2.7) quando é anterior à v4. Recapture com o preaccept-probe antes de chamar a Muse.')
   if (report.skippedChecks.length > 0) out.push(`\n> Checagens dispensadas pelo manifesto: ${report.skippedChecks.join(', ')}.`)
   out.push('')
   out.push('## Pronto para a Muse (só o que passou em todos os modos)')
@@ -476,7 +596,7 @@ export function renderMarkdown(report) {
   if ((report.warnings ?? []).length > 0) {
     out.push('')
     out.push('## Avisos (não reprovam; um olho humano decide)')
-    for (const item of report.warnings) out.push(`- **${item.scene}** (${item.check}, ${item.mode}${item.otherModes > 0 ? ` e mais ${item.otherModes} modo(s)` : ''}): ${item.detail}`)
+    for (const item of report.warnings) out.push(`- **${item.scene}** (${item.check === 'nota' ? 'nota do manifesto' : `${item.check}, ${item.mode}`}${item.otherModes > 0 ? ` e mais ${item.otherModes} modo(s)` : ''}): ${item.detail}`)
   }
   if ((report.waivers ?? []).length > 0) {
     out.push('')

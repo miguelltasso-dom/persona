@@ -17,7 +17,8 @@ describe('the place tab bar against the frame', () => {
   it('every rule of the bar names the element (div.bar), so it beats `.center > *` whatever the load order', () => {
     const selectors = [...barCss.matchAll(/(^|\})\s*([^{}@]+)\{/gu)].map(match => (match[2] ?? '').trim()).filter(selector => selector.length > 0)
     expect(selectors.length).toBeGreaterThan(0)
-    for (const selector of selectors) expect(selector).toMatch(/^div\.bar(::[\w-]+)?$/u)
+    // Every rule starts at the bar element; what is inside it (`div.bar [role='tab']`…) is a descendant, not a flex child of `.center`.
+    for (const selector of selectors) expect(selector).toMatch(/^div\.bar(::[\w-]+|\s+[^,{}]+)?$/u)
   })
 
   it('and it keeps flex: 0 0 auto: it never shrinks', () => {

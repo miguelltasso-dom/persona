@@ -17,7 +17,7 @@ const LOGIN_COMMANDS: Record<string, string> = {
 export type { RunnerSwapPolicy, RunnerSwapPolicyScope }
 
 /** Optional fields a newer host may add to a seat; read defensively (older hosts omit them). */
-interface HostAccountExtras { readonly loginCommand?: string | undefined }
+interface HostAccountExtras { readonly loginCommand?: string | undefined; readonly unconfirmed?: boolean | undefined }
 interface HostBundleExtras {
   readonly personaPolicies?: readonly { readonly personaId: string; readonly policy: RunnerSwapPolicy }[] | undefined
 }
@@ -120,13 +120,14 @@ function accountRowFromProbe(
   error: ConnectionView['error'],
   inUseCount?: number,
   loginCommand?: string,
+  unconfirmed = false,
 ): ConnectionAccountUiRow {
-  void phase
   const code = error?.code
-  const status = statusForProbe(available, loggedIn, code)
+  // Item 13: ainda conferindo (ou não deu para conferir) nunca vira "Não conectada": o estado vem da fase, não de `loggedIn: false`.
+  const status: ConnectionStatus = phase === 'checking' && error === undefined ? (unconfirmed ? 'unconfirmed' : 'checking') : statusForProbe(available, loggedIn, code)
   const errorCode = narrowErrorCode(code)
   const detail = error?.message ?? (status === 'ready' ? '' : loginHint)
-  const copyCommand = copyCommandFor(kind, loggedIn, error)
+  const copyCommand = phase === 'checking' && error === undefined ? undefined : copyCommandFor(kind, loggedIn, error)
   return {
     id,
     name: accountLabel,
@@ -182,7 +183,8 @@ export function connectionAccountsBundleToUi(bundle: ConnectionAccountsBundleVie
       row.loginHint,
       row.error,
       row.inUseCount,
-      extra.loginCommand,
+      row.phase === 'checking' && row.error === undefined ? undefined : extra.loginCommand,
+      extra.unconfirmed === true,
     )
   })
   const personaPolicies = (wire.personaPolicies ?? []).map(row => ({ personaId: row.personaId, policy: row.policy }))
@@ -230,6 +232,9 @@ export function connectionAccountsFallbackFromConnections(
     row.phase,
     row.loginHint,
     row.error,
+    undefined,
+    undefined,
+    (row as { readonly unconfirmed?: boolean }).unconfirmed === true,
   ))
   return {
     groups: groupAccounts(uiRows),

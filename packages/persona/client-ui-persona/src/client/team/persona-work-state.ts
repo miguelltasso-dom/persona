@@ -19,6 +19,20 @@ export interface ChannelPersonaMember {
    * pelo menos 1 arquivo mudado; ausente = só "Trabalhando" (resposta/pesquisa não têm rascunho).
    */
   readonly draftFiles?: number
+  /**
+   * Inside a Janela de silêncio, or the whole team is paused: an idle persona reads "Descansando" and sleeps on the stage. Absent =
+   * awake, so an idle persona is "Disponível" (DESIGN-01-MUSE §0.2; `persona-state.ts`).
+   */
+  readonly quiet?: boolean
+  /** Paused on purpose: "Pausada". */
+  readonly paused?: boolean
+  /** Working on a task in the review column of the board: "Revisando" (`persona-reviewing.ts` reads it from the cards). */
+  readonly reviewing?: boolean
+  /**
+   * COLHEITA §6 (Quill): a frase do passo ("lendo os arquivos"), que o host manda só com `state === 'working'` e quando sabe o passo
+   * (`PersonaNowView.sentence`, o mesmo caminho do `draftFiles`). Sem ela a linha do fio diz "Trabalhando". O cliente não inventa.
+   */
+  readonly step?: string
 }
 
 export interface PersonaNowSnapshot {

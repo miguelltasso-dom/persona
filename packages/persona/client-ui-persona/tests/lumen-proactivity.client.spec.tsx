@@ -44,8 +44,8 @@ describe('proactivity UI (PROACTIVITY.md)', () => {
     expect(screen.getAllByRole('button', { name: approvalsPt['proactive.action.accept'] }).length).toBeGreaterThan(0)
   })
 
-  it('shows rules limits, quiet windows, and log-only log', () => {
-    wrap(<TriageRulesView dict={rulesPt} rules={MOCK_TRIAGE_RULES} quietWindows={MOCK_QUIET_WINDOWS} limits={MOCK_PROACTIVITY_LIMITS} triageLog={MOCK_TRIAGE_LOG} />)
+  it('shows rules limits, quiet windows (only when the host obeys them: HONEST-1), and log-only log', () => {
+    wrap(<TriageRulesView dict={rulesPt} rules={MOCK_TRIAGE_RULES} quietWindows={MOCK_QUIET_WINDOWS} limits={MOCK_PROACTIVITY_LIMITS} triageLog={MOCK_TRIAGE_LOG} obeyed={{ quietWindows: true }} />)
     expect(screen.getByLabelText(rulesPt['limits.maxProposals'])).toBeTruthy()
     expect(screen.getByText(/Noites de semana/i)).toBeTruthy()
     expect(screen.getByText(/Teria aberto ticket de revisão/i)).toBeTruthy()

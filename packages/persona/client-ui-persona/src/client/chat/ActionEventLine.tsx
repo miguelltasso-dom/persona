@@ -35,7 +35,9 @@ export interface ActionEventLineProps {
 /** Os verbos do harness (HT-1) que a UI sabe escrever; um verbo desconhecido cai na frase de reserva, nunca num texto inventado. */
 export const HARNESS_VERBS: ReadonlySet<string> = new Set([
   'board_card_move', 'board_card_create', 'board_card_delete', 'sprint_create', 'sprint_start', 'sprint_close',
-  'routine_create', 'routine_pause', 'routine_edit', 'channel_create', 'channel_rename', 'memory_edit', 'persona_hire',
+  'routine_create', 'routine_pause', 'routine_edit', 'channel_create', 'channel_rename', 'memory_edit', 'persona_hire', 'sprint_plan',
+  // COLHEITA 17: what the persona did in the browser (tool + site, never a value).
+  'browser_click', 'browser_fill',
 ])
 
 /** O tempo que resta do Desfazer, legível: < 60 s → "{n} s"; < 60 min → "{n} min"; >= 1 h → "{n} h" (sempre arredondando para cima). */
@@ -76,8 +78,12 @@ export function ActionEventLine({ t, event, personaName, rowTag = 'li', onUndo, 
   const [clock, setClock] = useState(() => now())
   const [undoing, setUndoing] = useState(false)
   const [undone, setUndone] = useState(false)
+  const [failed, setFailed] = useState(false)
   const [viewing, setViewing] = useState(false)
   const remaining = until === undefined ? 0 : Math.ceil((until - clock) / 1000)
+  // COLHEITA 5: depois dos 5 min (ou de desfeito) a linha vira texto simples em tinta suave, sem link.
+  const wasUndone = event.undone === true || undone
+  const settled = wasUndone || (until !== undefined && remaining <= 0)
 
   // O prazo conta para trás de segundo em segundo e o efeito para quando acaba (ou sem Desfazer).
   useEffect(() => {
@@ -98,13 +104,17 @@ export function ActionEventLine({ t, event, personaName, rowTag = 'li', onUndo, 
   const undo = (): void => {
     if (onUndo === undefined || undoing) return
     setUndoing(true)
-    void Promise.resolve(onUndo(event.activityId)).then(() => { setUndone(true) }).finally(() => { setUndoing(false) })
+    setFailed(false)
+    // Só um Desfazer que o host aceitou vira "Desfeito"; se ele recusou (prazo, algo mudou) a linha diz que não deu.
+    void Promise.resolve(onUndo(event.activityId)).then(() => { setUndone(true) }, () => { setFailed(true) }).finally(() => { setUndoing(false) })
   }
 
   return (
     <Tag className={styles.line} data-action-event={event.verb}>
       <span className={styles.icon} aria-hidden="true"><UiIcon name={event.verb === 'email' ? 'send' : 'check'} size={16} /></span>
-      <span className={styles.text}>{actionEventText(t, event, personaName)}</span>
+      <span className={settled ? `${styles.text} ${styles.muted}` : styles.text}>{actionEventText(t, event, personaName)}</span>
+      {wasUndone && <span className={`${styles.note} ${styles.muted}`}>{t('action.undone')}</span>}
+      {failed && !wasUndone && <span className={styles.note} role="status">{t('action.undoFailed')}</span>}
       {viewable && (
         <button type="button" className={styles.undo} onClick={() => { setViewing(true) }}>{t('action.view')}</button>
       )}

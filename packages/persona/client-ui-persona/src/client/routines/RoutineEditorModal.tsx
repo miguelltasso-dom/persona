@@ -67,13 +67,15 @@ export interface RoutineEditorModalProps {
   readonly onDelete?: (() => Promise<void>) | undefined
   /** A routine the team keeps for each persona: it can be paused, never deleted, and the modal says so (no Apagar at all). */
   readonly isTeamRoutine?: boolean | undefined
+  /** Harvest 19b: the inbox rule section (built by the panel; absent = no section). */
+  readonly emailRule?: ReactNode | undefined
   readonly onClose: () => void
 }
 
 const CHOICES: readonly WhenChoice[] = ['daily', 'weekdays', 'weekly', 'custom']
 const WEEK_ORDER: readonly number[] = [1, 2, 3, 4, 5, 6, 0]
 
-export function RoutineEditorModal({ dict, open, mode, initial, personas, projects, onSave, onTogglePause, onDelete, isTeamRoutine = false, onClose }: RoutineEditorModalProps): ReactNode {
+export function RoutineEditorModal({ dict, open, mode, initial, personas, projects, onSave, onTogglePause, onDelete, isTeamRoutine = false, emailRule, onClose }: RoutineEditorModalProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const nameId = useId()
   const initialWhen = initial.when ?? (initial.keepRrule === undefined ? DEFAULT_WHEN : undefined)
@@ -192,7 +194,12 @@ export function RoutineEditorModal({ dict, open, mode, initial, personas, projec
         />
 
         {keepsStoredRule
-          ? <p className={styles.note}>{t('editor.customReadOnly')}</p>
+          ? (
+            <>
+              <p className={styles.note}>{t('editor.customReadOnly')}</p>
+              {emailRule}
+            </>
+          )
           : (
             <>
               <ChoiceCards legend={t('editor.whenLegend')} name={`${nameId}-when`} options={choiceOptions} value={choice} onChange={pickChoice} />
@@ -224,6 +231,8 @@ export function RoutineEditorModal({ dict, open, mode, initial, personas, projec
                   </div>
                 </>
               )}
+              {/* Muse (12/11): the e-mail trigger belongs to "Quando", not above it. */}
+              {emailRule}
             </>
           )}
 

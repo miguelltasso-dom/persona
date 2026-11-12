@@ -1,5 +1,5 @@
 /**
- * Figurinhas das personas (Colheita Lodi D, D-089): ficam ATRÁS DE FLAG, desligada por padrão, até a Muse aceitar pelas capturas
+ * Figurinhas das personas (Colheita D, D-089): ficam ATRÁS DE FLAG, desligada por padrão, até a Muse aceitar pelas capturas
  * (D-077). Mesmo formato dos balões (`chat/bubbles-flag.ts`).
  *
  * Como ligar: `localStorage.setItem('persona.flag.figurinhas', '1')` e recarregar, ou `window.__PERSONA_FLAGS__ = { figurinhas: true }`

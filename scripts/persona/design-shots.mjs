@@ -150,8 +150,9 @@ async function waitPanelSettled(page, label) {
     ['Quem cuida de quem', 'org-chart'],
   ])
   if (label === 'Kanban' || label === 'Quadros') {
-    await page.locator('[data-persona-boards]').waitFor({ timeout: 20_000 })
-    await page.locator('[data-persona-boards][aria-busy="true"]').waitFor({ state: 'detached', timeout: 25_000 }).catch(() => {})
+    // DESIGN-01 #10: Projetos opens on the board of the project of the moment (the grid of cards is "Ver todos os projetos").
+    await page.locator('[data-persona-boards], [data-persona-surface="boards"]').first().waitFor({ timeout: 20_000 })
+    await page.locator('[data-persona-boards][aria-busy="true"], [data-persona-surface="boards"][aria-busy="true"]').first().waitFor({ state: 'detached', timeout: 25_000 }).catch(() => {})
   }
   const surface = surfaceByLabel.get(label)
   if (surface !== undefined) {

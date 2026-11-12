@@ -1,16 +1,27 @@
-/* Configurações › Aparência (TH-1): a miniatura 120 × 72 do tema é desenhada só com tokens; cada cena abre o escopo da paleta pedida. */
+/* Configurações › Aparência (TH-1): a miniatura do tema é desenhada só com tokens; cada cena abre o escopo da paleta pedida.
+ * Acima de 1024 px, a miniatura ocupa 100% da largura, em 16:9 (cena 22 da Muse; revisão do Carbon, item 3). As posições internas
+ * são porcentagens do quadro, então ela cresce junto. Abaixo de 1024 px, fica no 120 × 72 de sempre. */
 
 .mini {
   position: relative;
   display: block;
   flex: none;
-  width: 120px;
-  height: 72px;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 16 / 9;
   box-sizing: border-box;
   overflow: hidden;
   border: var(--persona-border-width) solid var(--persona-outline-soft);
   border-radius: var(--persona-radius-m);
   background: var(--persona-paper-sunken);
+}
+
+@media (max-width: 1024px) {
+  .mini {
+    width: 120px;
+    height: 72px;
+    aspect-ratio: auto;
+  }
 }
 
 /* O escopo `[data-persona-scheme]` (persona-palette.css) redefine os tokens neste elemento: a cena "Claro" é clara dentro de uma janela escura. */
@@ -39,7 +50,7 @@
   display: flex;
   flex-direction: column;
   gap: 5px;
-  width: 22px;
+  width: 18.333%;
   box-sizing: border-box;
   padding: 10px 7px;
   background: var(--persona-rail);
@@ -65,33 +76,33 @@
 }
 
 .head {
-  top: 8px;
-  right: 8px;
-  left: 30px;
-  height: 10px;
+  top: 11.111%;
+  right: 6.667%;
+  left: 25%;
+  height: 13.889%;
 }
 
 .panelBig {
-  top: 24px;
-  bottom: 8px;
-  left: 30px;
-  width: 40px;
+  top: 33.333%;
+  bottom: 11.111%;
+  left: 25%;
+  width: 33.333%;
 }
 
 .panelSmall {
-  top: 24px;
-  right: 8px;
-  left: 76px;
-  height: 18px;
+  top: 33.333%;
+  right: 6.667%;
+  left: 63.333%;
+  height: 25%;
 }
 
 .chip {
   position: absolute;
-  top: 48px;
-  left: 76px;
+  top: 66.667%;
+  left: 63.333%;
   display: block;
-  width: 26px;
-  height: 10px;
+  width: 21.667%;
+  height: 13.889%;
   border-radius: 999px;
   background: var(--persona-accent);
 }
@@ -99,8 +110,8 @@
 /* Só na noite: a luminária acesa (um ponto âmbar com brilho) e três vaga-lumes. */
 .lamp {
   position: absolute;
-  right: 12px;
-  bottom: 10px;
+  right: 10%;
+  bottom: 13.889%;
   display: block;
   width: 7px;
   height: 7px;
@@ -120,18 +131,18 @@
 }
 
 .firefly[data-n='1'] {
-  top: 30px;
-  left: 82px;
+  top: 41.667%;
+  left: 68.333%;
 }
 
 .firefly[data-n='2'] {
-  top: 56px;
-  left: 50px;
+  top: 77.778%;
+  left: 41.667%;
 }
 
 .firefly[data-n='3'] {
-  top: 14px;
-  left: 100px;
+  top: 19.444%;
+  left: 83.333%;
 }
 
 .tipsRow {

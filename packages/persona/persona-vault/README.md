@@ -8,4 +8,6 @@ Credential vault for DSH API keys. Electron main seals/opens via `safeStorage` (
 
 The sole unavailable-mode exception is the explicit `client-connection` record scope, used by local browser authentication. Those records live only in memory, are never sealed, persisted, logged or included in vault snapshots, and disappear with their provider process. Provider credentials and edge tokens remain unavailable. When a cipher is available, browser-session records follow the ordinary sealed persistence path.
 
+`CofreSecrets` keeps the Cofre v2 values (a Login's password, a Chave's secret, the six digits of a 2FA request) in the same sealed store under the reserved `cofre` owner, addressed by tenant and entry. `has` and `ids` answer from the file's metadata without decrypting; `read` exists for the host's own use and never for a prompt or a model turn.
+
 Part of the Persona product group (`packages/persona/*`). See `persona-spec/PLAN.md` and `persona-spec/DECISIONS.md` (D-002, D-026).

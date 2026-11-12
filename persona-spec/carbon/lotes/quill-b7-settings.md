@@ -1,0 +1,29 @@
+VEREDITO: REFAZER
+
+1. **`settings-3b-sobre-inline-light-1440x900.png` e `settings-3b-sobre-inline-dark-1440x900.png`**
+   - **Problema:** `AboutSettingsPanel.tsx` manteve o cartão legado `"Versão e avisos"` com o botão redundante `"Abrir Sobre e atualizações"` e o atalho errado `Atalho: Ctrl ,` em cima do `<AboutPersona>`, que flutua estreito e centralizado (`max-width: 560px; margin: 0 auto` em `About.module.css:6-7`) numa `Screen` alinhada à esquerda e sai cortado na dobra inferior antes dos créditos. A aba ainda se chama `"Sobre e atualizações"` (em vez de `"Sobre"`, `DESIGN-01-MUSE §5.2 #08`) e faltam capturas em `960px` e `200%`.
+   - **Correção:** Remover o `<Card title="Versão e avisos">` e `Ctrl ,` de `AboutSettingsPanel.tsx`, renderizando `<AboutPersona>` direto sob o `ScreenHeader` (`DESIGN-01-MUSE §1 Cena 24`). No contexto inline de Configurações, alinhar `.about` à grade da página (`max-width: none; margin: 0; box-shadow: var(--persona-shadow-sticker)`), renomear `tab.settings.about` para **`Sobre`** e incluir capturas `960px` e `200%`.
+
+2. **Todas as capturas `*-zoom200.png`, `settings-1b-equipe-distancia-*` e `settings-2b-figurinhas-*`**
+   - **Problema:** A `200%`, a `PlaceTabsBar` quebra `"Uso e / limites"` em 2 linhas e corta a última aba a seco na borda direita (`"Sobre / atualizaç"`). Ao rolar (`settings-1b-*` e `settings-2b-*-zoom200`), os cartões aparecem guilhotinados sob a barra de abas sem fade.
+   - **Correção:** Renomear a aba para **`Sobre`**, garantir `white-space: nowrap` nos rótulos com `overflow-x: auto; max-width: 100%; scrollbar-width: none` na `PlaceTabsBar`, e aplicar `mask-image: linear-gradient(to bottom, transparent 0, black 12px)` no topo do corpo rolável quando rolado (`DESIGN-01-MUSE §1 Cena 17`).
+
+3. **`settings-2-aparencia-light/dark-1440x900.png` e `settings-2b-figurinhas-light/dark-1440x900.png` (e `zoom200`)**
+   - **Problema:** (a) Em `1440x900`, `.mini` (`AppearanceSettingsPanel.module.css:7-8`) permanece em `120×72px` no canto esquerdo de cartões de ~330 px, deixando ~60% de vazio à direita e descumprindo `DESIGN-01-MUSE §1 Cena 22+23` (*"miniatura de 100% da largura, 16:9"*). (b) `settings-2b-figurinhas-*` repete `settings-2-aparencia-*` com o `Switch` **ligado** (faltou capturar o estado desligado lavanda). (c) As 3 figurinhas repetem `atlas` espaçadas em fila (`gap: 12px`), e `.fan[data-enabled='false'] .fanItem` (`StickersSection.module.css:58`) pinta círculos `background: var(--persona-lilac-200)` (`#e4d7f1` claro mesmo no tema escuro!).
+   - **Correção:** (a) Acima de `1024px` (grade de 3 colunas), definir `.mini { width: 100%; height: auto; aspect-ratio: 16 / 9 }` convertendo as coordenadas internas da cena para `%` (mantendo `120×72px` só no `@media (max-width: 1024px)` horizontal). (b) Montar o leque real (`gap: var(--persona-space-1)` / leve sobreposição a `-4deg / 2deg / 6deg`, variando personagens quando houver) e, em `data-enabled='false'`, remover `background: var(--persona-lilac-200)` fixo, aplicando lavanda compatível com claro e escuro (`background: var(--persona-wash)` suave ou filtro sem disco claro estourado no escuro). Regravar `settings-2b-figurinhas-*` com o `Switch` **desligado**.
+
+4. **`settings-1b-equipe-distancia-light/dark-1440x900.png` e `zoom200`**
+   - **Problema:** Três caixas aninhadas (`Card "Equipe à distância"` > `Card "Equipe remota"` > alerta `"⚠ Cofre indisponível"`), duplicando a descrição e exibindo erro técnico alarmista quando a equipe remota nem foi ligada (`DESIGN-01-MUSE §1 Cena 20` exige estado calmo). Logo acima, no cartão DeepSeek, aparecem duas linhas com o id interno cru **`dsh`**.
+   - **Correção:** Renderizar **um único `<Card>`** (`Equipe à distância`, sem `<Card>` interno) em estado calmo informativo enquanto a equipe remota estiver desligada. Trocar o identificador interno `dsh` por nome humano de conta.
+
+5. **`settings-1-conexoes-light/dark-1440x900.png`**
+   - **Problema:** `Perguntar antes de trocar` mantém o selo âmbar **`Recomendado`** (`ConnectionsView.tsx:380`), proibido em escolhas de preferência pela Regra Global `0.1` (`DESIGN-01-MUSE §0.1`), e `Quando uma conta chegar ao limite` segue acima dos provedores mesmo com 1 conta (`#12`).
+   - **Correção:** Remover `recommended` / `recommendedLabel` de `AccountPolicyPicker` (`DESIGN-01-MUSE §0.1`) e alinhar com `#12` (contas no topo; política de troca só com `2+` contas).
+
+6. **Rodapé do rail em todas as capturas `*-zoom200.png` e `*-1440x900.png` (`#20`)**
+   - **Problema:** (a) Nas 8 capturas `zoom200` (rail recolhido de `64px`), a bolinha verde `.statusDot` dentro do quadrado `40×40` (acima de `?`) fica colada na borda superior em vez de centralizada, porque `.hostStatusText` continua ocupando uma faixa no `display: grid` de `.hostStatus` (`PersonaSidebar.module.css:768`). (b) Em `1440x900`, o rodapé aberto ainda não forma uma fileira simétrica de 3 alvos de `40px` com `gap: 8px` e luminária ao centro (`DESIGN-01-MUSE §1.0.4` / `§5.2 #20`), além de manter no escuro a pílula `Claude · 77% livre` em `--persona-cream-50` e o `.halo` quadrado `90×90` (`#05`).
+   - **Correção:** (a) Em `.sidebar[data-conversations][data-collapsed] .hostStatusText`, tirar o texto oculto do fluxo do grid (`position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%)`) para centrar `.statusDot` nos dois eixos. (b) Ajustar `.footActions` no rail aberto para 1 fileira de `40px` de altura (`Configurações` + luminária central `aria-hidden="true"` + `Ajuda ?` `40×40px`, `gap: var(--persona-space-2)`).
+
+7. **Cobertura de viewports e fechamento de `#08` / `#20`**
+   - **Problema:** Não vieram capturas em `960px`, e continuam pendentes `Configurações › Personas` (Cenas 16/17) e `Membros` (`Dono · Neste computador`, Cena 20).
+   - **Correção:** Incluir capturas `960px` (claro/escuro) na reentrega deste lote e entregar `Personas` + `Membros` antes do aceite final dos itens `#08` e `#20`.

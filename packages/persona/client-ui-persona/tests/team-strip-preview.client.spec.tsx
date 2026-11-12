@@ -20,7 +20,7 @@ describe('team channel strip preview', () => {
     expect(screen.getByRole('heading', { name: pt['team.channelStripTitle'] })).toBeTruthy()
     expect(screen.getByText('Atlas')).toBeTruthy()
     expect(screen.getByText(pt['team.statusWaiting'])).toBeTruthy()
-    expect(screen.getAllByText(pt['team.statusResting']).length).toBeGreaterThanOrEqual(2)
+    expect(screen.getAllByText(pt['team.statusAvailable']).length).toBeGreaterThanOrEqual(2)
     expect(screen.getByText(pt['team.statusStuck'])).toBeTruthy()
   })
 })

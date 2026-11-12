@@ -94,3 +94,90 @@ git apply --check --cached .maestri/tmp/zinc/approve-run.patch         # na cóp
 3. **Aprovação não é instantânea fora do agendador armado:** o aceite dispara um ciclo só quando `proactivityScheduler.status().running`; em teste/agendador desligado, o próximo ciclo executa. Nada é perdido.
 4. **Cliente antigo:** `kind: 'routine'` é um valor novo no fio; o patch inclui o cliente. Um cliente sem esta versão veria o cartão como desconhecido (não há fallback silencioso no host).
 5. **Sem IA real:** todas as provas usam runner scriptado/fake clock, como pedido.
+
+## H15b — token de conector saiu do SQLite (FECHADO, 11/11 23:12)
+
+**Achado.** `CofreSecretVault.get` lia o token do **corpo** de um registro do Cofre (`findActiveFact(projectId, provider).body`), e `createVaultRecord` grava o corpo como veio: token de Telegram/Slack/Discord/CalDAV/IMAP/SMTP ficava em texto puro em `vault_record` (e em `vault_version`, a cada edição).
+
+**Conserto.**
+- `persona-store/src/vault/repos.ts`: novo `purgeSecret(id)` — corpo vira o lápide `Conteúdo movido para o Cofre.`, `fact_key` vai a NULL, status `revoked`, e **todas** as versões daquele registro são apagadas (`vault_version`). Nada do texto antigo sobra nas duas tabelas.
+- `persona-host/src/cofre-migrate.ts` (novo): varredura de boot por espaço de trabalho/projeto, para as seis chaves de conector. Sela em `connector:<provider>` (DPAPI, dono reservado `cofre`) e só então purga. Se o cofre recusa (`VaultUnavailableError`), a varredura falha e **não purga nada**.
+- `persona-host/src/cofre-secrets.ts`: `get` lê o slot selado primeiro e mantém o corpo legado como fallback (registro criado por cliente antigo depois do boot). O slot é por projeto; o registro legado mantém a regra de visibilidade antiga.
+- `persona-host/src/index.ts`: `readonly cofreMigration: Promise<CofreMigrationResult>` (boot não bloqueia; erro vai para `orchestration.lastErrors`) e o `CofreSecretVault` recebe os slots selados.
+
+**Provas.**
+- `persona-store/tests/vault.spec.ts`: “purges a secret record: tombstone body, no fact key, no versions”.
+- `persona-host/tests/cofre-migrate.spec.ts` (3): migra e o dump de `vault_record ∪ vault_version` **não contém** o token; o leitor responde do slot selado; segunda execução move 0; cofre que recusa deixa o texto puro e não purga.
+- Rodada: `vault.spec` + `cofre-migrate.spec` = **26/26**; `external-sources.spec` 7/7; `check-pkg persona-store` OK; `check-pkg persona-host` sem erro nos arquivos do Cofre (restam 7 de edições em curso de outros donos: `activity-undo.ts`, imports não usados em `index.ts`, `team-connect.spec.ts`).
+
+**Limites.**
+1. `github.webhook.secret` é a mesma classe de segredo, mas o port `secretOf` do `GithubSourceHost` é **síncrono**; migrar exige torná-lo assíncrono (fora desta fatia). Fica registrado.
+2. A varredura roda no boot; um registro legado criado depois (cliente antigo) continua legível e é migrado no próximo boot.
+3. O slot selado é por projeto e não carrega a visibilidade `persona:` do registro antigo; na prática todo token real foi gravado com visibilidade `workspace`.
+
+## Item 15 — gancho da ferramenta `ask_vault_code` (FECHADO, 11/11 23:14)
+
+- `R/mcp/harness-tools.ts`: `ask_vault_code` entra em `HARNESS_TOOLS` (última posição, prefixo quente intacto) e em `DEFINITIONS` (`reason` obrigatório, `login` opcional; o texto diz que o código vai para o Cofre e nunca para o modelo). Fica **inerte** até o host listá-la: `ports.tools` é o único portão de anúncio e nenhuma regra de palavras a oferece ainda.
+- `R/resolve/tool-level.ts`: classificada como COORDENAÇÃO (`read`), junto de `ask_colleague`/`pass_forward`/`ask_team_opinion` — ela não toca arquivo nem o mundo, só abre um pedido para o dono.
+- Prova: `harness-tools.spec` + `final-reply-only.spec` + `tool-level.spec` = **20/20**.
+- Falta (outros donos): o dispatch em `H/harness-dispatch.ts` (Forge), a regra que oferece a ferramenta no turno (`H/harness-turn.ts`) e o cartão em Aprovações (tela).
+
+## Item 15 — dispatch do `ask_vault_code` (FECHADO, 11/11 23:36)
+
+- `H/harness-ports.ts`: `VaultCodePort` (abre o pedido; devolve `requestId`/`expiresAt` ou recusa tipada) e `HarnessPortsDeps.vaultCode`.
+- `H/harness-vault.ts` (novo): `VaultCodePorts` — sem cofre selável recusa com frase PT e **não abre** pedido; com cofre, abre e devolve só id/prazo (nunca dígito).
+- `H/harness-dispatch.ts`: `ask_vault_code` anunciado só quando o port existe + `case` que valida `reason` e responde `{ok, requestId, expiresAt, message}`.
+- `H/index.ts`: `vaultCode: new VaultCodePorts({ codes: this.cofre.codes, sealable: canSealCofre })`.
+- Provas: `harness-vault.spec` 2/2 (pedido pendente com login/tarefa; sem cofre não abre nada); `harness-gateway` + `harness-turn` + `harness-turn-stable` + `harness-hiring` = 32/32. `check-pkg persona-host` sem erro nos meus arquivos (10 restantes em `tests/activity-undo-thread.host.spec.ts` e `tests/team-connect.host.spec.ts`, de outros donos).
+- Falta (tela): a regra que OFERECE a ferramenta no turno (`harness-turn.ts`) e o cartão em Aprovações.
+
+## Item 12 — bug real: o relógio da rodada (FECHADO, 12/11 00:00)
+
+**Sintoma.** conversation-d079 (4 testes) e conv1-routing (1): a resposta da pessoa acordava a Tarefa e o turno não rodava — `latestAssignment(...).report` ficava `undefined` e o `flush` não esperava.
+
+**Causa (três partes).**
+1. `driveTicket` media o relógio pelo `startedAt` da última Assignment; uma resposta horas depois (ou um restart) trazia um `startedAt` antigo e a Tarefa destacava na hora ("Sigo no fundo").
+2. O livro do background era criado pela PRIMEIRA chamada a `backgroundWorkOf`: `absorbingTicket` lia o livro sem opções e o criava com `Date.now` real. O `driveTicket` passava o relógio do host, mas era ignorado — `remainingMs` comparava 12/11 com 03/11 e destacava tudo.
+3. O livro sobrevive ao `resetHost` (é por host, não por runtime): um teste deixava o ticket em background e o seguinte, com o mesmo id depois do wipe, não rodava o turno.
+
+**Conserto.**
+- `driveTicket`: o relógio da rodada começa no ATO do driveTicket (relógio do host); só usa o `startedAt` antigo quando a Assignment já está RODANDO (retomada de run interrompido).
+- `Orchestration.backgroundWork` (getter privado): TODO acesso ao livro passa por ele com o relógio do host — nenhuma leitura pode criá-lo com o relógio de parede.
+- `BackgroundWork.reset()` e `resetHost` limpam o livro entre testes (criando-o com o relógio do host).
+
+**Provas.** conversation-d079 + conv1-routing + persona-ask-tool + background-work = **47/47**. CRLF de `orchestration.ts` preservado (4299/4299). `check-pkg persona-host`: só 2 erros, do Rivet (`IndicatorOfferView`/`IndicatorSchedule` não usados).
+
+## Item 15 — superfície Remote do Cofre v2 (FECHADO, 12/11 00:05)
+
+O que faltava de dados para a tela consumir. Tudo aditivo.
+
+- `H/types.ts`: tipos de fio — `CofreEntryView`/`CofreEntryKind` (re-export dos módulos), `CofreImportPreview`/`Result`/`Row`/`Duplicate`/`Ignored`/`Format`, `CofreCodeRequestView`/`State`, e os pedidos `SaveCofreLoginRequest`, `SaveCofreKeyRequest`, `SaveCofreCompanyRequest`, `RemoveCofreEntryRequest`, `CofreImportRequest`, `FillCofreCodeRequest`, `CancelCofreCodeRequest`.
+- `H/index.ts` (@Remote): `listCofreEntries`, `saveCofreLogin`, `saveCofreKey`, `saveCofreCompany`, `removeCofreEntry`, `previewCofreImport`, `commitCofreImport`, `listCofreCodes`, `fillCofreCode`, `cancelCofreCode`. Leitura com `requireProject`; escrita com `requireWrite`; `authorId` vem do ator da sessão.
+- **Não existe Remote de `take`**: os dígitos só saem para o host (digitação no navegador, #17 do Onyx), nunca para o cliente/modelo.
+- Provas: `cofre-host.spec` 4/4 (Ficha via Remote + brief; prévia de CSV via Remote sem senha; remoção revoga o brief; Login sem cofre recusa com `vault_unavailable`; lista de códigos responde). Conjunto do Cofre: **27/27** (7 arquivos). `check-pkg persona-host`: OK.
+- Falta (tela, Lumen/Muse): o adaptador do cliente, o cartão do 2FA em Aprovações e a regra que OFERECE `ask_vault_code` no turno (`harness-turn.ts`) — sem o cartão, oferecer a ferramenta só criaria pedidos que ninguém vê.
+- Limite conhecido: pedidos de código ficam em `screen_doc` (como as aprovações de rotina); retenção/limpeza fica para a v1.2.x.
+
+## H15c — github.webhook.secret saiu do SQLite (FECHADO, 12/11 00:28)
+
+Mesma classe do H15b: o segredo do webhook do GitHub era lido do corpo de um registro do Cofre (`factKey` `github.webhook.secret`), em texto puro no SQLite.
+
+**Conserto.**
+- `H/webhook-http.ts`: o port `GithubWebhookSink.secretOf` virou assíncrono (`Promise<string>`) e o handler faz `await` antes do HMAC — o cofre é assíncrono e o segredo agora vem dele.
+- `H/index.ts`: `githubWebhookSecret(projectId)` — env `PERSONA_GITHUB_WEBHOOK_SECRET` (testes) primeiro, depois o slot selado `connector:github.webhook.secret`, depois o corpo legado. O helper síncrono antigo foi removido.
+- `H/cofre.ts`: `CofreHost.secretOf(projectId, slot)` — leitura host-only do slot selado (nunca caminho de modelo).
+- `H/cofre-migrate.ts`: `SECRET_FACT_KEYS` agora inclui `GITHUB_WEBHOOK_FACT`; a varredura de boot sela e purga o registro (lápide, `fact_key` NULL, versões apagadas).
+
+**Provas.** `cofre-migrate.spec` 3/3 (novo caso: o segredo do webhook vai para o slot, o dump de `vault_record ∪ vault_version` não contém o texto e a 2ª execução move 0), `webhook-http.spec` 2/2 com o port assíncrono. `check-pkg persona-host`: meus arquivos limpos (restam 2 erros de `firstRun` em `orchestration.ts`, de outro dono).
+
+## #6 fatia 2 — resumo recolhido nos turnos de CONVERSA (FECHADO, 12/11 00:42)
+
+**Ideia.** O "N passos · tempo" existia só para Tarefas (o host grava atividade a partir de `assignment.reported`). Turnos de conversa (#geral/DM) não têm assignment, então não deixavam resumo.
+
+**Conserto (host).**
+- `H/runner.ts` (captura do Bolt, aditivo): `TextCapture.toolTimes?: string[]` paralelo a `tools`; o tap e `emitRunnerStep` empilham o instante de cada chamada, e o início de turno limpa. Novo `lastRunnerToolSteps(runner)` devolve `{tool, at}[]`.
+- `H/talk-activity.ts` (novo): `stepKindOf(tool)` (Read/Glob/Grep → `read`, Write/Edit/Patch → `file`, check/test → `check`, message/send → `message`, hire → `hire`, resto → `command`) e `talkActivityRows({eventId, personaId, steps})` — UMA linha por ferramenta, `id` `talk:<eventId>:<i>`, `threadId` = **id da mensagem da pessoa que o turno responde**, `title` = nome técnico da ferramenta, `status` `done`, `at` = instante da chamada.
+- `H/orchestration.ts`: hook de 4 linhas na cauda de `finishReply` (depois de `noteUsage`) grava as linhas no livro existente (`recordActivity`); `liveToolSteps` é o gancho de teste, como `liveTools`.
+- Leitura: **nenhum remote novo** — `listTurnActivity` já serve; a UI da Quill pede com `subjectId` = id da mensagem respondida (contrato enviado a ela).
+
+**Provas.** `talk-activity.spec` 2/2: turno com 3 ferramentas (Read, Bash, Write) gera 1 grupo com 3 passos, kinds `command/file/read` (ordem do fold: kind e depois hora), instantes preservados e status `done`; turno sem ferramenta não gera nada. `check-pkg persona-host` OK. CRLF de `orchestration.ts` preservado.

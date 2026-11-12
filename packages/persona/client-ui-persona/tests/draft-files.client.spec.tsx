@@ -238,16 +238,16 @@ describe('no cartão de opinião: a ARTE salva como arquivo (Atlas: opinar sobre
     expect(within(art).getByRole('img', { name: 'cartaz.svg' })).toBeTruthy()
   })
 
-  it('recolhido (depois da consolidação): a arte aparece pequena quando a pessoa não anexou imagem; com anexo, o anexo manda', () => {
+  it('recolhido (depois da consolidação): a pílula leva a miniatura de 36 px da ARTE nova, tenha a pessoa anexado imagem ou não (o anexo vira só referência)', () => {
     const fin = msg('m-fin', 'Escureci o subtítulo e mantive o azul.', ui({ kind: 'consolidated' }))
     const { unmount } = render(<OpinionBlock t={t as never} block={block(msg('m-req', 'O que acha do cartaz?', ui({ files: files('arte/cartaz.svg') })), fin)} team={TEAM} />)
-    const summaryArt = card().querySelector('button[data-draft-file], span[data-draft-file]') as HTMLElement
-    expect(summaryArt).not.toBeNull()
-    expect(summaryArt.className).toContain('small')
-    expect(summaryArt.querySelector('img')?.getAttribute('src')).toBe(PNG)
+    const thumb = card().querySelector('[data-persona-opinion-pill] [data-draft-file]') as HTMLElement
+    expect(thumb).not.toBeNull()
+    expect(thumb.className).toContain('pill')
+    expect(thumb.querySelector('img')?.getAttribute('src')).toBe(PNG)
     unmount()
-    render(<OpinionBlock t={t as never} block={block(msg('m-req', 'O que acha da capa?', ui({ imageIds: ['att-1'], files: files('arte/cartaz.svg') })), fin)} team={TEAM} resolveImage={() => Promise.resolve('data:image/png;base64,AAAA')} />)
-    expect(card().querySelector('[data-draft-file]')).toBeNull()
+    render(<OpinionBlock t={t as never} block={block(msg('m-req', 'O que acha da capa?', ui({ imageIds: ['att-1'], files: files('arte/cartaz.svg') })), fin)} team={TEAM} />)
+    expect(card().querySelector('[data-persona-opinion-pill] [data-draft-file]')).not.toBeNull()
   })
 
   it('sem files nada muda: nenhum bloco de arte no cartão', () => {

@@ -31,6 +31,8 @@ export {
   sealInviteToken,
 } from './invite-token.ts'
 
+export { COFRE_OWNER, CofreSecrets } from './cofre.ts'
+
 export {
   VAULT_CALDAV,
   VAULT_DISCORD,

@@ -22,7 +22,9 @@ import {
   type RunEvent,
   type ToolLevel,
   type TurnRunner,
+  type TurnMcpServer,
   type UsageMeterSink,
+  withThreadResume,
 } from '@deepseek-ai/dsh-persona-runners'
 import type { ProductToolsOpener } from './harness-turn.ts'
 import type { AutonomyMode } from './types.ts'
@@ -63,6 +65,11 @@ export interface HostRunnerRequest {
   readonly permissionGate?: PermissionGate
   /** HT-0 (v1.1, OFF by default): opens the product tools of each turn of a Task (board, sprints, routines) on the turn lease. */
   readonly productTools?: ProductToolsOpener
+  /**
+   * COLHEITA 17: extra MCP servers of this runner's turns (the persona's browser, attached to the Chrome of its profile).
+   * Absent = none. A CLI with `mcpTools: 'unavailable'` receives none (the adapter drops them).
+   */
+  readonly extraMcpServers?: readonly TurnMcpServer[]
   readonly purpose?: RunnerPurpose
   readonly projectId?: string
   readonly personaName?: string
@@ -272,9 +279,15 @@ export async function resolveHostRunner(
     // HT-8/9: the connectors of THIS Task (a Claude Task only) and the gate that guards their calls. Without a gate the runner loads them read-only.
     ...(accountConnectors.length === 0 ? {} : { accountConnectors }),
     ...(request.permissionGate === undefined ? {} : { permissionGate: request.permissionGate }),
+    // COLHEITA 17: a runner that carries the browser server needs the product's own gate even without a file/shell grant,
+    // or its clicks and typing would run with no card (Lumen's native gate reads this).
+    ...(request.extraMcpServers === undefined ? {} : { carriesBrowser: true }),
   }), capture)
+  // Item 2a: one live CLI process per conversation, reopened with `--resume` when the process is gone. A talk facade is one
+  // channel; a task facade serves one ticket per session.
+  const threads = withThreadResume(turn, { shared: request.purpose === 'talk' })
   const session = createOarSessionRunner({
-    turn,
+    turn: threads,
     personaId: request.personId,
     model: request.spec.model,
     permissionMode: request.permissionMode,
@@ -284,6 +297,8 @@ export async function resolveHostRunner(
     ...(request.productTools === undefined ? {} : {
       toolsFor: turn => request.productTools?.({ personaId: turn.personaId, ticketId: turn.ticketId, assignmentId: turn.assignmentId, cwd: turn.cwd }),
     }),
+    // COLHEITA 17: the browser of this persona's turns; the adapter drops them on a CLI without MCP.
+    ...(request.extraMcpServers === undefined ? {} : { serversFor: () => request.extraMcpServers }),
   })
   capture.onPartial = (text) => { partialSinks.get(session)?.(text) }
   captures.set(session, capture)
@@ -316,6 +331,12 @@ export interface TextCapture {
   question?: string
   /** The structured question the persona wrote (untrusted; the host reads it with `askInputOf`). */
   ask?: unknown
+  /** Item 7: the tool the turn called last (name as streamed); cleared when a turn starts. */
+  step?: { readonly tool: string; readonly at: string }
+  /** Item 3: every tool the turn called, in order (names as streamed); cleared when a turn starts. The proof the end-of-turn rules (`turn-close.ts`) ask for. */
+  tools?: string[]
+  /** Colheita §6: the instant of each call, parallel to {@link tools} (the conversation turn's step summary counts the time with them). */
+  toolTimes?: string[]
 }
 
 const captures = new WeakMap<Runner, TextCapture>()
@@ -390,6 +411,50 @@ export function lastRunnerReportAt(runner: Runner): string | undefined {
 }
 
 /**
+ * Item 7: the tool the open turn called last, for the host's own status line (never shown as a tool name).
+ * @param runner - Session runner from {@link resolveHostRunner}.
+ * @returns The tool and when it started, or undefined before the turn called any.
+ */
+export function lastRunnerStep(runner: Runner): { readonly tool: string; readonly at: string } | undefined {
+  return captures.get(runner)?.step
+}
+
+/**
+ * Item 3: the tools the latest turn called, in order.
+ * @param runner - Session runner from {@link resolveHostRunner}.
+ * @returns Their names as the stream reported them (empty when the turn called none, or on a runner that does not stream).
+ */
+export function lastRunnerTools(runner: Runner): readonly string[] {
+  return captures.get(runner)?.tools ?? []
+}
+
+/**
+ * Colheita §6: the tools of the latest turn with the instant of each call (a conversation turn's step summary).
+ * @param runner - Session runner from {@link resolveHostRunner}.
+ * @returns One entry per call, in order; empty when the turn called none.
+ */
+export function lastRunnerToolSteps(runner: Runner): readonly { readonly tool: string; readonly at: string }[] {
+  const capture = captures.get(runner)
+  const tools = capture?.tools ?? []
+  const times = capture?.toolTimes ?? []
+  return tools.map((tool, index) => ({ tool, at: times[index] ?? '' }))
+}
+
+/**
+ * Play a tool call to the capture of a runner without any model (tests; live runners reach it through the OAR tap).
+ * @param runner - Session runner.
+ * @param tool - Tool name as a stream reports it.
+ * @param at - ISO time of the call.
+ */
+export function emitRunnerStep(runner: Runner, tool: string, at: string): void {
+  const capture = captures.get(runner) ?? { last: '' }
+  capture.step = { tool, at }
+  capture.tools = [...(capture.tools ?? []), tool]
+  capture.toolTimes = [...(capture.toolTimes ?? []), at]
+  captures.set(runner, capture)
+}
+
+/**
  * Tee OAR deltas so the host can persist the real reply.
  * @param turn - Rivet turn runner.
  * @param capture - Accumulator.
@@ -404,12 +469,22 @@ export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
       delete capture.report
       delete capture.reportAt
       delete capture.narrated
+      delete capture.step
+      delete capture.tools
+      delete capture.toolTimes
     }
     if (isToolCallEvent(event)) {
       // P0-2: a tool closes the piece of text before it (thinking aloud: "Vou verificar…"). What a persona says is the LAST text after the LAST tool:
       // the thread, the bilhete, the review and the opinion never carry the monologue between tools.
       if (capture.last.trim() !== '') capture.narrated = true
       capture.last = ''
+      // Item 7: the tool in hand is the "step now" the host says, in plain words, when the owner asks how it is going.
+      const tool = toolNameFromEvent(event)
+      if (tool !== undefined) {
+        capture.step = { tool, at: event.at }
+        capture.tools = [...(capture.tools ?? []), tool]
+        capture.toolTimes = [...(capture.toolTimes ?? []), event.at]
+      }
     }
     if (event.type === 'delta') {
       const first = capture.last === ''

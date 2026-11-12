@@ -119,7 +119,11 @@ async function deliverQueued(host: ExecutorHost, ticketId: string): Promise<void
             'worker',
           )
         }
-        await host.runner.deliver(workerSessionId(ticketId), inputId, text, 'steer')
+        // The open turn takes the text without blocking this loop; with no turn open, it becomes the next one.
+        const steered = host.runner.steer === undefined
+          ? false
+          : await host.runner.steer(workerSessionId(ticketId), inputId, text)
+        if (!steered) await host.runner.deliver(workerSessionId(ticketId), inputId, text, 'steer')
       }
       catch (error) {
         if (error instanceof Later) throw error

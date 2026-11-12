@@ -1,6 +1,7 @@
 import { useEffect, type ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { DirectMessagesView, type DmRowUi } from '../chat/DirectMessagesView.tsx'
+import { buildResponderEngine } from '../chat/responder-engine.ts'
 import type { SelectablePersonaOption } from '../chat/NewDmPersonaModal.tsx'
 import { subjectDisplayName } from '../chat/SubjectBar.tsx'
 import { conversationStreamKey } from '../chat/conversation-stream-key.ts'
@@ -19,6 +20,7 @@ import { appendNotStartedRows } from './dm-team-rows.ts'
 import { workingOnFor } from './working-on.ts'
 import { useEngineLimits } from './use-engine-limits.ts'
 import { useConnectedPersonaAsks } from '../ask/use-connected-persona-asks.ts'
+import { IndicatorsProvider } from '../indicators/use-indicators.tsx'
 import { useConnectedReply } from '../answer/use-connected-reply.ts'
 import { useConnectedHostQueue } from './use-connected-host-queue.ts'
 import { useConnectedTurnControls } from './use-connected-turn-controls.ts'
@@ -181,78 +183,88 @@ export function ConnectedDirectMessagesView({
     ...(onBuildTeam === undefined ? {} : { contratar: () => { onBuildTeam() } }),
     ...aside.slashActions,
   }
+  // DESIGN-01 #03: a pílula "Modelo · Esforço" da persona desta conversa; abrir leva ao diálogo do EFF-1 dela.
+  const responderEngine = buildResponderEngine({
+    team: live.team,
+    openEngine: runErrorHandlers === undefined ? undefined : runErrorHandlers.openEngineForPersona,
+    defaultLabel: shellT('personasTab.engine.defaultChip'),
+  })
   return (
-    <DirectMessagesView
-      t={chatT}
-      shellT={shellT}
-      slashActions={slashActions}
-      asideSlot={aside.card}
-      engineLimits={engineLimits}
-      onOpenLimits={loadEngineLimits}
-      {...(engineRemote === undefined ? {} : {
-        engineBanner: (
-          <ConnectedEngineBanner
-            t={chatT}
-            engineRemote={engineRemote}
-            workspaceId={live.tenant?.workspaceId}
-            projectId={live.tenant?.projectId}
-            onConnect={onOpenConnections}
-          />
-        ),
-      })}
-      loading={!live.ready}
-      dms={appendNotStartedRows(rows, availablePersonas)}
-      selectedId={live.selectedDmId}
-      // P0-30: as mensagens que o host não recebeu desta conversa ficam no fim do fio, marcadas "Não enviado".
-      messages={[...subjectState.filteredMessages, ...(live.failedSends ?? []).filter(row => row.streamKind === 'dm' && row.ownerId === dmId).map(row => row.message)]}
-      onRetrySend={(messageId) => { void liveStore.retryFailedSend?.(messageId) }}
-      onResumePersona={personaId => liveStore.resumePersona?.(personaId)}
-      {...(personaAsks === undefined ? {} : { personaAsks })}
-      {...(reply ?? {})}
-      {...(hostQueue === undefined ? {} : { hostQueue })}
-      {...(turnControls === undefined ? {} : { turnControls })}
-      subjectBar={dmId === null ? undefined : {
-        subjects: subjectState.subjects,
-        activeSubjectId: subjectState.activeSubjectId,
-        onSelect: subjectState.selectSubject,
-        onCreate: subjectState.createSubject,
-        onRename: subjectState.renameSubject,
-        onArchive: subjectState.archiveSubject,
-        archived: subjectState.archived,
-        onReopen: subjectState.reopenSubject,
-        editingSubjectId: subjectState.editingSubjectId,
-        panelId: 'persona-dm-subject-panel',
-      }}
-      composerSubjectPlaceholder={dmId === null ? undefined : chatT('composer.placeholderInSubjectFor', {
-        subject: subjectDisplayName(chatT, subjectState.activeSubject),
-        name: peerName,
-      })}
-      composerSubjectColorIndex={dmId === null ? undefined : subjectState.activeSubject.colorIndex}
-      subjectMoveTargets={dmId === null ? undefined : [...subjectState.subjects]}
-      onMoveMessageSubject={dmId === null ? undefined : subjectState.moveMessageToSubject}
-      onUndoMoveMessage={dmId === null ? undefined : (messageId, revertSubjectId) => {
-        subjectState.moveMessageToSubject(messageId, revertSubjectId)
-      }}
-      subjectsLoadError={subjectState.subjectsError}
-      onRetrySubjects={subjectState.retrySubjects}
-      passThroughFollowers={live.passThroughFollowers}
-      onSelect={(id) => { selectDm(id) }}
-      onSend={(body, attachmentIds) => { postDmMessage(body, attachmentIds) }}
-      uploadAttachment={file => uploadDmAttachment(file)}
-      onNewConversation={() => { startNewConversation() }}
-      turnContext={live.turnContext}
-      turnActivityLabels={turnActivityLabels}
-      onLoadTurnContext={loadTurnContext}
-      {...(openTaskOnBoard === undefined ? {} : { onOpenTaskOnBoard: openTaskOnBoard })}
-      {...(live.tenant === null ? {} : { memberId: live.tenant.memberId })}
-      onToggleReaction={(messageId, stickerId) => {
-        toggleMessageReaction('dm', messageId, stickerId)
-      }}
-      {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
-      {...(onTeach === undefined ? {} : { onTeach })}
-      {...(availablePersonas.length === 0 ? {} : { availablePersonas })}
-      onSelectPersonaForNewDm={(personaId) => { void liveStore.openPersonaDm(personaId) }}
-    />
+    <IndicatorsProvider remote={engineRemote} tenant={live.tenant}>
+      <DirectMessagesView
+        t={chatT}
+        shellT={shellT}
+        slashActions={slashActions}
+        asideSlot={aside.card}
+        engineLimits={engineLimits}
+        onOpenLimits={loadEngineLimits}
+        {...(engineRemote === undefined ? {} : {
+          engineBanner: (
+            <ConnectedEngineBanner
+              t={chatT}
+              engineRemote={engineRemote}
+              workspaceId={live.tenant?.workspaceId}
+              projectId={live.tenant?.projectId}
+              onConnect={onOpenConnections}
+            />
+          ),
+        })}
+        loading={!live.ready}
+        dms={appendNotStartedRows(rows, availablePersonas)}
+        selectedId={live.selectedDmId}
+        // P0-30: as mensagens que o host não recebeu desta conversa ficam no fim do fio, marcadas "Não enviado".
+        messages={[...subjectState.filteredMessages, ...(live.failedSends ?? []).filter(row => row.streamKind === 'dm' && row.ownerId === dmId).map(row => row.message)]}
+        onRetrySend={(messageId) => { void liveStore.retryFailedSend?.(messageId) }}
+        onResumePersona={personaId => liveStore.resumePersona?.(personaId)}
+        {...(personaAsks === undefined ? {} : { personaAsks })}
+        {...(reply ?? {})}
+        {...(hostQueue === undefined ? {} : { hostQueue })}
+        {...(turnControls === undefined ? {} : { turnControls })}
+        subjectBar={dmId === null ? undefined : {
+          subjects: subjectState.subjects,
+          activeSubjectId: subjectState.activeSubjectId,
+          onSelect: subjectState.selectSubject,
+          onCreate: subjectState.createSubject,
+          onRename: subjectState.renameSubject,
+          onArchive: subjectState.archiveSubject,
+          archived: subjectState.archived,
+          onReopen: subjectState.reopenSubject,
+          editingSubjectId: subjectState.editingSubjectId,
+          panelId: 'persona-dm-subject-panel',
+          // With one subject the chip "Geral" only suggests the message goes to #geral: it shows up when there is more than one.
+          hideSingleTab: true,
+        }}
+        composerSubjectPlaceholder={dmId === null ? undefined : subjectState.subjects.length > 1
+          ? chatT('composer.placeholderInSubjectFor', { subject: subjectDisplayName(chatT, subjectState.activeSubject), name: peerName })
+          : chatT('composer.placeholderDm', { name: peerName })}
+        composerSubjectColorIndex={dmId === null || subjectState.subjects.length <= 1 ? undefined : subjectState.activeSubject.colorIndex}
+        subjectMoveTargets={dmId === null ? undefined : [...subjectState.subjects]}
+        onMoveMessageSubject={dmId === null ? undefined : subjectState.moveMessageToSubject}
+        onUndoMoveMessage={dmId === null ? undefined : (messageId, revertSubjectId) => {
+          subjectState.moveMessageToSubject(messageId, revertSubjectId)
+        }}
+        subjectsLoadError={subjectState.subjectsError}
+        onRetrySubjects={subjectState.retrySubjects}
+        passThroughFollowers={live.passThroughFollowers}
+        onSelect={(id) => { selectDm(id) }}
+        onSend={(body, attachmentIds) => { postDmMessage(body, attachmentIds) }}
+        uploadAttachment={file => uploadDmAttachment(file)}
+        onNewConversation={() => { startNewConversation() }}
+        turnContext={live.turnContext}
+        turnActivityLabels={turnActivityLabels}
+        onLoadTurnContext={loadTurnContext}
+        {...(openTaskOnBoard === undefined ? {} : { onOpenTaskOnBoard: openTaskOnBoard })}
+        {...(live.tenant === null ? {} : { memberId: live.tenant.memberId })}
+        onToggleReaction={(messageId, stickerId) => {
+          toggleMessageReaction('dm', messageId, stickerId)
+        }}
+        {...(runErrorHandlers === undefined ? {} : { runErrorHandlers })}
+        {...(responderEngine === undefined ? {} : { responderEngine })}
+        {...(onTeach === undefined ? {} : { onTeach })}
+        {...(availablePersonas.length === 0 ? {} : { availablePersonas })}
+        onSelectPersonaForNewDm={(personaId) => { void liveStore.openPersonaDm(personaId) }}
+      />
+    </IndicatorsProvider>
   )
 }
 

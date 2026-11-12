@@ -11,7 +11,11 @@ import { Avatar, BrandIcon, EmptyState, Screen, ScreenHeader, Tabs, type BrandIc
 import type { MainPanelId } from './create-shell-store.ts'
 import { NAV_GROUPS, SEARCH_FOCUS_EVENT } from './nav-groups.ts'
 import type { RailPersona } from './RailTeam.tsx'
+import { useSearchPalette } from './SearchPalette.tsx'
 import styles from './SearchView.module.css'
+
+/** The most "Fazer agora" shortcuts the palette numbers (the keys 1–9). */
+export const PALETTE_SHORTCUTS_MAX = 9
 
 type SearchFilter = 'all' | 'messages' | 'tasks' | 'vault' | 'files'
 
@@ -70,6 +74,14 @@ export function SearchPlaceholderView({ t, useTeam, navigate, openPersonaProfile
   const inputRef = useRef<HTMLInputElement>(null)
   const resultsRef = useRef<HTMLDivElement>(null)
   const team = (useTeam ?? useNoTeam)(rows => rows)
+  // Inside the Ctrl K modal (DESIGN-01-MUSE §5.2 #11) the view is a palette: no page header, every result closes it, 1–9 run the first actions.
+  const palette = useSearchPalette()
+  const inPalette = palette !== null
+  /** Closes the palette (if any) and then does what the result does. */
+  const choose = <A extends unknown[]>(fn: ((...args: A) => void) | undefined) => (...args: A): void => {
+    palette?.close()
+    fn?.(...args)
+  }
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -92,19 +104,36 @@ export function SearchPlaceholderView({ t, useTeam, navigate, openPersonaProfile
 
   const showGoTo = filter === 'all' && navigate !== undefined
   // "Fazer": matching global actions, plus the actions of the personas the query found (only while typing).
-  const doing = filter !== 'all' || folded.length === 0 ? [] : [
+  // In the palette the empty query already lists the global actions ("Fazer agora"), numbered 1–9.
+  const doing = filter !== 'all' ? [] : folded.length === 0 ? (inPalette ? actions.slice(0, PALETTE_SHORTCUTS_MAX) : []) : [
     ...actions.filter(a => [a.label, ...(a.keywords ?? [])].some(w => foldForSearch(w).includes(folded))),
     ...(personaActions === undefined ? [] : people.slice(0, 2).flatMap(p => personaActions(p))),
   ].slice(0, 6)
+  // 1–9 exist only in the open palette and only while the field is empty (otherwise a digit is just text).
+  const shortcutsOn = inPalette && folded.length === 0
+  const runShortcut = (event: KeyboardEvent<HTMLElement>): boolean => {
+    if (!shortcutsOn || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey || !/^[1-9]$/u.test(event.key)) return false
+    const action = doing[Number(event.key) - 1]
+    if (action === undefined) return false
+    event.preventDefault()
+    choose(action.run)()
+    return true
+  }
   const hasLocal = (showGoTo && (screens.length > 0 || people.length > 0)) || doing.length > 0
   const hasContent = contentResults !== undefined && contentResults.length > 0
 
   const onFieldKeyDown = (event: KeyboardEvent<HTMLInputElement>): void => {
+    if (event.key === 'Escape' && palette !== null) {
+      event.preventDefault()
+      palette.close()
+      return
+    }
     if (event.key === 'Escape' && navigate !== undefined) {
       event.preventDefault()
       navigate('channels')
       return
     }
+    if (runShortcut(event)) return
     const first = resultsRef.current?.querySelector<HTMLButtonElement>('button[data-result]:not(:disabled)')
     if (first == null) return
     if (event.key === 'ArrowDown') {
@@ -117,6 +146,7 @@ export function SearchPlaceholderView({ t, useTeam, navigate, openPersonaProfile
   }
 
   const onResultsKeyDown = (event: KeyboardEvent<HTMLDivElement>): void => {
+    if (runShortcut(event)) return
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
     const buttons = [...(resultsRef.current?.querySelectorAll<HTMLButtonElement>('button[data-result]:not(:disabled)') ?? [])]
     const index = buttons.indexOf(document.activeElement as HTMLButtonElement)
@@ -129,9 +159,34 @@ export function SearchPlaceholderView({ t, useTeam, navigate, openPersonaProfile
     buttons[Math.min(buttons.length - 1, Math.max(0, index + (event.key === 'ArrowDown' ? 1 : -1)))]?.focus()
   }
 
-  return (
-    <Screen width="reading">
-      <ScreenHeader icon="busca" title={t('sidebar.search')} subtitle={t('search.subtitle')} />
+  // The personas, with a 24 px portrait in the palette (a 32 px one on the page). In the palette they come BEFORE "Ir para" (Carbon #11 order).
+  const peopleSection = showGoTo && people.length > 0 ? (
+    <section aria-labelledby="persona-search-team">
+      <h2 id="persona-search-team" className={styles.sectionTitle}>{t('search.team')}</h2>
+      <ul className={styles.people}>
+        {people.map(persona => (
+          <li key={persona.id}>
+            <button
+              type="button"
+              data-result=""
+              className={styles.person}
+              disabled={openPersonaProfile === undefined}
+              onClick={choose(() => { openPersonaProfile?.(persona.id) })}
+            >
+              <Avatar name={persona.name} src={PORTRAITS[persona.characterId]} size={inPalette ? 24 : 32} shape="portrait" decorative />
+              <span className={styles.personText}>
+                <span className={styles.personName}>{persona.name}</span>
+                <span className={styles.personRole}>{persona.role}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  ) : null
+
+  const content = (
+    <>
       <label className={styles.field}>
         <span className="persona-sr-only">{t('search.label')}</span>
         <BrandIcon name="busca" size={22} className={styles.fieldIcon} />
@@ -150,13 +205,15 @@ export function SearchPlaceholderView({ t, useTeam, navigate, openPersonaProfile
         />
         <kbd className={styles.kbd}>{t('sidebar.searchShortcut')}</kbd>
       </label>
-      <Tabs
-        label={t('search.filtersLabel')}
-        idPrefix="persona-search"
-        value={filter}
-        onChange={setFilter}
-        items={FILTERS.map(id => ({ id, label: t(`search.filter.${id}`) }))}
-      />
+      {!inPalette && (
+        <Tabs
+          label={t('search.filtersLabel')}
+          idPrefix="persona-search"
+          value={filter}
+          onChange={setFilter}
+          items={FILTERS.map(id => ({ id, label: t(`search.filter.${id}`) }))}
+        />
+      )}
       <div
         id={`persona-search-panel-${filter}`}
         role="tabpanel"
@@ -169,24 +226,26 @@ export function SearchPlaceholderView({ t, useTeam, navigate, openPersonaProfile
           <section aria-labelledby="persona-search-do">
             <h2 id="persona-search-do" className={styles.sectionTitle}>{t('search.do')}</h2>
             <ul className={styles.screenGrid}>
-              {doing.map(action => (
+              {doing.map((action, index) => (
                 <li key={action.id}>
-                  <button type="button" data-result="" className={`${styles.screen} ${styles.action}`} onClick={action.run}>
+                  <button type="button" data-result="" className={`${styles.screen} ${styles.action}`} onClick={choose(action.run)} aria-keyshortcuts={shortcutsOn ? String(index + 1) : undefined}>
                     <BrandIcon name={action.icon ?? 'equipe'} size={20} />
                     {action.label}
+                    {shortcutsOn && <kbd className={styles.shortcut} aria-hidden="true">{index + 1}</kbd>}
                   </button>
                 </li>
               ))}
             </ul>
           </section>
         )}
+        {inPalette && peopleSection}
         {showGoTo && screens.length > 0 && (
           <section aria-labelledby="persona-search-goto">
             <h2 id="persona-search-goto" className={styles.sectionTitle}>{t('search.goTo')}</h2>
             <ul className={styles.screenGrid}>
               {screens.map(item => (
                 <li key={item.panel}>
-                  <button type="button" data-result="" className={styles.screen} onClick={() => { navigate(item.panel) }}>
+                  <button type="button" data-result="" className={styles.screen} onClick={choose(() => { navigate(item.panel) })}>
                     <BrandIcon name={item.icon} size={20} />
                     {item.label}
                   </button>
@@ -195,37 +254,14 @@ export function SearchPlaceholderView({ t, useTeam, navigate, openPersonaProfile
             </ul>
           </section>
         )}
-        {showGoTo && people.length > 0 && (
-          <section aria-labelledby="persona-search-team">
-            <h2 id="persona-search-team" className={styles.sectionTitle}>{t('search.team')}</h2>
-            <ul className={styles.people}>
-              {people.map(persona => (
-                <li key={persona.id}>
-                  <button
-                    type="button"
-                    data-result=""
-                    className={styles.person}
-                    disabled={openPersonaProfile === undefined}
-                    onClick={() => { openPersonaProfile?.(persona.id) }}
-                  >
-                    <Avatar name={persona.name} src={PORTRAITS[persona.characterId]} size={32} shape="portrait" decorative />
-                    <span className={styles.personText}>
-                      <span className={styles.personName}>{persona.name}</span>
-                      <span className={styles.personRole}>{persona.role}</span>
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        {!inPalette && peopleSection}
         {hasContent && (
           <section aria-labelledby="persona-search-content">
             <h2 id="persona-search-content" className={styles.sectionTitle}>{t('search.inConversations')}</h2>
             <ul className={styles.hits}>
               {contentResults.map(hit => (
                 <li key={hit.id}>
-                  <button type="button" data-result="" className={styles.hit} onClick={hit.onOpen}>
+                  <button type="button" data-result="" className={styles.hit} onClick={choose(hit.onOpen)}>
                     <span className={styles.hitMeta}>{hit.meta}</span>
                     <span className={styles.hitText}>{hit.text}</span>
                   </button>
@@ -242,6 +278,14 @@ export function SearchPlaceholderView({ t, useTeam, navigate, openPersonaProfile
           />
         )}
       </div>
+    </>
+  )
+
+  if (inPalette) return <div className={styles.palette} data-persona-search-view="palette">{content}</div>
+  return (
+    <Screen width="reading">
+      <ScreenHeader icon="busca" title={t('sidebar.search')} subtitle={t('search.subtitle')} />
+      {content}
     </Screen>
   )
 }

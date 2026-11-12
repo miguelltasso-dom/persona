@@ -4,6 +4,7 @@
 
 import type { Trigger } from '@deepseek-ai/dsh-persona-engine'
 import { withSourceRequest, type ProcessBudget } from '../resolve/resource-budget.ts'
+import { filterEmailMessages, type EmailArrivalFilter } from './email-filter.ts'
 
 export const EMAIL_SOURCE = 'email'
 
@@ -14,6 +15,8 @@ export interface EmailMessage {
   subject: string
   text: string
   at?: string
+  /** Newsletter / bulk mail (List-Unsubscribe, Precedence: bulk, Auto-Submitted). The origin filter skips it by default. */
+  bulk?: boolean
 }
 
 /**
@@ -31,6 +34,7 @@ export function emailMessageToTrigger(message: EmailMessage): Trigger {
     addressed: 'direct',
     at,
     text: message.text,
+    viaEmail: true,
     channel: {
       source: EMAIL_SOURCE,
       thread: message.subject,
@@ -41,16 +45,26 @@ export function emailMessageToTrigger(message: EmailMessage): Trigger {
 }
 
 /**
- * Pull messages from an injected IMAP-like list (fake server in tests).
- * @param options - Fetcher returns parsed messages; never a live mailbox.
+ * Pull messages from an injected IMAP-like list (fake server in tests). The origin filter runs HERE, before any
+ * Trigger exists, so a message the person did not ask about never wakes a model.
+ * @param options - Fetcher returns parsed messages; never a live mailbox. `filter` keeps only matching mail;
+ * `onFiltered` sees each message the filter dropped.
  */
 export async function pollEmail(options: {
   list: () => Promise<readonly EmailMessage[]>
   budget?: ProcessBudget
+  filter?: EmailArrivalFilter
+  onFiltered?: (message: EmailMessage) => void
 }): Promise<Trigger[]> {
   return withSourceRequest(options.budget, [], async () => {
     const rows = await options.list()
-    return rows.map(emailMessageToTrigger)
+    if (options.filter === undefined) return rows.map(emailMessageToTrigger)
+    const kept = filterEmailMessages(rows, options.filter)
+    if (options.onFiltered !== undefined) {
+      const keptIds = new Set(kept.map(message => message.id))
+      for (const message of rows) if (!keptIds.has(message.id)) options.onFiltered(message)
+    }
+    return kept.map(emailMessageToTrigger)
   })
 }
 

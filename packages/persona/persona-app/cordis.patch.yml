@@ -183,8 +183,8 @@
       config:
         sessionsRoot: !!js dshHomePath('codex-sessions')
 
-    # D-101 diet 1-6: on-demand components (LibreOffice/Python/MinGit/pnpm). Inert until the release build ships
-    # components.json and the desktop main passes DSH_COMPONENTS_MANIFEST; the Office features call ensureComponent.
+    # D-101 diet 1-6: on-demand components (LibreOffice/Python/MinGit/pnpm/stt). Inert until the release build ships
+    # components.json and the desktop main passes DSH_COMPONENTS_MANIFEST; the features call ensureComponent.
     - id: persona-components
       name: '@deepseek-ai/dsh-persona-components'
       config:

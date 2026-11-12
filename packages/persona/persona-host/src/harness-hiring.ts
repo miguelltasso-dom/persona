@@ -59,6 +59,11 @@ export interface HiringDeps {
   /** People she hired on her own that day (`YYYY-MM-DD` on the host's clock), and the note of one more. */
   readonly directToday: (projectId: string, personaId: string, day: string) => number
   readonly noteDirect: (projectId: string, personaId: string, day: string) => void
+  /**
+   * HONEST-1: whether a saved house rule (`never-hire`) closes the “Contratar direto” shortcut. Asked ONLY when the hire would have been direct; the host writes what it closed in the
+   * rule's book (`what`) and answers true. Absent = no rules.
+   */
+  readonly directLocked?: (projectId: string, what: string) => boolean
   readonly now: () => string
 }
 
@@ -121,7 +126,9 @@ export class HiringPorts {
       return { ok: false, code: 'limit', message: 'A equipe já está no tamanho máximo.' }
     }
     // “Contratar direto” never goes around the person's request or the persona's autonomy: only a request of hers, or `act`.
-    const direct = deps.hireDirectOf(who.projectId, who.personaId) && (who.initiator === 'person-request' || who.autonomy === 'act')
+    const wouldBeDirect = deps.hireDirectOf(who.projectId, who.personaId) && (who.initiator === 'person-request' || who.autonomy === 'act')
+    // HONEST-1: a saved `never-hire` rule closes this shortcut: the hire is a card for the person, always.
+    const direct = wouldBeDirect && deps.directLocked?.(who.projectId, `contratar ${name} direto`) !== true
     if (direct) {
       if (deps.directToday(who.projectId, who.personaId, deps.now().slice(0, 10)) >= MAX_DIRECT_HIRES_PER_DAY) {
         return { ok: false, code: 'limit', message: `Você já contratou ${String(MAX_DIRECT_HIRES_PER_DAY)} pessoas hoje. Amanhã você pode contratar de novo, ou deixe o pedido para a pessoa decidir.` }

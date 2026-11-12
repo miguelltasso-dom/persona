@@ -71,10 +71,24 @@ describe('pílula de estado do rodapé (A-5)', () => {
     expect(pill().getAttribute('data-status')).toBe('warning')
   })
 
-  it('conferindo: "Conferindo a IA…", ponto lilás (pending) e nunca "Sem IA"', () => {
+  it('motor instalado sem login: "Claude · sem login" em warning (e nunca o "Sem IA conectada" de quem não tem motor nenhum)', () => {
+    setup({ host: 'online', ai: { kind: 'unavailable', engine: 'Claude' } })
+    expect(pill().getAttribute('aria-label')).toBe('Claude · sem login')
+    expect(pill().getAttribute('data-status')).toBe('warning')
+    expect(pill().textContent).not.toMatch(/Sem IA/u)
+  })
+
+  it('conferindo: "Claude · conferindo…", ponto lilás (pending) e nunca "Sem IA"', () => {
     setup({ host: 'online', ai: { kind: 'checking' } })
-    expect(pill().getAttribute('aria-label')).toBe('Conferindo a IA…')
+    expect(pill().getAttribute('aria-label')).toBe('Claude · conferindo…')
     expect(pill().getAttribute('data-status')).toBe('pending')
+  })
+
+  it('IA pronta sem cota publicada: "Claude · pronto", o travessão nunca aparece', () => {
+    setup({ host: 'online', ai: { kind: 'ready', engine: 'Claude', freePct: null, limited: false } })
+    expect(pill().getAttribute('aria-label')).toBe('Claude · pronto')
+    expect(pill().textContent).not.toMatch(/—/u)
+    expect(pill().getAttribute('data-status')).toBe('online')
   })
 
   it('equipe fora do ar vence a IA; sem fonte de IA a pílula diz "Conectado" como antes', () => {
@@ -87,9 +101,11 @@ describe('pílula de estado do rodapé (A-5)', () => {
 
   it('o texto da pílula acompanha o estado quando o host muda', () => {
     const { aiStore } = setup({ host: 'online', ai: { kind: 'checking' } })
-    expect(pill().getAttribute('aria-label')).toBe('Conferindo a IA…')
+    expect(pill().getAttribute('aria-label')).toBe('Claude · conferindo…')
     act(() => { aiStore.set({ kind: 'ready', engine: 'Codex', freePct: null, limited: false }) })
-    expect(pill().getAttribute('aria-label')).toBe('Codex · —')
+    expect(pill().getAttribute('aria-label')).toBe('Codex · pronto')
+    act(() => { aiStore.set({ kind: 'unavailable', engine: 'Codex' }) })
+    expect(pill().getAttribute('aria-label')).toBe('Codex · sem login')
   })
 })
 
@@ -114,11 +130,20 @@ describe('popover da pílula', () => {
     expect(selectPanel).toHaveBeenCalledWith('connections')
   })
 
+  it('sem login: a linha diz "Claude · sem login" e o botão "Conectar uma IA" abre Conexões', () => {
+    const { selectPanel } = setup({ host: 'online', ai: { kind: 'unavailable', engine: 'Claude' } })
+    fireEvent.click(pill())
+    const dialog = screen.getByRole('dialog', { name: 'Estou fora' })
+    expect(within(dialog).getByText('Claude · sem login')).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Conectar uma IA' }))
+    expect(selectPanel).toHaveBeenCalledWith('connections')
+  })
+
   it('conferindo: a linha aparece sem botão (não há para onde levar ainda)', () => {
     setup({ host: 'online', ai: { kind: 'checking' } })
     fireEvent.click(pill())
     const dialog = screen.getByRole('dialog', { name: 'Estou fora' })
-    expect(within(dialog).getByText('Conferindo a IA…')).toBeTruthy()
+    expect(within(dialog).getByText('Claude · conferindo…')).toBeTruthy()
     expect(within(dialog).queryByRole('button', { name: /uso e limites|Conectar uma IA/u })).toBeNull()
   })
 
@@ -138,13 +163,13 @@ describe('popover da pílula', () => {
   })
 })
 
-describe('cota indisponível: o "—" explicado (Muse, A-5)', () => {
+describe('cota indisponível: a frase da Muse explica o "pronto" sem número (A-5)', () => {
   const quiet = { kind: 'ready', engine: 'Claude', freePct: null, limited: false } as const
 
   it('tooltip da pílula com a frase da Muse quando a cota oficial ainda não existe', () => {
     vi.useFakeTimers()
     setup({ host: 'online', ai: quiet })
-    expect(pill().getAttribute('aria-label')).toBe('Claude · —')
+    expect(pill().getAttribute('aria-label')).toBe('Claude · pronto')
     fireEvent.focus(pill())
     act(() => { vi.advanceTimersByTime(450) })
     expect(screen.getByRole('tooltip').textContent).toBe('A cota oficial do Claude ainda não está disponível.')
@@ -177,7 +202,7 @@ describe('cota indisponível: o "—" explicado (Muse, A-5)', () => {
     setup({ host: 'online', ai: quiet })
     fireEvent.click(pill())
     const dialog = screen.getByRole('dialog', { name: 'Estou fora' })
-    expect(within(dialog).getByText('Claude · —')).toBeTruthy()
+    expect(within(dialog).getByText('Claude · pronto')).toBeTruthy()
     expect(within(dialog).getByText('A cota oficial do Claude ainda não está disponível.')).toBeTruthy()
     expect(within(dialog).getByRole('button', { name: 'Ver uso e limites' })).toBeTruthy()
   })

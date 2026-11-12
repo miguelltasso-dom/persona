@@ -8,6 +8,7 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync,
 import { basename, dirname, extname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
+import { buildVivas } from './vivas-assets.mjs'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..')
 const SRC = join(ROOT, 'persona-assets')
@@ -195,6 +196,12 @@ async function main() {
     { from: 'illustrations/team-banner-dark@2x.png', to: 'illustrations/team-banner-dark.webp', width: 2400, quality: 84 },
     { from: 'illustrations/rail-foliage-light@2x.png', to: 'illustrations/rail-foliage-light.webp', width: 544, quality: 90 },
     { from: 'illustrations/rail-foliage-dark@2x.png', to: 'illustrations/rail-foliage-dark.webp', width: 544, quality: 90 },
+    // Muse (DESIGN-01 momento uau 5): the same rail with the lamp OFF (only the lamp rectangle differs, feathered edge), for the
+    // one-time off → on crossfade when the dark theme opens; then the lit art stays still.
+    { from: 'illustrations/rail-foliage-dark-off@2x.png', to: 'illustrations/rail-foliage-dark-off.webp', width: 544, quality: 90 },
+    // Muse (DESIGN-01 §5, lote 3.3): the onboarding arrival stage (no animals: the arrival poses stand on its floor).
+    { from: 'illustrations/onboarding-porta-dia.png', to: 'illustrations/onboarding-porta-dia.webp', width: 1440, quality: 84 },
+    { from: 'illustrations/onboarding-porta-noite.png', to: 'illustrations/onboarding-porta-noite.webp', width: 1440, quality: 84 },
     { from: 'textures/paper-light.png', to: 'textures/paper-light.webp', width: 512, quality: 88 },
     { from: 'textures/paper-dark.png', to: 'textures/paper-dark.webp', width: 512, quality: 88 },
     // Per-column empties by stage category (BOARDS-SPEC §2.2): prefer empty-col-<id>.png, fall back to empty-coluna-<pt>.png.
@@ -220,7 +227,9 @@ async function main() {
       { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 480, quality: 86 }
     )),
     // Muse (BR-P3 P0, UX-BEYOND + the Miguel redesign): limit, remote team, access ended, applied, empty approvals (480 → 240).
-    ...['empty-limite', 'empty-equipe-remota', 'acesso-encerrado', 'sucesso-aplicado', 'empty-aprovacoes', 'sucesso-skill-aprendida', 'sucesso-convite-aceito', 'sucesso-equipe-chegou'].map(name => (
+    ...['empty-limite', 'empty-equipe-remota', 'acesso-encerrado', 'sucesso-aplicado', 'empty-aprovacoes', 'sucesso-skill-aprendida', 'sucesso-convite-aceito', 'sucesso-equipe-chegou',
+      // COLHEITA item 13 (Brush, approved by Muse 11/11): "ligar a assinatura para o time inteiro" (480 shown at 240).
+      'ligar-ia-equipe'].map(name => (
       { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 480, quality: 86 }
     )),
     { from: 'illustrations/spot-limite.png', to: 'illustrations/spot-limite.webp', width: 192, quality: 88 },
@@ -240,13 +249,27 @@ async function main() {
     ...['equipe-saudavel', 'ponto-unico-falha', 'voce-de-ferias'].map(name => (
       { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 600, quality: 86 }
     )),
-    ...['inbox', 'kanban', 'search', 'vault', 'routines', 'connections', 'error', 'dm', 'sem-ia'].map(name => (
+    // Muse (DESIGN-01-MUSE 11/11): 'sem-arquivos' (Arquivos, existing Brush art) + 'regras-da-casa' (Regras da casa, new).
+    ...['inbox', 'kanban', 'search', 'vault', 'routines', 'connections', 'error', 'dm', 'sem-ia', 'sem-arquivos', 'regras-da-casa', 'memoria-resumo',
+      // DESIGN-01 (onda 2): the day versions of empties whose night version is registered (Projetos, Uso e limites).
+      'primeiro-projeto', 'uso-indisponivel',
+      // COLHEITA (Muse + Brush 11/11): "Seus números" (Visão geral, item 19a) and "Conversa da tarefa" (Quadro, item 18).
+      'seus-numeros', 'conversa-tarefa'].map(name => (
       { from: `illustrations/empty-${name}.png`, to: `illustrations/empty-${name}.webp`, width: 480, quality: 86 }
     )),
     // Muse (BR-P4 P1, NIGHT-THEME-SPEC): night empties, used ONLY in the dark theme (480 → 240).
-    ...['empty-dm-noite', 'empty-aprovacoes-noite', 'empty-geral-noite'].map(name => (
+    // + the 4 drawn for v1.2 (persona-assets/concepts/v1.2, approved by Muse; registered 11/11 for DESIGN-01 lote 0).
+    ...['empty-dm-noite', 'empty-aprovacoes-noite', 'empty-geral-noite', 'empty-regras-da-casa-noite',
+      'empty-kanban-noite', 'empty-routines-noite', 'empty-connections-noite', 'empty-search-noite',
+      // + DESIGN-01 lote 2.2 (Brush 11/11, approved by Muse).
+      'empty-sem-arquivos-noite', 'empty-primeiro-projeto-noite', 'empty-equipe-remota-noite',
+      'empty-uso-indisponivel-noite', 'empty-memoria-resumo-noite',
+      // + COLHEITA (Brush 11/11, approved by Muse): night version of "Seus números" (the task-conversation empty has one art for both themes).
+      'empty-seus-numeros-noite'].map(name => (
       { from: `illustrations/${name}.png`, to: `illustrations/${name}.webp`, width: 480, quality: 86 }
     )),
+    // Muse (DESIGN-01 momento uau 1): "Primeira entrega pronta" stamp, shown at 96 px → 192 (2×). No text in the art.
+    { from: 'illustrations/stamp-primeira-entrega.png', to: 'illustrations/stamp-primeira-entrega.webp', width: 192, quality: 88 },
     // Muse (BR-P4 P1): team scene icons for channels (96 → 48).
     ...['marketing', 'atendimento', 'financeiro', 'diretoria', 'produto', 'equipe'].map(name => (
       { from: `illustrations/channel-${name}.png`, to: `illustrations/channel-${name}.webp`, width: 96, quality: 88 }
@@ -271,8 +294,9 @@ async function main() {
   // Muse: reaction stickers (Brush: stickers/<animal>/<reaction>.png 256², legacy flat <animal>-<reaction>.png)
   // → stickers/<animal>-<reaction>.webp at 128 px (2× of the 64 px picker).
   // BR-P5 (Muse): bom-dia / ate-amanha are the persona's day moments (figurinhas), not picker reactions.
-  const REACTIONS = new Set(['joinha', 'coracao', 'rindo', 'comemorando', 'pensando', 'feito', 'bom-dia', 'ate-amanha'])
-  const STICKER_FLAT = /^([a-z-]+?)-(joinha|coracao|rindo|comemorando|pensando|feito|bom-dia|ate-amanha)\.png$/u
+  // COLHEITA item 14 (Muse/Brush 11/11): 4 reaction stickers that answer without opening a turn (obrigada, uau, combinado, boa-ideia).
+  const REACTIONS = new Set(['joinha', 'coracao', 'rindo', 'comemorando', 'pensando', 'feito', 'bom-dia', 'ate-amanha', 'obrigada', 'uau', 'combinado', 'boa-ideia'])
+  const STICKER_FLAT = /^([a-z-]+?)-(joinha|coracao|rindo|comemorando|pensando|feito|bom-dia|ate-amanha|obrigada|uau|combinado|boa-ideia)\.png$/u
   /** @type {{ from: string, id: string }[]} */
   const stickerSources = []
   const stickerRoot = join(SRC, 'stickers')
@@ -325,6 +349,10 @@ async function main() {
       : [boxes.get(stem)]
     await poseDerivative(join(SRC, 'poses', file), stem, unionBox(familyBoxes))
   }
+
+  // COLHEITA item 21 (Gauge, Keel 12/11): personas vivas, a block isolated in vivas-assets.mjs. ONE crop rectangle per animal (alpha box of the BASE + a fixed margin), the same
+  // scale for every expression, and the build FAILS when an expression has another canvas or breaks the register (check-pose-register) against the base. The poses above are untouched.
+  await buildVivas({ src: SRC, out: OUT, sharp, track, ensureDir, log: console.log })
 
   const totalBytes = manifest.reduce((sum, row) => sum + row.bytes, 0)
   const summary = {

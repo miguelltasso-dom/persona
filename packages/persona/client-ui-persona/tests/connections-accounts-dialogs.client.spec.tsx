@@ -328,6 +328,35 @@ describe('swap rule: team and one persona', () => {
     expect(await screen.findByText(t('swapPolicy.saved'))).toBeTruthy()
   })
 
+  it('o id cru "claude" da conta vira "Conta do Claude neste computador" (Muse §5.2 #12)', () => {
+    render(<ConnectionsView accountsUi={ui([seat({ id: 'claude:claude', accountLabel: 'claude', status: 'ready' })], { swapPolicy: 'ask_before_swap' })} personas={personas} onSwapPolicyChange={async () => {}} />)
+    expect(screen.getByText('Conta do Claude neste computador')).toBeTruthy()
+    expect(screen.queryByText('claude')).toBeNull()
+  })
+
+  it('o id cru "dsh" da conta DeepSeek vira "Conta DeepSeek neste computador" (Muse §5.2 #12)', () => {
+    render(<ConnectionsView accountsUi={ui([seat({ id: 'deepseek:dsh', accountLabel: 'dsh', status: 'ready' })], { swapPolicy: 'ask_before_swap' })} personas={personas} onSwapPolicyChange={async () => {}} />)
+    expect(screen.getByText('Conta DeepSeek neste computador')).toBeTruthy()
+    expect(screen.queryByText('dsh')).toBeNull()
+  })
+
+  it('com uma conta só, "Quando uma conta chegar ao limite" fica recolhido (details fechado) abaixo das contas', () => {
+    const { container } = render(<ConnectionsView accountsUi={ui([personal], { swapPolicy: 'ask_before_swap' })} personas={personas} onSwapPolicyChange={async () => {}} />)
+    const details = container.querySelector('details')
+    expect(details).not.toBeNull()
+    expect(details!.open).toBe(false)
+    expect(details!.querySelector('summary')?.textContent).toContain(t('accountPolicy.legend'))
+    const list = container.querySelector('[class*="providerList"]')
+    expect(list).not.toBeNull()
+    expect(list!.compareDocumentPosition(details!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
+  it('com duas contas ou mais, "Quando uma conta chegar ao limite" aparece aberto, sem recolher', () => {
+    const { container } = render(<ConnectionsView accountsUi={ui([personal, work], { swapPolicy: 'ask_before_swap' })} personas={personas} onSwapPolicyChange={async () => {}} />)
+    expect(container.querySelector('details')).toBeNull()
+    expect(screen.getByText(t('accountPolicy.legend'))).toBeTruthy()
+  })
+
   it('D-078: três escolhas — Perguntar antes de trocar (padrão, recomendada), Trocar sozinha e Ficar nesta conta; "dividir o uso" não é mais oferecida', () => {
     render(<ConnectionsView accountsUi={ui([personal, work], { swapPolicy: 'ask_before_swap' })} personas={personas} onSwapPolicyChange={async () => {}} />)
     expect(screen.getAllByRole('radio').map(radio => radio.closest('label')?.textContent ?? '')).toEqual([
@@ -338,11 +367,9 @@ describe('swap rule: team and one persona', () => {
     expect(screen.queryByText(/Dividir o uso/u)).toBeNull()
     // o padrão é dito uma vez, acima das escolhas
     expect(screen.getByText(t('swapPolicy.hint'))).toBeTruthy()
-    // quem não escolheu nada fica em "Perguntar antes de trocar" e só ela leva o selo
+    // quem não escolheu nada fica em "Perguntar antes de trocar", e a escolha de preferência não tem selo (regra 0.1 da Muse)
     expect((policyCard(t('accountPolicy.ask.title')) as HTMLInputElement).checked).toBe(true)
-    const badges = screen.getAllByText(t('accountPolicy.recommended'))
-    expect(badges).toHaveLength(1)
-    expect(badges[0]!.closest('label')?.textContent).toContain('Perguntar antes de trocar')
+    expect(screen.queryAllByText(t('accountPolicy.recommended'))).toHaveLength(0)
   })
 
   it('D-078: antes de escolher "Trocar sozinha" a pessoa já lê que a troca é sempre vista no fio e dá para desfazer; escolher grava next_on_limit', async () => {

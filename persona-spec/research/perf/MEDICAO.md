@@ -298,3 +298,35 @@ Provas: 17/17 testes (manifesto, instalação/reuso, concorrência, checksum, of
 src+tests OK. **Falta para fechar a dieta:** gerar os arquivos dos componentes + o manifesto no empacotamento (Rivet), publicar no host de
 releases, e os chamadores (`document/office-to-pdf`, `skill/skill-office`) pedirem `ensureComponent` antes de usar; a UI de Componentes é
 da Muse. Tamanhos a cortar: LibreOffice 182 MB, Python 144,5, MinGit 91,8, pnpm 20,5 (≈118 MiB comprimidos).
+
+## 14. GPU sem foco — com e sem o commit `1efcbc1ec5` (11/11, Cobalt)
+
+**Método.** `gpu-unfocused-probe.mjs` (novo, `C:/p8w-cobalt/scripts/persona/`): sobe o app com home descartável, espera o shell, amostra a CPU do processo GPU por 10 s (focado), liga o estado pausado e amostra mais 10 s. A janela do app **recupera o foco do SO** neste rig (o app re-foca em eventos de atenção; `SetForegroundWindow`/`AppActivate`/`window.blur()` não seguram), então o estado é aplicado exatamente como o `installAmbientPause` aplica: o atributo único no `<body>` via CDP (na medição o artefato `470f078b2e` usava `data-persona-unfocused`; a regra final da Muse usa `data-persona-ambient-paused`, mesmo seletor e mesmo efeito). O que se mede é o efeito da regra CSS (o detector de foco/ociosidade é código revisado, não medido). A pausa cobre também as animações **WAAPI** (o `installAmbientPause` pausa as `document.getAnimations()` running e retoma só as que pausou): o `animation-play-state` do CSS não as afeta, e o gate `preaccept-gpu` conta `getAnimations()` running depois de um `blur` sintético (`ac0806cf70`).
+
+| artefato | GPU focado (CPU do processo) | GPU "sem foco" (CPU do processo) | contador de GPU do Windows |
+| --- | ---: | ---: | --- |
+| v1.1 instalado (`C:\p8perf`, sem o commit) | 25,3% | **21,5%** | — |
+| v1.1.1 `470f078b2e` (com `1efcbc1ec5`) | 28,3% | **0%** | **45,6% focado → 0% pausado** (10 amostras, 100 linhas casadas) |
+
+O contador de GPU do Windows (o `sampleGpuUtilization` do Ember, mesma semântica do Gerenciador de Tarefas) é o número que vale: com a pausa ligada, **0% em todos os motores** (3D, Copy, VideoDecode…); focado, 45,6% no motor 3D. A CPU do processo GPU acompanha (51,1% → 0%).
+
+**Leitura.** Com o commit, o estado sem foco derruba o GPU de 28,3% para **0%** (meta ≤ 2% batida); sem o commit, o mesmo estado não muda nada (21,5%) — a regra não existe. O focado segue alto (25–28%) porque o shell anima; o orçamento do DESIGN-01 (`GPU-BUDGET.md`) cobre esse caso (≤ 6% parado, ≤ 15% no onboarding) e o próximo corte é o scrim do onboarding (blur de tela cheia).
+
+**A/B do shell (fecha o §12).** Pares alternados, máquina vazia, mesma sessão: A (v1.1 instalado) **8.763 / 8.937 / 8.808 ms**; C (variante `470f078b2e`, splash standalone + bundle só depois do ready) **10.349 / 10.214 / 9.912 ms**. Janela: A 6,3–7,0 s, C 107–146 ms. O shell piora ~1,4 s mesmo com o splash sem bundle — o custo é o processo renderer+GPU existir durante o boot do host (o host pronto sobe junto). Pela condição V111-1 (a mediana do shell não pode piorar), a janela antecipada sai: commit `d2041d0a74` volta a sequência da v1.1 e mantém o compile cache; a variante fica para a v1.1.2 com um fix de desenho (splash estático ou renderer de baixa prioridade).
+
+## 15. Poda do perfil — o fecho de 49 rows (11/11, Cobalt)
+
+**O que é.** O commit `70ddfd0e71` gera o `persona-app/cordis.patch.yml` a partir dos três bundles e mantém só as 49 rows que o produto alcança (personaHost/Vault/Runners, o plano de sessão do desktop, o stack RPC/auth, o web server e o framework de cliente que a UI usa). Boot smoke: **9/9, sem erro fatal**. O conjunto de 86 rows (o primeiro corte) reprovava com 7 entradas pendentes; o de 38 rows (`89394edad8`, branch `v1.1.2-prune`) também passa o smoke, mas cobre menos.
+
+**Medição direta do host (do commit, warm):** com o corte de 86 rows, **326 → 260 MB** e **14,0 → 10,2 s** até o ready. O fecho de 49 rows é a variante verde desse mesmo desenho.
+
+**Medição no app (pack `70ddfd0e71` x pack anterior `1403d3cb45`, 5+5 alternado, mesma máquina carregada).** A primeira rodada comparou por engano o pack `470f078b2e` (12:23) como B — o pack do fecho foi para o worktree `C:\p8w70ddfd0e71` (15:19), não o warm; os números abaixo são de uma rodada corrigida em andamento. O fecho é o patch INTEIRO do perfil (inclui o bloco `insert` dos plugins da Persona); aplicá-lo como patch de home duplica os inserts e o app não sobe, então a medição foi feita nos dois packs:
+
+| execução | janela (ms) | shell (ms) | host (MB) |
+| --- | ---: | ---: | ---: |
+| A `1403d3cb45` (sem o fecho) | 150–254 (uma 7.566) | 10.022 / 11.737 / 13.021 / 13.464 / 13.721 | 405–412 |
+| B `70ddfd0e71` (com o fecho) | 142–161 | 10.923 / 11.965 / 13.113 / 14.483 / 14.706 | 425–445 |
+
+**Mediana do shell: A 13.021 ms x B 13.113 ms** (sem ganho; a máquina estava carregada — o shell normal é 9–10 s) e o **host do B ficou ~20–35 MB MAIOR** (o pack B soma o plugin de componentes + a ponte de versão; a comparação não isola só o fecho). Pela regra do Keel (shell ≥ 1 s ou host ≥ 60 MB melhor), o fecho **não entra**: fica parqueado (o patch de 38 rows em `v1.1.2-prune`, `89394edad8`, e o fecho no branch), com estes números.
+
+**Achado maior: o fecho NÃO MONTA O SHELL no desktop.** No A/B corrigido, as 5 execuções do pack do fecho estouraram o wait de `[data-persona-shell]` (120 s); o host sobe (direto com home preparada: só o cofre falha, esperado). Diagnóstico por CDP no artefato `70ddfd0e71`: `boot/loader/ready = true`, `#root` vazio, `shell = false`, e o erro do cliente **`'root' has no registration — a layout entry must register into 'root' before the shell renders it`** + **2× 404** nos bundles `plugins/??…`. Ou seja: o fecho desliga rows cujos **módulos de cliente** continuam na lista do `__ModuleLoader__`; o bundle 404, o módulo não registra e o slot `root` fica sem entrada. Religar `resources` e `ui-shortcuts` (as únicas rows de cliente desligadas) **não** resolveu — o módulo que falta é outro. O boot-smoke 9/9 do fecho é o cliente WEB do CLI, não o desktop. Correção para a v1.1.2: regenerar a lista de módulos do cliente a partir do perfil podado (`ClientModuleRegistry.graph()`), não do bundle completo. O fecho não entra como está.

@@ -29,13 +29,20 @@ import {
   VAULT_SLACK,
   VAULT_TELEGRAM,
   type EmailMessage,
+  type EmailArrivalFilter,
   type ProcessBudget,
 } from '@deepseek-ai/dsh-persona-runners'
 import type { Orchestration } from './orchestration.ts'
 
 /** Sealed-credential reader (persona-vault in prod; Map in tests). */
 export interface SecretVault {
-  get(personId: string, provider: string): Promise<string | undefined>
+  /**
+   * @param projectId - Tenant whose sources are being read (a connector belongs to one project).
+   * @param personId - Vault owner.
+   * @param provider - Rivet key (`telegram`, `slack`, `imap`, …).
+   * @returns The token, or `undefined` when absent or revoked.
+   */
+  get(projectId: string, personId: string, provider: string): Promise<string | undefined>
 }
 
 /** Per-source fake HTTP roots. Empty skips that poll. */
@@ -57,12 +64,22 @@ export interface PollExternalResult {
  * Host face: poll → receiveExternal; originReply → Rivet reply*.
  */
 export class ExternalSourcesHost {
+  /** Per-project engines. */
   readonly orchestration: Orchestration
+  /** Sealed-credential reader (persona-vault in prod; Map in tests). */
   secrets: SecretVault
+  /** HTTP port (fake in tests). */
   fetchImpl: typeof fetch
+  /** Per-source fake HTTP roots; empty skips that poll. */
   endpoints: ExternalSourceEndpoints
+  /** Injected inbox reader (fake in tests); the real one is `emailReader`. */
   emailList: () => Promise<readonly EmailMessage[]>
+  /** Injected SMTP send port. */
   emailSend: (input: { to: string; subject: string; text: string }) => Promise<boolean>
+  /** Harvest 19b: the real read-only IMAP reader, when the vault holds a mailbox credential (JSON). */
+  emailReader: ((secret: string) => Promise<readonly EmailMessage[]>) | undefined
+  /** Harvest 19b: the project's inbox rule, read at the origin (before any Trigger exists). */
+  emailFilter: (projectId: string) => EmailArrivalFilter | undefined = () => undefined
   /** Shared slot counter for Rivet `withSourceRequest` (X-4). */
   budget: ProcessBudget = createProcessBudget(SOURCE_REQUEST_CAP)
 
@@ -77,23 +94,25 @@ export class ExternalSourcesHost {
     this.endpoints = {}
     this.emailList = () => Promise.resolve([])
     this.emailSend = () => Promise.resolve(false)
+    this.emailReader = undefined
   }
 
   /**
    * Poll every configured source for `personId` and ingest into `projectId`.
    * @param projectId - Tenant engine.
    * @param personId - Vault owner.
+   * @returns The intake results, one per trigger plus one `filtered` per email the rule dropped.
    */
   async poll(projectId: string, personId: string): Promise<PollExternalResult> {
     const engine = this.orchestration.runtime(projectId).engine
     const triggers: Trigger[] = []
-    const telegram = await this.secrets.get(personId, VAULT_TELEGRAM)
+    const telegram = await this.secrets.get(projectId, personId, VAULT_TELEGRAM)
     if (telegram !== undefined && this.endpoints.telegram !== undefined) {
       triggers.push(...await pollTelegram({
         token: telegram, fetch: this.fetchImpl, baseUrl: this.endpoints.telegram, budget: this.budget,
       }))
     }
-    const slack = await this.secrets.get(personId, VAULT_SLACK)
+    const slack = await this.secrets.get(projectId, personId, VAULT_SLACK)
     if (slack !== undefined && this.endpoints.slack !== undefined) {
       triggers.push(...await pollSlack({
         token: slack,
@@ -103,7 +122,7 @@ export class ExternalSourcesHost {
         budget: this.budget,
       }))
     }
-    const discord = await this.secrets.get(personId, VAULT_DISCORD)
+    const discord = await this.secrets.get(projectId, personId, VAULT_DISCORD)
     if (discord !== undefined && this.endpoints.discord !== undefined) {
       triggers.push(...await pollDiscord({
         token: discord,
@@ -113,21 +132,39 @@ export class ExternalSourcesHost {
         budget: this.budget,
       }))
     }
-    const caldav = await this.secrets.get(personId, VAULT_CALDAV)
+    const caldav = await this.secrets.get(projectId, personId, VAULT_CALDAV)
     if (caldav !== undefined && this.endpoints.calendar !== undefined) {
       triggers.push(...await pollCalDav({
         url: this.endpoints.calendar, fetch: this.fetchImpl, token: caldav, budget: this.budget,
       }))
     }
-    const imap = await this.secrets.get(personId, VAULT_IMAP)
-    if (imap !== undefined) triggers.push(...await pollEmail({ list: this.emailList, budget: this.budget }))
-    return { results: receiveExternalBatch(engine, triggers) }
+    const imap = await this.secrets.get(projectId, personId, VAULT_IMAP)
+    let filtered = 0
+    if (imap !== undefined) {
+      const secret = imap
+      const reader = this.emailReader
+      const list = reader === undefined ? this.emailList : () => reader(secret)
+      const filter = this.emailFilter(projectId)
+      triggers.push(...await pollEmail({
+        list,
+        budget: this.budget,
+        ...(filter === undefined ? {} : { filter }),
+        onFiltered: () => { filtered += 1 },
+      }))
+    }
+    return {
+      results: [
+        ...receiveExternalBatch(engine, triggers),
+        ...Array.from({ length: filtered }, () => 'filtered' as const),
+      ],
+    }
   }
 
   /**
    * Ingest one already-mapped Trigger (tests / webhook).
    * @param projectId - Tenant.
    * @param trigger - Rivet-mapped inbound.
+   * @returns The engine's intake result.
    */
   receive(projectId: string, trigger: Trigger): ReceiveResult {
     return receiveExternal(this.orchestration.runtime(projectId).engine, trigger)
@@ -135,39 +172,43 @@ export class ExternalSourcesHost {
 
   /**
    * Reply on the origin channel. Missing token ⇒ `{ ok: false }` (no throw, no log).
+   * @param projectId - Tenant whose connector is used.
    * @param personId - Vault owner.
    * @param trigger - Stored inbound.
    * @param text - Reply body.
+   * @returns Whether the outbound send succeeded.
    */
-  async reply(personId: string, trigger: Trigger, text: string): Promise<{ ok: boolean }> {
+  async reply(projectId: string, personId: string, trigger: Trigger, text: string): Promise<{ ok: boolean }> {
     const dest = originReply(trigger)
     if (dest === undefined) return { ok: false }
-    return this.replyOrigin(personId, dest, text)
+    return this.replyOrigin(projectId, personId, dest, text)
   }
 
   /**
    * Reply from a Remote-safe origin (no Trigger payload).
+   * @param projectId - Tenant whose connector is used.
    * @param personId - Vault owner.
    * @param dest - originReply fields.
    * @param text - Body.
+   * @returns Whether the outbound send succeeded.
    */
-  async replyOrigin(personId: string, dest: OriginReply, text: string): Promise<{ ok: boolean }> {
+  async replyOrigin(projectId: string, personId: string, dest: OriginReply, text: string): Promise<{ ok: boolean }> {
     if (dest.source === 'telegram' && dest.chat !== undefined && this.endpoints.telegram !== undefined) {
-      const token = await this.secrets.get(personId, VAULT_TELEGRAM)
+      const token = await this.secrets.get(projectId, personId, VAULT_TELEGRAM)
       if (token === undefined) return { ok: false }
       return replyTelegram({
         token, chat: dest.chat, text, fetch: this.fetchImpl, baseUrl: this.endpoints.telegram,
       })
     }
     if (dest.source === 'slack' && dest.channel !== undefined && this.endpoints.slack !== undefined) {
-      const token = await this.secrets.get(personId, VAULT_SLACK)
+      const token = await this.secrets.get(projectId, personId, VAULT_SLACK)
       if (token === undefined) return { ok: false }
       return replySlack({
         token, channel: dest.channel, text, fetch: this.fetchImpl, baseUrl: this.endpoints.slack,
       })
     }
     if (dest.source === 'discord' && dest.channel !== undefined && this.endpoints.discord !== undefined) {
-      const token = await this.secrets.get(personId, VAULT_DISCORD)
+      const token = await this.secrets.get(projectId, personId, VAULT_DISCORD)
       if (token === undefined) return { ok: false }
       return replyDiscord({
         token, channel: dest.channel, text, fetch: this.fetchImpl, baseUrl: this.endpoints.discord,
@@ -188,6 +229,8 @@ export class ExternalSourcesHost {
     this.endpoints = {}
     this.emailList = () => Promise.resolve([])
     this.emailSend = () => Promise.resolve(false)
+    this.emailReader = undefined
+    this.emailFilter = () => undefined
   }
 }
 

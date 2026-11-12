@@ -31,12 +31,13 @@ import { RULES_NS } from '../locale/rules/locales.ts'
 import { ConnectedGeneralChannelView } from '../remote/ConnectedGeneralChannelView.tsx'
 import { ConnectedApprovalsPanel } from '../remote/ConnectedApprovalsPanel.tsx'
 import { ConnectedOverviewView } from '../remote/ConnectedOverviewView.tsx'
+import { loadCompanySuggestion } from '../overview/company-suggestion.ts'
+import type { TeamConnectRemoteWire } from '../team-connect/team-connect-wire.ts'
 import { AboutSettingsPanel } from './AboutSettingsPanel.tsx'
 import { AppearanceSettingsPanel } from './AppearanceSettingsPanel.tsx'
 import { ConnectedPersonasTeamPanel } from '../remote/ConnectedPersonasTeamPanel.tsx'
 import { isPlacesNavEnabled } from './nav-flag.ts'
 import { createThemeBridge, type ThemeBridge } from '../theme/theme-preference.ts'
-import { PersonalitySettingsPanel } from '../figurinhas/PersonalitySettingsPanel.tsx'
 import { ConnectedPersonasSettings } from '../settings-personas/ConnectedPersonasSettings.tsx'
 import type { PersonaCardShellBridge } from '../remote/persona-card-shell-bridge.ts'
 import type { PersonaLiveStore } from '../remote/persona-live-store.ts'
@@ -48,7 +49,6 @@ import { activityGroupLabelsFromDict } from '../governance/activity-group-labels
 import { localeBindAsDict } from '../preview/locale-bind.ts'
 import { SHELL_NS } from '../locale/shell/locales.ts'
 import { ConnectedDirectMessagesView } from '../remote/ConnectedDirectMessagesView.tsx'
-import { ProjectsPanel } from './ProjectsPanel.tsx'
 import { ConnectedSearchView } from '../remote/ConnectedSearchView.tsx'
 import { HELP_NS, HelpPanel, registerHelpLocale } from '../help/register-help.tsx'
 import { openPersonaExternalUrl } from './persona-about-host.ts'
@@ -175,6 +175,20 @@ export function registerPrismScreens(
         },
       }),
       openAwayTask: (taskId: string) => { shellHandle.actions.openKanbanTicket(taskId) },
+      // DESIGN-01 #09 "Pedir a {Coordenação} agora": opens the thread first and sends; a failed send shows up there as "Não enviado · Tentar de novo".
+      askCoordination: (text: string) => {
+        shellHandle.actions.selectPanel('channels')
+        void live.postChannelMessage(text)
+      },
+      // DESIGN-01 #09: the suggested request comes from the company profile in the Cofre (null = no profile: the block is not drawn).
+      loadCompanySuggestion: async () => {
+        const tenant = live.observable.getSnapshot().tenant
+        return tenant === null ? null : loadCompanySuggestion(ctx.remote.persona, { workspaceId: tenant.workspaceId, projectId: tenant.projectId })
+      },
+      // Item 13: "Ligar a IA para a equipe toda". The generated client only knows the new methods after the host lib is rebuilt, so the face is typed by what the screen needs.
+      teamConnectRemote: ctx.remote.persona as unknown as TeamConnectRemoteWire,
+      // Item 19a: "Seus números" talks to the same host Remote (the section only draws when the host has the five calls).
+      indicatorsRemote: ctx.remote.persona,
       decideDecision: (decisionId: string, accept: boolean) => { void live.decide?.(decisionId, accept) },
       // IV-10 "Responder": the conversation where the question was asked (the channel, or that DM).
       openConversation: (streamKind: 'channel' | 'dm', ownerId: string) => {
@@ -292,15 +306,7 @@ export function registerPrismScreens(
     }),
   }, ConnectedSearchView)
 
-  ctx.slots.register({
-    name: 'main',
-    key: 'projects',
-    locale: SHELL_NS,
-    inject: () => ({
-      hooks: { live: live.observable },
-      openProjectBoard: (projectId: string) => { shellHandle.actions.openProjectBoard(projectId) },
-    }),
-  }, ProjectsPanel)
+  // `projects` (the grid "Ver todos os projetos") is registered with the board in kanban/register-lumen-ui.tsx: one place, two screens (DESIGN-01 #10).
 
   ctx.slots.register({
     name: 'main',
@@ -396,7 +402,6 @@ export function registerPrismScreens(
     locale: SHELL_NS,
     inject: () => ({ themeBridge: (themeBridge ??= createThemeBridge(ctx)) }),
   }, AppearanceSettingsPanel)
-  ctx.slots.register({ name: 'main', key: 'personality', locale: SHELL_NS }, PersonalitySettingsPanel)
   ctx.slots.register({
     name: 'main',
     key: 'personas',

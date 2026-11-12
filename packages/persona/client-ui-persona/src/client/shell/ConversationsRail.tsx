@@ -11,10 +11,9 @@
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96 } from '../assets/generated-imports.ts'
-import { Avatar, UiIcon, type AvatarPresence } from '../primitives/index.ts'
-import type { ShellKey } from '../locale/shell/locales.ts'
+import { Avatar, UiIcon } from '../primitives/index.ts'
+import { PERSONA_STATE_LABEL, personaStateOf } from '../team/persona-state.ts'
 import {
-  RECENT_MAX,
   buildConversationsModel,
   readCollapsedGroups,
   stepConversation,
@@ -26,7 +25,6 @@ import {
 } from './conversations-model.ts'
 import { sameConversation, type ConversationTarget, type OpenConversation } from './conversation-selection.ts'
 import type { ConversationsSource } from './conversations-source.ts'
-import type { RailPersonaState } from './RailTeam.tsx'
 import { rovingVerticalKey } from './rail-roving-focus.ts'
 import styles from './ConversationsRail.module.css'
 
@@ -46,24 +44,6 @@ const SECTION_CHANNELS = 'section:channels'
 const SECTION_PEOPLE = 'section:people'
 
 const PORTRAITS = AVATAR_96 as Readonly<Record<string, string>>
-
-const PRESENCE: Readonly<Record<RailPersonaState, AvatarPresence>> = {
-  working: 'busy',
-  reviewing: 'busy',
-  stuck: 'busy',
-  waiting: 'away',
-  resting: 'online',
-  offline: 'offline',
-}
-
-const STATE_LABEL: Readonly<Record<RailPersonaState, ShellKey>> = {
-  working: 'team.statusWorking',
-  reviewing: 'team.statusReviewing',
-  waiting: 'team.statusWaiting',
-  resting: 'team.statusResting',
-  stuck: 'team.statusStuck',
-  offline: 'team.statusOffline',
-}
 
 type T = ConversationsRailProps['t']
 
@@ -111,8 +91,6 @@ function ConversationsFull({ t, source, active, openConversation, onOrganizeTeam
   const channelsId = useId()
   const peopleId = useId()
   const rowProps = { t, active, openConversation, onKeyDown: onRowKeyDown }
-  // Quem aparece em Recentes e também no grupo da equipe: só a linha de Recentes é a ativa (uma linha ativa por vez).
-  const recentIds = new Set(model.people.mode === 'grouped' ? model.people.recent.map(person => person.id) : [])
   const totalPeople = source.people.length
 
   return (
@@ -150,19 +128,9 @@ function ConversationsFull({ t, source, active, openConversation, onOrganizeTeam
               {model.people.mode === 'grouped'
                 ? (
                   <>
-                    {model.people.recent.length > 0 && (
-                      <>
-                        <p className={styles.subhead}>{t('conversations.recent')}</p>
-                        <ul className={styles.list}>
-                          {model.people.recent.map(person => (
-                            <li key={person.id}><PersonRow person={person} density="full" {...rowProps} /></li>
-                          ))}
-                        </ul>
-                      </>
-                    )}
                     <p className={styles.subhead}>{t('conversations.allPersonas', { count: String(model.people.total) })}</p>
                     {model.people.groups.map(group => (
-                      <TeamGroup key={group.key} group={group} recentIds={recentIds} onOrganizeTeam={onOrganizeTeam} onToggle={toggle} {...rowProps} />
+                      <TeamGroup key={group.key} group={group} onOrganizeTeam={onOrganizeTeam} onToggle={toggle} {...rowProps} />
                     ))}
                   </>
                 )
@@ -206,9 +174,8 @@ interface RowCommon {
   readonly onKeyDown: (event: ReactKeyboardEvent<HTMLElement>) => void
 }
 
-function TeamGroup({ group, recentIds, onOrganizeTeam, onToggle, ...rowCommon }: RowCommon & {
+function TeamGroup({ group, onOrganizeTeam, onToggle, ...rowCommon }: RowCommon & {
   readonly group: PeopleGroup
-  readonly recentIds: ReadonlySet<string>
   readonly onOrganizeTeam?: (() => void) | undefined
   readonly onToggle: (key: string, currentlyCollapsed: boolean) => void
 }): ReactNode {
@@ -239,7 +206,7 @@ function TeamGroup({ group, recentIds, onOrganizeTeam, onToggle, ...rowCommon }:
       </button>
       {!group.collapsed && (
         <ul className={styles.list} id={listId}>
-          {group.people.map(person => <li key={person.id}><PersonRow person={person} density="compact" duplicate={recentIds.has(person.id)} {...rowCommon} /></li>)}
+          {group.people.map(person => <li key={person.id}><PersonRow person={person} density="compact" {...rowCommon} /></li>)}
         </ul>
       )}
       {!group.collapsed && group.teamName === null && onOrganizeTeam !== undefined && (
@@ -278,15 +245,18 @@ function ChannelRow({ channel, t, active, openConversation, onKeyDown }: RowComm
   )
 }
 
-function PersonRow({ person, density, duplicate = false, t, active, openConversation, onKeyDown }: RowCommon & {
+/** O selo de não lidas de uma pessoa: o número até 9, depois "9+" (DESIGN-01-MUSE §5.1 #06 cond. 1). */
+export function unreadBadgeText(unread: number): string {
+  return unread > 9 ? '9+' : String(unread)
+}
+
+function PersonRow({ person, density, t, active, openConversation, onKeyDown }: RowCommon & {
   readonly person: ConversationPerson
   readonly density: 'full' | 'compact'
-  /** A mesma pessoa já aparece em Recentes: esta linha não é a "ativa" (uma só por vez). */
-  readonly duplicate?: boolean
 }): ReactNode {
   const target: ConversationTarget = { kind: 'dm', personaId: person.id }
-  const isActive = sameConversation(active, target) && !duplicate
-  const state = person.state ?? 'resting'
+  const isActive = sameConversation(active, target)
+  const state = personaStateOf(person)
   const label = personLabel(t, person)
   const full = density === 'full'
   return (
@@ -296,7 +266,7 @@ function PersonRow({ person, density, duplicate = false, t, active, openConversa
       data-conversation-row=""
       data-conversation-kind="dm"
       data-persona-id={person.id}
-      data-state={state}
+      data-persona-state={state}
       aria-current={isActive ? 'page' : undefined}
       aria-label={label}
       onClick={() => { openConversation(target) }}
@@ -307,7 +277,7 @@ function PersonRow({ person, density, duplicate = false, t, active, openConversa
         src={PORTRAITS[person.characterId ?? person.id]}
         size={full ? 32 : 24}
         shape="portrait"
-        presence={full ? PRESENCE[state] : undefined}
+        state={state}
         decorative
       />
       <span className={styles.text}>
@@ -318,7 +288,7 @@ function PersonRow({ person, density, duplicate = false, t, active, openConversa
         {full && person.lastLine !== undefined && person.lastLine !== '' && <span className={styles.last}>{person.lastLine}</span>}
       </span>
       {full && person.timeLabel !== undefined && person.unread === 0 && <span className={styles.time}>{person.timeLabel}</span>}
-      {person.unread > 0 && <span className={styles.badge} aria-hidden="true">{person.unread > 99 ? '99+' : person.unread}</span>}
+      {person.unread > 0 && <span className={styles.badge} aria-hidden="true">{unreadBadgeText(person.unread)}</span>}
     </button>
   )
 }
@@ -328,7 +298,7 @@ function personLabel(t: T, person: ConversationPerson): string {
   return [
     t('sidebar.team.openDm', { name: person.name }),
     person.role,
-    t(STATE_LABEL[person.state ?? 'resting']),
+    t(PERSONA_STATE_LABEL[personaStateOf(person)]),
     person.unread > 0 ? t('sidebar.team.unread', { count: String(person.unread) }) : '',
   ].filter(Boolean).join(' · ')
 }
@@ -370,7 +340,8 @@ function ConversationsTrail({ t, source, active, openConversation }: Conversatio
     [source, remembered, active],
   )
   useAltArrowConversations(model.order, active, openConversation)
-  const faces = model.people.mode === 'grouped' ? model.people.recent : model.people.people.slice(0, RECENT_MAX)
+  // O trilho mostra TODAS as pessoas, na mesma ordem estável da barra aberta (Coordenação primeiro, depois a do host); a barra rola por dentro.
+  const faces = source.people
   const [channelsOpen, setChannelsOpen] = useState(false)
   const [position, setPosition] = useState({ left: 0, top: 0 })
   const hashRef = useRef<HTMLButtonElement>(null)
@@ -461,8 +432,8 @@ function ConversationsTrail({ t, source, active, openConversation }: Conversatio
                 aria-label={personLabel(t, person)}
                 onClick={() => { openConversation({ kind: 'dm', personaId: person.id }) }}
               >
-                <Avatar name={person.name} src={PORTRAITS[person.characterId ?? person.id]} size={32} shape="portrait" presence={PRESENCE[person.state ?? 'resting']} decorative />
-                {person.unread > 0 && <span className={styles.trailBadge} aria-hidden="true">{person.unread > 99 ? '99+' : person.unread}</span>}
+                <Avatar name={person.name} src={PORTRAITS[person.characterId ?? person.id]} size={32} shape="portrait" state={personaStateOf(person)} decorative />
+                {person.unread > 0 && <span className={styles.trailBadge} aria-hidden="true">{unreadBadgeText(person.unread)}</span>}
               </button>
             </li>
           )

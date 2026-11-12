@@ -21,6 +21,9 @@
       "path": "../persona-core"
     },
     {
+      "path": "../persona-components"
+    },
+    {
       "path": "../persona-engine"
     },
     {

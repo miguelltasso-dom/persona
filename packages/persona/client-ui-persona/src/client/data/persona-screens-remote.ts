@@ -3,12 +3,16 @@ import type {
   GetOfficialQuotaRequest,
   GetUsagePanelRequest,
   GetUsageRequest,
+  ListPlaybookRequest,
   MemoryView,
   OfficialQuotaView,
+  PlaybookNoteView,
   ProjectScopeRequest,
+  ScreenDocRequest,
   SkillView,
   UsagePanelView,
   UsageView,
+  WindowReserveView,
 } from '@deepseek-ai/dsh-persona-host/types'
 import type { PersonaRemoteClient } from './lumen-inject.ts'
 
@@ -18,8 +22,14 @@ export interface PersonaScreensRemote {
   getOfficialQuota(request: GetOfficialQuotaRequest): Promise<RemoteResult<OfficialQuotaView[]>>
   listMemory(request: ProjectScopeRequest): Promise<RemoteResult<MemoryView[]>>
   listSkills(request: ProjectScopeRequest): Promise<RemoteResult<SkillView[]>>
+  /** Item 16: how a persona works, learned quietly (tab "Jeito de trabalhar"), when the host Typert surface includes it. */
+  listPlaybook?: (request: ListPlaybookRequest) => Promise<RemoteResult<PlaybookNoteView[]>>
+  forgetPlaybook?: (request: ScreenDocRequest) => Promise<RemoteResult<boolean>>
   /** OPT-7 when host Typert surface includes it. */
   getUsagePanel?: (request: GetUsagePanelRequest) => Promise<RemoteResult<UsagePanelView>>
+  /** Harvest 10 when host Typert surface includes it. */
+  getWindowReserve?: (request: ProjectScopeRequest) => Promise<RemoteResult<WindowReserveView>>
+  continueWindowNow?: (request: ProjectScopeRequest) => Promise<RemoteResult<WindowReserveView>>
 }
 
 type ScreensWire = PersonaScreensRemote & {
@@ -57,8 +67,16 @@ export function personaScreensRemote(persona: PersonaRemoteClient): PersonaScree
     getOfficialQuota: request => wire.getOfficialQuota(request),
     listMemory: request => wire.listMemory(request),
     listSkills: request => wire.listSkills(request),
+    ...(typeof wire.listPlaybook === 'function' ? { listPlaybook: request => wire.listPlaybook!(request) } : {}),
+    ...(typeof wire.forgetPlaybook === 'function' ? { forgetPlaybook: request => wire.forgetPlaybook!(request) } : {}),
     ...(typeof wire.getUsagePanel === 'function'
       ? { getUsagePanel: request => wire.getUsagePanel!(request) }
+      : {}),
+    ...(typeof wire.getWindowReserve === 'function'
+      ? { getWindowReserve: request => wire.getWindowReserve!(request) }
+      : {}),
+    ...(typeof wire.continueWindowNow === 'function'
+      ? { continueWindowNow: request => wire.continueWindowNow!(request) }
       : {}),
   }
   screensRemoteCache.set(persona, facade)

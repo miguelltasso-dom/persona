@@ -89,7 +89,8 @@ it('ONE typed line per turn: the persona that saved, the files in the order writ
   expect(files.map(file => file.path).sort()).toEqual(['cartaz.svg', 'texto.md'])
   const svg = files.find(file => file.name === 'cartaz.svg')!
   expect(svg).toMatchObject({ mime: 'image/svg+xml', taskId: ticket.id, personaId: 'coord', pngPath: 'cartaz.png' })
-  expect(svg.thumb?.startsWith('data:image/png;base64,')).toBe(true)
+  // DESIGN-01: the SVG rides on the line as itself (vector); the PNG sibling is the file of the draft the team sees.
+  expect(svg.thumb?.startsWith('data:image/svg+xml;base64,')).toBe(true)
   expect(files.find(file => file.name === 'texto.md')).toMatchObject({ mime: 'text/markdown' })
   expect(files.find(file => file.name === 'texto.md')?.thumb).toBeUndefined()
   // The PNG exists in the draft and Revisar lists it together with the files.

@@ -1,0 +1,29 @@
+/*
+ * "Seus números" · a seção do topo da Visão geral (design/COLHEITA-MUSE.md §19a): grade de cartões de 280 px mínimos, 2 a 3 colunas, vão de 16 px.
+ */
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  margin: var(--persona-space-6) 0;
+}
+
+.title {
+  margin: 0;
+  color: var(--persona-ink);
+  font: 800 18px/24px var(--persona-font-display);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--persona-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.skeleton {
+  height: 148px;
+  list-style: none;
+}

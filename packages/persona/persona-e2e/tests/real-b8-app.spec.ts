@@ -61,11 +61,9 @@ describe.skipIf(!run)('B8 app — #geral → resposta → Tarefa no quadro → c
   }, 120_000)
 
   vitestIt('[P0][B8-2] (depende do envio no #geral) a Tarefa criada pela mensagem aparece no quadro do projeto (corrigido)', async () => {
+    // DESIGN-01 #10: Projetos opens straight on the board of the project of the moment (no list to click through).
     await panelHealth(s, 'kanban')
-    const back = s.page.getByRole('button', { name: 'Voltar aos quadros' })
-    if (await back.count() > 0) await back.first().click()
-    await s.page.getByText('Pessoal', { exact: true }).first().click()
-    await s.page.getByRole('button', { name: 'Editar fluxo' }).first().waitFor({ state: 'visible', timeout: 30_000 })
+    await s.page.getByRole('button', { name: 'Opções' }).first().waitFor({ state: 'visible', timeout: 30_000 })
     try {
       await expect.poll(async () => await mainText(s.page), { timeout: 30_000, message: 'cartão da Tarefa não apareceu no quadro' }).toMatch(/README/u)
     } catch (error) {

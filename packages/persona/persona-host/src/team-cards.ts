@@ -357,7 +357,8 @@ export class TeamCards {
         : { ...base, status: 'needs-you', approvalId: ticket.id }
     }
     if (column === 'todo') return { ...base, status: 'queued' }
-    if (doc.source === 'campaign' && column === 'doing' && projectKanban(ticket).chip === 'waiting') return { ...base, status: 'waiting' }
+    // A campaign part that waits for the one before it, and (D-100) a part of a split that waits for the text it is made from.
+    if (column === 'doing' && projectKanban(ticket).chip === 'waiting') return { ...base, status: 'waiting' }
     return { ...base, status: 'doing' }
   }
 }

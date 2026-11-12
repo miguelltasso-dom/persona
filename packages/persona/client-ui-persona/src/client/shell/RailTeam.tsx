@@ -4,9 +4,10 @@ import { useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'r
 import { rovingVerticalKey } from './rail-roving-focus.ts'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96, OVERLAY_ICONS } from '../assets/generated-imports.ts'
-import type { ShellKey } from '../locale/shell/locales.ts'
+import { PERSONA_STATE_LABEL, PERSONA_STATE_OVERLAY, personaStateOf } from '../team/persona-state.ts'
 import { PersonaCardPopover, UiIcon, usePersonaCardController, type PersonaNowKind } from '../primitives/index.ts'
 import { PersonaInfoCard, type PersonaCardInfo } from '../profile/PersonaInfoCard.tsx'
+import { resolvePersonaFace } from '../approvals/approvals-ui-helpers.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import styles from './RailTeam.module.css'
 
@@ -29,6 +30,10 @@ export interface RailPersona {
   /** Short role label (cargo). */
   readonly role: string
   readonly state: RailPersonaState
+  /** Files already changed in the persona's draft ("Num rascunho"), Janela de silêncio ("Descansando") and a deliberate pause ("Pausada"); see `persona-state.ts`. */
+  readonly draftFiles?: number | undefined
+  readonly quiet?: boolean | undefined
+  readonly paused?: boolean | undefined
   /** Unread count in the DM thread with this persona. */
   readonly unread: number
   /** Has the Gestor de equipe function (GESTOR-SPEC): baton mark on the avatar. */
@@ -47,23 +52,6 @@ const STATE_ORDER: Readonly<Record<RailPersonaState, number>> = {
   offline: 5,
 }
 
-const STATE_LABEL: Readonly<Record<RailPersonaState, ShellKey>> = {
-  working: 'team.statusWorking',
-  reviewing: 'team.statusReviewing',
-  waiting: 'team.statusWaiting',
-  resting: 'team.statusResting',
-  stuck: 'team.statusStuck',
-  offline: 'team.statusOffline',
-}
-
-const STATE_ICON: Readonly<Record<RailPersonaState, keyof typeof OVERLAY_ICONS | undefined>> = {
-  working: 'typing-dots',
-  reviewing: 'review-loupe',
-  waiting: 'approval-badge',
-  resting: 'zzz',
-  stuck: 'error-badge',
-  offline: undefined,
-}
 
 const PORTRAITS = AVATAR_96 as Readonly<Record<string, string>>
 const VISIBLE_LIMIT = 6
@@ -174,10 +162,12 @@ export function RailTeam({
       {(
         <ul className={styles.list} id="persona-rail-team-list">
           {visible.map((member, index) => {
-            const status = t(STATE_LABEL[member.state])
-            const portrait = PORTRAITS[member.characterId]
+            const personaState = personaStateOf(member)
+            const status = t(PERSONA_STATE_LABEL[personaState])
+            // D-069: a persona is never a letter. A character the gallery does not know (a hired "Probe") gets the same stable animal its DM header draws.
+            const portrait = PORTRAITS[member.characterId] ?? resolvePersonaFace({ id: member.id, characterId: member.characterId, name: member.name })
             const blink = PORTRAITS[`${member.characterId}-blink`]
-            const icon = STATE_ICON[member.state]
+            const icon = PERSONA_STATE_OVERLAY[personaState]
             const label = [
               t('sidebar.team.openDm', { name: member.name }),
               member.role,

@@ -109,27 +109,27 @@ describe('até 8 pessoas: todas, em linhas completas', () => {
   })
 })
 
-describe('mais de 8: Recentes + "Todas as personas" por equipe', () => {
+describe('mais de 8: "Todas as personas" por equipe, em ordem estável', () => {
   const source = (): ConversationsSource => ({
     channels: [GERAL],
     people: crowd(12, i => (i === 1 ? { hasConversation: true, recentRank: 0 } : i === 4 ? { hasConversation: true, recentRank: 1 } : {})),
   })
 
-  it('mostra "Recentes" (quem já conversou) e "Todas as personas · 12", com os grupos recolhidos', () => {
+  it('mostra "Todas as personas · 12" com os grupos recolhidos e SEM "Recentes" (a recência vive no Ctrl+K)', () => {
     mount(source())
-    expect(screen.getByText('Recentes')).toBeTruthy()
+    expect(screen.queryByText('Recentes')).toBeNull()
     expect(screen.getByText('Todas as personas · 12')).toBeTruthy()
     const heads = ['Atendimento', 'Engenharia', 'Marketing'].map(name => groupHead(name))
     expect(heads.map(head => head.getAttribute('aria-expanded'))).toEqual(['false', 'false', 'false'])
-    // só as 2 linhas de Recentes existem no DOM
-    expect(document.querySelectorAll('[data-conversation-kind="dm"]')).toHaveLength(2)
+    // com todos os grupos recolhidos nenhuma linha de pessoa existe no DOM
+    expect(document.querySelectorAll('[data-conversation-kind="dm"]')).toHaveLength(0)
   })
 
-  it('o grupo da equipe da conversa aberta vem aberto e a pessoa ativa aparece UMA vez como ativa', () => {
+  it('o grupo da equipe da conversa aberta vem aberto e a pessoa ativa aparece UMA vez, como ativa', () => {
     mount(source(), { kind: 'dm', personaId: 'p01' })
     const eng = groupHead('Engenharia')
     expect(eng.getAttribute('aria-expanded')).toBe('true')
-    expect(document.querySelectorAll('[data-persona-id="p01"]')).toHaveLength(2) // em Recentes e no grupo
+    expect(document.querySelectorAll('[data-persona-id="p01"]')).toHaveLength(1)
     expect(document.querySelectorAll('[aria-current="page"]')).toHaveLength(1)
   })
 

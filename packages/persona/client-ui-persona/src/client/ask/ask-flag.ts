@@ -1,5 +1,5 @@
 /**
- * IV-10 (a pergunta estruturada no fio: chips, escolha única ou múltipla; Colheita Lodi A(1)) entra ATRÁS DE FLAG, desligada por padrão,
+ * IV-10 (a pergunta estruturada no fio: chips, escolha única ou múltipla; Colheita A(1)) entra ATRÁS DE FLAG, desligada por padrão,
  * até a Muse aceitar pelas capturas (D-077). Mesmo formato da `houseDecor` (`decor/house-decor-flag.ts`).
  *
  * Como ligar (a varredura da Muse / os gates do Probe):

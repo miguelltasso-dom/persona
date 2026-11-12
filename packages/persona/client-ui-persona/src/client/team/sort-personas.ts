@@ -8,11 +8,11 @@ export function personaRosterTier(persona: Pick<PersonaView, 'systemRoles'>): nu
   return 1
 }
 
-/** Sort personas for rail, channel strip, and composer (no fixed animal names). */
+/**
+ * The ONE order of people for the whole app (rail, channel strip, composer, cards; DESIGN-01-MUSE §5.1 #06): Coordenação first, the watchdog last,
+ * and everyone else in the order the host lists them, which is the order they were hired. The sort is stable and never looks at
+ * names or activity, so a face keeps its place (spatial memory matters more than recency; recency lives in Ctrl+K › Recentes).
+ */
 export function sortPersonasForUi<T extends PersonaView>(personas: readonly T[]): T[] {
-  return [...personas].sort((a, b) => {
-    const tier = personaRosterTier(a) - personaRosterTier(b)
-    if (tier !== 0) return tier
-    return a.name.localeCompare(b.name, 'pt-BR')
-  })
+  return [...personas].sort((a, b) => personaRosterTier(a) - personaRosterTier(b))
 }

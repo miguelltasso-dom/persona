@@ -10,6 +10,7 @@ import type { ConversationSubjectUi } from '../../chat/conversation-subjects.ts'
 import { conversationSubjectChipForId } from '../../remote/map-host-ui.ts'
 import type { FlowCardModel, FlowColumnModel, ProjectFlowSnapshot } from '../../kanban/flow-types.ts'
 import type { KanbanColumnId } from '../../kanban/types.ts'
+import { mapTaskThread, type TaskThreadFields } from '../../kanban/task-conversation.ts'
 
 export interface ProjectBoardToFlowOptions {
   readonly conversationSubjects?: readonly ConversationSubjectUi[]
@@ -71,6 +72,8 @@ function toFlowCard(
   const path = readWorkPath(wire.path)
   const reviewing = readReviewing(wire.reviewing)
   const collaborators = (card.collaborators ?? []).filter(row => typeof row.name === 'string' && row.name.trim() !== '').map(row => ({ personaId: row.personaId, name: row.name.trim() }))
+  // COLHEITA 18 (Forge's wire): the thread of the task's conversation; read as data until the host types carry it.
+  const thread = mapTaskThread(card as TaskThreadFields)
   return {
     id: card.ticketId,
     title: card.title,
@@ -89,6 +92,7 @@ function toFlowCard(
     ...(path.length === 0 ? {} : { path }),
     ...(reviewing === undefined ? {} : { reviewing }),
     ...(collaborators.length === 0 ? {} : { collaborators }),
+    ...(thread === undefined ? {} : { thread }),
     ...(typeof card.deliveryPending === 'boolean' ? { deliveryPending: card.deliveryPending } : {}),
   }
 }

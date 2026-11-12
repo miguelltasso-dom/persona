@@ -12,6 +12,7 @@ import { pt as chatPt } from '../src/client/locale/chat/locales.ts'
 import { bindLocale } from '../src/client/preview/locale-bind.ts'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 import { hostMessage } from './message-view-fixture.client.ts'
+import { holdToApprove } from './hold-approve-helper.client.ts'
 
 installPreviewTheme()
 HTMLElement.prototype.scrollTo = () => {}
@@ -121,7 +122,7 @@ describe('o cartão (flag persona.flag.actionPreview; cada botão só com destin
     expect(screen.getByText('ana@padarialua.com.br').tagName).toBe('STRONG')
     expect(screen.getByText('Encomenda de sexta')).toBeTruthy()
     expect(screen.getByText('Oi, Ana! Confirmo os 3 bolos de cenoura para sexta.')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Enviar' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Segure para enviar' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Editar' })).toBeTruthy()
     expect(screen.getByRole('button', { name: 'Cancelar' })).toBeTruthy()
     // email não leva o aviso de irreversível (só pagar e apagar)
@@ -145,7 +146,7 @@ describe('o cartão (flag persona.flag.actionPreview; cada botão só com destin
     const { unmount } = card(email(), onDecide)
     const box = screen.getByRole('checkbox', { name: 'Não perguntar de novo para Nina no Gmail' }) as HTMLInputElement
     expect(box.checked).toBe(false)
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    await holdToApprove(screen.getByRole('button', { name: 'Segure para enviar' }))
     await waitFor(() => { expect(onDecide).toHaveBeenCalledTimes(1) })
     expect(onDecide.mock.calls[0]![0]).toEqual({ approvalId: 'approval-1', choice: 'send' })
     unmount()
@@ -165,7 +166,7 @@ describe('o cartão (flag persona.flag.actionPreview; cada botão só com destin
     expect(screen.getByText('Pedido 4471')).toBeTruthy()
     expect(screen.getByText('Isso não dá para desfazer depois.')).toBeTruthy()
     expect(screen.queryByRole('checkbox')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Pagar' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Segure para pagar' })).toBeTruthy()
     expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull()
   })
 
@@ -177,7 +178,7 @@ describe('o cartão (flag persona.flag.actionPreview; cada botão só com destin
     expect(screen.getByText('e mais 3')).toBeTruthy()
     expect(screen.getByText('Isso não dá para desfazer depois.')).toBeTruthy()
     expect(screen.queryByRole('checkbox')).toBeNull()
-    expect(screen.getByRole('button', { name: 'Apagar' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Segure para apagar' })).toBeTruthy()
   })
 
   it('apagar 1 item: singular', () => {
@@ -189,14 +190,14 @@ describe('o cartão (flag persona.flag.actionPreview; cada botão só com destin
     card({ approvalId: 'approval-4', actionClass: 'post', verb: 'post', connectorName: 'Instagram', personaId: 'persona-nina', body: 'Bolo de cenoura de sexta!', truncated: false, requestedByPerson: false, status: 'pending' }, vi.fn())
     expect(screen.getByRole('article', { name: 'Vai publicar no Instagram' })).toBeTruthy()
     expect(screen.getByText('Bolo de cenoura de sexta!')).toBeTruthy()
-    expect(screen.getByRole('button', { name: 'Publicar' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Segure para publicar' })).toBeTruthy()
     expect(screen.getByRole('checkbox')).toBeTruthy()
   })
 
   it('prévia parcial: sem Enviar habilitado, sem Editar, sem a caixinha, com a frase honesta', () => {
     card(email({ truncated: true }), vi.fn())
     expect(screen.getByText('A prévia está parcial: não dá para enviar às cegas.')).toBeTruthy()
-    expect((screen.getByRole('button', { name: 'Enviar' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((screen.getByRole('button', { name: 'Segure para enviar' }) as HTMLButtonElement).disabled).toBe(true)
     expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull()
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect((screen.getByRole('button', { name: 'Cancelar' }) as HTMLButtonElement).disabled).toBe(false)
@@ -207,7 +208,7 @@ describe('o cartão (flag persona.flag.actionPreview; cada botão só com destin
     card(email({}, ['to', 'subject', 'body']), onDecide)
     expect(screen.getByText('A prévia não chegou, então não dá para conferir antes de enviar.')).toBeTruthy()
     expect(screen.queryByText('A prévia está parcial: não dá para enviar às cegas.')).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Enviar' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Segure para enviar' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Editar' })).toBeNull()
     expect(screen.queryByRole('checkbox')).toBeNull()
     expect(screen.queryByText('Para')).toBeNull()
@@ -266,13 +267,15 @@ describe('o cartão (flag persona.flag.actionPreview; cada botão só com destin
     let finish: () => void = () => undefined
     const onDecide = vi.fn(() => new Promise<void>((done) => { finish = done }))
     card(email(), onDecide)
-    fireEvent.click(screen.getByRole('button', { name: 'Enviar' }))
+    await holdToApprove(screen.getByRole('button', { name: 'Segure para enviar' }))
     const busy = await screen.findByRole('button', { name: 'Enviando…' })
     expect((busy as HTMLButtonElement).disabled).toBe(true)
+    // um 2º segurar (ou clique) no botão travado não decide de novo
+    await holdToApprove(busy)
     fireEvent.click(busy)
     expect(onDecide).toHaveBeenCalledTimes(1)
     finish()
-    await waitFor(() => { expect(screen.getByRole('button', { name: 'Enviar' })).toBeTruthy() })
+    await waitFor(() => { expect(screen.getByRole('button', { name: 'Segure para enviar' })).toBeTruthy() })
   })
 
   it('status "sending" do host: loading e nenhuma outra ação', () => {
@@ -323,7 +326,7 @@ describe('no MessageList e a flag persona.flag.actionPreview', () => {
     render(<MessageList t={t} messages={[row()]} onDecideAction={onDecide} />)
     const card = document.querySelector('[data-action-preview="pending"]') as HTMLElement
     expect(card.tagName).toBe('LI')
-    expect(within(card).getByRole('button', { name: 'Enviar' })).toBeTruthy()
+    expect(within(card).getByRole('button', { name: 'Segure para enviar' })).toBeTruthy()
     expect(screen.queryByText(/A Nina quer enviar um email/u)).toBeNull()
     fireEvent.click(within(card).getByRole('button', { name: 'Cancelar' }))
     await waitFor(() => { expect(onDecide).toHaveBeenCalledWith({ approvalId: 'approval-1', choice: 'cancel' }) })

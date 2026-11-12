@@ -26,7 +26,7 @@ afterEach(() => { cleanup() })
 
 const SAMPLE_SKILL_NAMES = MOCK_SKILLS.map(skill => skill.name)
 /** Names that exist only in the sample organogram (mock-governance.ts): none may reach a real screen. */
-const MOCK_ORG_NAMES = ['Milo', 'Lodi', 'Zara', 'Iara', 'Sven'] as const
+const MOCK_ORG_NAMES = ['Milo', 'Lena', 'Zara', 'Iara', 'Sven'] as const
 
 describe('IV-8 · Skills: no sample skills, an empty state that teaches', () => {
   it('with nothing handed in it shows no sample skill and no generic empty state', () => {

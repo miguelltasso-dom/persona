@@ -3,7 +3,7 @@
  * (Lumen) pass already-translated labels and data. Category color is never the only cue — always label + icon.
  */
 
-import type { ReactNode } from 'react'
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { Chip, type ChipTone } from './Chip.tsx'
 import { ColumnCategoryIcon, UiIcon } from './icons.tsx'
@@ -102,12 +102,14 @@ export interface BoardColumnProps {
   readonly dropTarget?: boolean | undefined
   /** Header actions (⋯ menu). */
   readonly actions?: ReactNode
+  /** Empty state with the words only: a neighbor of the same category already shows the art (never the same picture three times in a row). */
+  readonly hideArt?: boolean | undefined
   readonly children?: ReactNode
 }
 
 /** One workflow column: 4px category stripe, header with count/WIP, body (min 420px), illustrated empty state. */
 export function BoardColumn({
-  name, category, categoryLabel, count, wipLimit, emptyLabel, emptyAction, dropTarget = false, actions, children,
+  name, category, categoryLabel, count, wipLimit, emptyLabel, emptyAction, dropTarget = false, actions, hideArt = false, children,
 }: BoardColumnProps): ReactNode {
   const wipTone: ChipTone = wipLimit === undefined ? 'neutral' : count > wipLimit ? 'danger' : count === wipLimit ? 'warning' : 'neutral'
   const art = ILLUSTRATIONS[EMPTY_ART[category]]
@@ -125,7 +127,7 @@ export function BoardColumn({
       <div className={styles.columnBody}>
         {count === 0 ? (
           <div className={styles.columnEmpty}>
-            {art !== undefined && <img src={art} alt="" aria-hidden="true" />}
+            {art !== undefined && !hideArt && <img src={art} alt="" aria-hidden="true" />}
             <p>{emptyLabel}</p>
             {emptyAction}
           </div>
@@ -137,7 +139,25 @@ export function BoardColumn({
 
 /** Horizontal scroller for BoardColumns (scroll-snap per column). */
 export function BoardColumns({ children, label }: { readonly children: ReactNode; readonly label: string }): ReactNode {
-  return <div className={styles.columns} role="region" aria-label={label} tabIndex={0}>{children}</div>
+  const ref = useRef<HTMLDivElement>(null)
+  // Where the rail still has columns out of sight: a soft fade on that edge, so a column is never cut like a mistake.
+  const [fade, setFade] = useState<'none' | 'start' | 'end' | 'both'>('none')
+  const measure = useCallback(() => {
+    const node = ref.current
+    if (node === null) return
+    const start = node.scrollLeft > 4
+    const end = node.scrollLeft + node.clientWidth < node.scrollWidth - 4
+    setFade(start && end ? 'both' : start ? 'start' : end ? 'end' : 'none')
+  }, [])
+  useEffect(() => {
+    measure()
+    const node = ref.current
+    if (node === null || typeof ResizeObserver === 'undefined') return undefined
+    const observer = new ResizeObserver(measure)
+    observer.observe(node)
+    return () => { observer.disconnect() }
+  }, [measure, children])
+  return <div ref={ref} className={styles.columns} data-fade={fade} role="region" aria-label={label} tabIndex={0} onScroll={measure}>{children}</div>
 }
 
 export interface SprintStripProps {

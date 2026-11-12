@@ -26,7 +26,7 @@ const entry = (id: string, name: string, state: PersonaWorkUiState, extra: Parti
 })
 
 describe('a ordem de abertura', () => {
-  it('Coordenação → Precisa de ajuda → Aguardando você → Trabalhando → o resto por nome (pt-BR, com acento)', () => {
+  it('Coordenação → Precisa de ajuda → Esperando você → Trabalhando → o resto por nome (pt-BR, com acento)', () => {
     const roster = [
       entry('p-zeca', 'Zeca', 'resting'),
       entry('p-ana', 'Ana', 'resting'),
@@ -64,14 +64,14 @@ const TEAM = {
   members: [],
 } as unknown as TeamView
 const member = (id: string, name: string, role: string, state: PersonaWorkUiState): ChannelPersonaMember => ({ id: id as never, name, role, state })
-// stripMembers vem na ordem de `sortPersonasForUi` (Coordenação, depois por nome): Atlas, Bento, Nina
-const STRIP: readonly ChannelPersonaMember[] = [member('atlas', 'Atlas', 'Coordenação', 'resting'), member('bento', 'Bento', 'Engenharia', 'resting'), member('nina', 'Nina', 'Pesquisa', 'working')]
+// stripMembers vem na ordem de `sortPersonasForUi` (Coordenação, depois a ordem do host/contratação): Atlas, Nina, Bento
+const STRIP: readonly ChannelPersonaMember[] = [member('atlas', 'Atlas', 'Coordenação', 'resting'), member('nina', 'Nina', 'Pesquisa', 'working'), member('bento', 'Bento', 'Engenharia', 'resting')]
 const NOW: readonly PersonaNowSnapshot[] = [{ member: member('nina', 'Nina', 'Pesquisa', 'working'), currentTask: 'Pesquisa de preços', queueCount: 2 }]
 
 describe('buildRoster: a equipe do host com o estado vivo de cada persona', () => {
   it('junta estado, tarefa atual e fila; quem não tem linha no "Agora" descansa com a fila vazia', () => {
     const roster = buildRoster(TEAM, STRIP, NOW)
-    expect(roster.map(row => row.id)).toEqual(['p-atlas', 'p-bento', 'p-nina'])
+    expect(roster.map(row => row.id)).toEqual(['p-atlas', 'p-nina', 'p-bento'])
     expect(roster.find(row => row.id === 'p-nina')).toMatchObject({ name: 'Nina', role: 'Pesquisa', state: 'working', currentTask: 'Pesquisa de preços', queueCount: 2, coordination: false })
     expect(roster.find(row => row.id === 'p-bento')).toMatchObject({ state: 'resting', queueCount: 0 })
     expect(roster.find(row => row.id === 'p-bento')?.currentTask).toBeUndefined()
@@ -130,16 +130,16 @@ describe('o painel Equipe › Personas', () => {
     expect(nina.textContent).toContain('Fila: 2')
     expect(nina.textContent).toContain('Quem cuida: Ana')
     const bento = document.querySelector<HTMLElement>('[data-persona-card-id="p-bento"]')!
-    expect(bento.textContent).toContain('Descansando')
+    expect(bento.textContent).toContain('Disponível')
     expect(bento.textContent).toContain('Sem tarefa agora')
     expect(bento.textContent).toContain('Fila vazia')
     expect(bento.textContent).not.toContain('Quem cuida')
     for (const card of cards()) expect(card.textContent).not.toMatch(/p-(atlas|nina|bento)/u)
   })
 
-  it('os outros estados em palavras: aguardando você e precisa de ajuda', () => {
+  it('os outros estados em palavras: esperando você e precisa de ajuda', () => {
     render(<PersonasTeamPanel t={t} roster={[entry('p-a', 'Ana', 'waiting'), entry('p-b', 'Beto', 'stuck')]} />)
-    expect(screen.getByText('Aguardando você')).toBeTruthy()
+    expect(screen.getByText('Esperando você')).toBeTruthy()
     expect(screen.getByText('Precisa de ajuda')).toBeTruthy()
   })
 
@@ -166,7 +166,7 @@ describe('o painel Equipe › Personas', () => {
     ]} />)
     expect(cards().map(card => card.dataset.personaCardId)).toEqual(['p-atlas', 'p-nina', 'p-bento'])
     expect(within(cards()[2]!).getByText('Trabalhando')).toBeTruthy()
-    expect(within(cards()[1]!).getByText('Descansando')).toBeTruthy()
+    expect(within(cards()[1]!).getByText('Disponível')).toBeTruthy()
     // uma persona nova (contratada agora) entra no fim, sem embaralhar as de antes
     view.rerender(<PersonasTeamPanel t={t} roster={[
       entry('p-atlas', 'Atlas', 'resting', { coordination: true }),
@@ -249,12 +249,10 @@ describe('o painel conectado (a mesma fonte do "Agora" e da faixa da equipe)', (
 })
 
 describe('a aba e o estilo', () => {
-  it('Equipe › Personas é a primeira aba do lugar Equipe (o painel `team`), e Membros ficam só em Configurações', () => {
+  it('Equipe › Personas é a primeira aba do lugar Equipe (o painel `team`); Membros não é aba da Equipe (em Configurações só com a flag da equipe remota, DESIGN-01 cena 20)', () => {
     const team = NAV_PLACES.find(place => place.id === 'team')!
     expect(team.tabs[0]).toMatchObject({ panel: 'team' })
     expect(shellPt[team.tabs[0]!.labelKey]).toBe('Personas')
-    const settings = NAV_PLACES.find(place => place.id === 'settings')!
-    expect(settings.tabs.map(tab => tab.panel)).toContain('members')
     expect(team.tabs.map(tab => tab.panel)).not.toContain('members')
   })
 

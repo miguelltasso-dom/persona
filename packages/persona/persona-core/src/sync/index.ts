@@ -1,4 +1,5 @@
 export type {
+  ChannelSealedPayload,
   PayloadCipher,
   SealedPayload,
   SyncAck,

@@ -23,6 +23,7 @@ import { withInfraRecovery, type InfraRecoveryOptions } from '../proactivity/rec
 import { bindTools, claudeAllowToolsArgs, serverNameOf, toolSignature, type ServeHostTools, type ToolBinding } from './tool-binding.ts'
 import { ensureCodexToolsConfig, type CodexConfigIo } from './codex-tools-config.ts'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
 import { dirname } from 'node:path'
 
 const LOGIN_HOLD_CHARS = 240
@@ -75,6 +76,12 @@ async function closeToolSet(set: { close?: () => void | Promise<void> } | undefi
   }
 }
 
+/**
+ * How long a dispose waits for the CLI to end. The kill is OAR's (stdin EOF, then `taskkill /T /F` on Windows or the process
+ * group elsewhere, with a SIGKILL escalation); this bound only keeps a wedged child from hanging the host on quit or pause.
+ */
+const DISPOSE_DEADLINE_MS = 5_000
+
 /** Dispose a CLI session and the tool server it carried. */
 async function disposeSession(session: Session): Promise<void> {
   const binding = bindingOf.get(session)
@@ -84,7 +91,11 @@ async function disposeSession(session: Session): Promise<void> {
     await closeToolSet(turn)
   }
   try {
-    await session.dispose()
+    const { promise, resolve } = Promise.withResolvers<void>()
+    const deadline = setTimeout(resolve, DISPOSE_DEADLINE_MS)
+    deadline.unref()
+    // A dispose that rejects after the deadline has nobody left to tell: the session is already out of the warm map.
+    await Promise.race([session.dispose().catch((error: unknown) => { void error }), promise])
   } finally {
     if (binding !== undefined) {
       try {
@@ -232,6 +243,19 @@ function isTurnEnd(kind: string): boolean {
 function mapEvent(event: Event, now: () => Date, requestedAction?: string, toolName?: string): RunEvent | undefined {
   const at = eventTime(now)
   const kind: string = event.kind
+  if (kind === 'input_dropped') {
+    const record = event as Event & { inputId?: unknown; reason?: unknown }
+    if (typeof record.inputId === 'string' && record.inputId !== '') {
+      return { type: 'inputDropped', at, inputId: record.inputId, reason: typeof record.reason === 'string' ? record.reason : 'dropped' }
+    }
+    return undefined
+  }
+  if (kind === 'turn_active') {
+    // The runtime started this input's turn: it was read, not merely acknowledged (`user_message` is only an ack).
+    const record = event as Event & { inputId?: unknown }
+    if (typeof record.inputId === 'string' && record.inputId !== '') return { type: 'inputRead', at, inputId: record.inputId }
+    return undefined
+  }
   if (isTurnEnd(kind)) {
     const outcome = 'outcome' in event ? event.outcome : undefined
     if (outcome !== undefined) {
@@ -323,6 +347,8 @@ interface Live {
   base?: RunnerUsage
   /** The turn's usage once it is over, fixed at the first reading after the end: a later turn of the same session must not move it. */
   final?: RunnerUsage
+  /** OAR input ids (UUIDs, the runtime's contract) to the delivery ids the engine and the host know. */
+  inputIds: Map<string, string>
 }
 
 /** HT-0: the turn is over (ended, failed, cancelled): the CLI can no longer call its tools and the host's lease is released. */
@@ -416,11 +442,24 @@ interface WarmSlot {
   lastUsed: number
 }
 
-function warmKey(input: { personaId: string; cwd: string; model: string; effort?: string; mcpTools?: StartTurnInput['mcpTools'] }): string {
+function warmKey(input: { personaId: string; cwd: string; model: string; effort?: string; threadKey?: string; mcpTools?: StartTurnInput['mcpTools']; extraMcpServers?: StartTurnInput['extraMcpServers'] }): string {
   // The effort is part of the session: a persona that changes it must not be handed a warm session opened with the old one.
   // HT-0: so is the LIST of product tools (the CLI lists them once, at start); who calls them is the turn, not the session.
+  // The thread comes first: two conversations of one persona (two tickets, say) must never be handed the same live CLI process.
+  // COLHEITA 17: the extra MCP servers are fixed at open too — a session opened without the browser cannot serve a turn that needs it.
   const tools = toolSignature(input.mcpTools)
-  return `${input.personaId}|${input.cwd}|${input.model}|${input.effort ?? ''}${tools === '' ? '' : `|tools:${tools}`}`
+  const extra = (input.extraMcpServers ?? []).map(server => `${server.name}:${server.command}:${server.args.join(',')}`).join(';')
+  return `${input.personaId}|${input.threadKey ?? ''}|${input.cwd}|${input.model}|${input.effort ?? ''}${tools === '' ? '' : `|tools:${tools}`}${extra === '' ? '' : `|mcp:${extra}`}`
+}
+
+/**
+ * Whether the CLI process behind a warm session is gone. OAR folds the runtime's exit into the session status; a session whose
+ * process ended is never prompted again — it is dropped and its thread reopened with `--resume`.
+ * @param session - Live OAR session.
+ */
+function sessionGone(session: Session): boolean {
+  const status = session.status().value
+  return status.kind === 'idle' && status.lastTurnOutcome?.kind === 'failed' && status.lastTurnOutcome.failure === 'runtime_exited'
 }
 
 export function createOarRunner(options: OarRunnerOptions): Runner {
@@ -464,7 +503,9 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     const key = warmKey(input)
     const slot = warm.get(key)
     if (slot === undefined) return undefined
-    if (Date.now() - slot.lastUsed >= ttlMs) {
+    // A session whose CLI process ended (idle eviction by the runtime, a crash, the person closing a terminal) is not warm: it is
+    // dropped, and the turn opens the thread again with `--resume` instead of prompting a corpse.
+    if (Date.now() - slot.lastUsed >= ttlMs || sessionGone(slot.session)) {
       void dropWarm(key)
       return undefined
     }
@@ -491,7 +532,7 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     const pending: RunEvent[] = []
     const live: Live = {
       handle, session, cancelled: false, finished: false, accepted: prompt === undefined,
-      pending, heldText: '', partialText: '', unsub: () => {},
+      pending, heldText: '', partialText: '', unsub: () => {}, inputIds: new Map(),
     }
     if (prompt !== undefined && bindingOf.has(session) && input.mcpTools !== undefined) live.toolSet = input.mcpTools
     // A warm session is reused across turns and OAR counts since it opened: remember where it stood when THIS turn began.
@@ -515,6 +556,14 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
         : undefined
       const mapped = mapEvent(event, now, requestedAction, toolName)
       if (mapped !== undefined) {
+        // OAR names inputs by UUID; the engine and the host know the delivery id. Translate before anyone sees it.
+        if (mapped.type === 'inputRead' || mapped.type === 'inputDropped') {
+          const original = live.inputIds.get(mapped.inputId)
+          if (original !== undefined) {
+            live.inputIds.delete(mapped.inputId)
+            mapped.inputId = original
+          }
+        }
         if (mapped.type === 'delta') {
           takeDelta(live, mapped, cli, now)
         } else {
@@ -621,13 +670,29 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     if (options.env !== undefined) sessionOptions.env = options.env
     if (policy !== undefined && policy.launchArgs.length > 0) sessionOptions.launchArgs = policy.launchArgs
     if (policy !== undefined && policy.disallowedTools.length > 0) sessionOptions.disallowedTools = policy.disallowedTools
+    // COLHEITA 17: the persona's browser (and any other stdio server the host attaches) rides with the turn's own tools. A CLI
+    // that cannot take MCP gets none, and the product tools keep their allow rule (the gateway is the ACL).
+    const extraServers = options.capabilities.mcpTools === 'available' ? (input.extraMcpServers ?? []) : []
+    const servers = [...(binding === undefined ? [] : [binding.server]), ...extraServers]
+    if (servers.length > 0) sessionOptions.mcpServers = servers
     if (binding !== undefined) {
-      sessionOptions.mcpServers = [binding.server]
       // Claude in `dontAsk` refuses what no rule allows: allow exactly the server we serve (each handler is behind the gateway's ACL).
       if (options.capabilities.cli === 'claude') sessionOptions.launchArgs = [...(sessionOptions.launchArgs ?? []), ...claudeAllowToolsArgs(binding.name)]
     }
+    // A remembered conversation the CLI no longer has (history cleared, another home) must not fail the turn: the thread opens
+    // fresh once, and the caller records the new native id. Any other failure keeps its own handling below.
+    const attempt = async (open: typeof sessionOptions): Promise<Session> => {
+      try {
+        return await openSession(options, open, policy)
+      } catch (error) {
+        if (open.resume === undefined || !(error instanceof Error) || error.name !== 'SessionNotFoundError') throw error
+        const fresh = { ...open }
+        delete fresh.resume
+        return openSession(options, fresh, policy)
+      }
+    }
     try {
-      return await openSession(options, sessionOptions, policy)
+      return await attempt(sessionOptions)
     } catch (error) {
       // A model without an effort menu makes the runtime REFUSE the option (never ignore it). The persona's call must not fail for it
       // and must not hide it either: reopen without the effort, and say so in the usage.
@@ -636,7 +701,7 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       if (asked === undefined || !/effort/iu.test(message)) throw error
       const retry = { ...sessionOptions }
       delete retry.effort
-      const session = await openSession(options, retry, policy)
+      const session = await attempt(retry)
       droppedEffort.set(session, asked)
       return session
     }
@@ -720,6 +785,16 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       await endTurnTools(live)
       await live.session.abort()
     },
+    steer: async (handle, requestId, text) => {
+      const live = sessions.get(handle.runId)
+      if (live === undefined || live.finished || live.cancelled) return false
+      if (typeof live.session.steer !== 'function') return false
+      const inputId = randomUUID()
+      live.inputIds.set(inputId, requestId)
+      const result = await live.session.steer(text, { inputId })
+      if (result.kind !== 'accepted') live.inputIds.delete(inputId)
+      return result.kind === 'accepted'
+    },
     resume: async (input) => {
       requireExplicitPermission(input, options.capabilities.cli)
       const next: StartTurnInput = {
@@ -733,10 +808,13 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       if (input.permissionMode !== undefined) next.permissionMode = input.permissionMode
       if (input.history !== undefined) next.history = input.history
       if (input.resumeSessionId !== undefined) next.resumeSessionId = input.resumeSessionId
+      // The thread is part of the session too: a resumed turn must land on the conversation's own warm slot, never on another's.
+      if (input.threadKey !== undefined) next.threadKey = input.threadKey
       // The session is reopened from `next`: whatever shapes the session (effort, product tools) has to travel with it, or a resumed
       // turn would silently lose it (and miss its own warm slot, keyed by both).
       if (input.effort !== undefined) next.effort = input.effort
       if (input.mcpTools !== undefined) next.mcpTools = input.mcpTools
+      if (input.extraMcpServers !== undefined) next.extraMcpServers = input.extraMcpServers
       const hit = reuse(next)
       if (hit === undefined) await releaseLive(sessions, input.resumeSessionId)
       return open(next, true)

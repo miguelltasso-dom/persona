@@ -27,13 +27,13 @@ describe('harness MCP tools (board, sprints, routines)', () => {
   })
 
   it('the reads are `read`, everything that changes the product is `write`', () => {
-    // The COORDINATION tools (D-097) are `read`: the verdict of a review, asking a colleague, passing work on and the team's opinion do not touch the person's files or the
-    // world (the host holds their ACL: the persona's own switch, the caps, the circle, the person's mandate); a persona that may only read can use them.
-    const reads = ['board_list', 'sprint_list', 'routine_list', 'review_verdict', 'ask_colleague', 'pass_forward', 'ask_team_opinion']
+    // The COORDINATION tools (D-097) are `read`: the verdict of a review, asking a colleague, passing work on, the team's opinion and asking the owner for a
+    // six-digit code do not touch the person's files or the world (the host holds their ACL: the persona's own switch, the caps, the circle, the person's mandate); a persona that may only read can use them.
+    const reads = ['board_list', 'sprint_list', 'routine_list', 'review_verdict', 'ask_colleague', 'pass_forward', 'ask_team_opinion', 'ask_vault_code', 'browser_login']
     for (const name of reads) expect(allowsTool('read', name), name).toBe(true)
     for (const name of HARNESS_TOOLS.filter(item => !reads.includes(item))) expect(allowsTool('read', name), name).toBe(false)
     const read = harnessMcpTools(run, wired([...HARNESS_TOOLS]), 'read').map(tool => tool.name)
-    expect(read).toEqual(['board_list', 'sprint_list', 'routine_list', 'ask_team_opinion', 'ask_colleague', 'pass_forward', 'review_verdict'])
+    expect(read).toEqual(['board_list', 'sprint_list', 'routine_list', 'ask_team_opinion', 'ask_colleague', 'pass_forward', 'review_verdict', 'ask_vault_code', 'browser_login'])
     expect(harnessMcpTools(run, wired([...HARNESS_TOOLS]), 'none')).toEqual([])
   })
 

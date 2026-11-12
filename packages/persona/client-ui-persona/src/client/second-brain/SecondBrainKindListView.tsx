@@ -12,10 +12,10 @@ type KindFilterTab = 'all' | 'private' | 'contradiction'
 type KindViewMode = 'list' | 'graph'
 
 const VIEW_MODE_KEY = 'persona.secondBrain.kindViewMode'
-const BRAIN_PAGE_ROW_PX = 88
-const BRAIN_LIST_VIRTUAL_MIN = 40
+export const BRAIN_PAGE_ROW_PX = 88
+export const BRAIN_LIST_VIRTUAL_MIN = 40
 
-function BrainPageListRow({
+export function BrainPageListRow({
   dict,
   page,
   personaNames,

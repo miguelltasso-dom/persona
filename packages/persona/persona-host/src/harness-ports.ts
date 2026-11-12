@@ -15,6 +15,28 @@ import type { BoardPorts } from './harness-boards.ts'
 import type { HiringPorts } from './harness-hiring.ts'
 import type { HarnessIdentity, RoutinePorts } from './harness-routines.ts'
 
+/** Item 15: the six-digit request a persona opens for the owner. The digits never come back through this port. */
+export interface VaultCodePort {
+  /**
+   * @param who - The run's identity (the request belongs to her project and persona).
+   * @param input - Why the code is needed, the login it is for and the Task that asked.
+   * @returns The pending request, or a typed refusal with the sentence the model reads.
+   */
+  open(who: HarnessIdentity, input: { readonly reason: string; readonly login?: string; readonly ticketId?: string }):
+  { readonly ok: true; readonly requestId: string; readonly expiresAt: string } | { readonly ok: false; readonly code: string; readonly message: string }
+}
+
+/** COLHEITA 15b: type a Cofre password into the page of its own site, without the value reaching the model. */
+export interface BrowserLoginPort {
+  /**
+   * @param who - The run's identity (the login belongs to her project).
+   * @param input - The Cofre login as the person named it, and the Task that asked.
+   * @returns Whether it was typed, with the sentence the model reads; never the password, never the page.
+   */
+  open(who: HarnessIdentity, input: { readonly login: string; readonly ticketId: string }):
+  Promise<{ readonly ok: true; readonly typed: boolean; readonly message: string } | { readonly ok: false; readonly code: string; readonly message: string }>
+}
+
 /** The run that opened the turn: the identity of the caller. */
 export interface HarnessRun {
   readonly personaId: string
@@ -31,6 +53,10 @@ export interface HarnessPortsDeps {
   readonly boards: BoardPorts
   readonly routines?: RoutinePorts
   readonly hiring?: HiringPorts
+  /** Item 15: the 2FA card. Absent = the tool is not announced. */
+  readonly vaultCode?: VaultCodePort
+  /** COLHEITA 15b: the Cofre login typed into the page. Absent = the tool is not announced. */
+  readonly browserLogin?: BrowserLoginPort
 }
 
 /** Ids the scheduler gives the messages it writes for the team: never a person's request, whatever the author field says. */
@@ -47,6 +73,8 @@ export class HarnessPorts {
   readonly boards: BoardPorts
   readonly routines: RoutinePorts | undefined
   readonly hiring: HiringPorts | undefined
+  readonly vaultCode: VaultCodePort | undefined
+  readonly browserLogin: BrowserLoginPort | undefined
   private readonly deps: HarnessPortsDeps
 
   /** @param deps - Host parts. */
@@ -55,6 +83,8 @@ export class HarnessPorts {
     this.boards = deps.boards
     this.routines = deps.routines
     this.hiring = deps.hiring
+    this.vaultCode = deps.vaultCode
+    this.browserLogin = deps.browserLogin
   }
 
   /**

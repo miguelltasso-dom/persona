@@ -139,6 +139,30 @@
   display: block;
 }
 
+/* Uau 5 (Muse 11/11): a folhagem escura com a luminária APAGADA fica POR CIMA da acesa e some uma vez (420 ms, --ease-glow, só opacity,
+   iterations 1). A curva é a SIMÉTRICA in-out da luz que esquenta (Muse 17:06): com --ease-enter, aos 210 ms a apagada já valia 3% e a luz
+   "estalava" nos primeiros 100 ms. FoliageLampOff tira a imagem do DOM no fim; em reduced-motion ela nem entra (o rail já nasce aceso). */
+.foliageDarkOff {
+  display: none;
+}
+
+:global(body[data-ds-dark-theme='true']) .foliageDarkOff {
+  display: block;
+  animation: lampSwitchOn 420ms var(--ease-glow) 1 forwards;
+}
+
+@keyframes lampSwitchOn {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(body[data-ds-dark-theme='true']) .foliageDarkOff {
+    display: none;
+    animation: none;
+  }
+}
+
 .brandRow {
   flex-shrink: 0;
   display: flex;
@@ -369,13 +393,14 @@
   font: 800 12px/1 var(--persona-font-text);
 }
 
+/* COLHEITA 5 (Carbon/Muse): no rail recolhido o contador fica no canto superior direito do botão e nunca cobre o glifo. */
 .sidebar[data-collapsed] .navBadge {
   position: absolute;
-  top: 2px;
-  right: 2px;
-  min-width: 16px;
-  height: 16px;
-  padding: 0 4px;
+  top: -4px;
+  right: -4px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
   font-size: 11px;
 }
 
@@ -450,14 +475,34 @@
   min-width: 0;
 }
 
-/* Ajuda e atalhos: só o ícone, na mesma pílula creme do "Configurações" (alvo de 44 px, contraste AA sobre a folhagem). */
+/*
+ * A luminária do rodapé (DESIGN-01-MUSE §1.0.4): o assento de 40 px do centro da fileira. É só decorativo (`aria-hidden`, sem foco): a
+ * luminária que se vê é a da arte da folhagem (e dela vem a luz do escuro), e o assento guarda o lugar para os 3 alvos terem o mesmo ritmo.
+ */
+/* The three targets sit side by side with the SAME 8 px between them: Configurações keeps its own width instead of stretching (a stretched slot left 41 px before the lamp and 8 px after it). */
+.footActions[data-rail-foot-row] .settingsSlot {
+  flex: 0 0 auto;
+}
+
+.lampSeat {
+  flex: 0 0 40px;
+  width: 40px;
+  height: 40px;
+  pointer-events: none;
+}
+
+.sidebar[data-short] .lampSeat {
+  display: none;
+}
+
+/* Ajuda e atalhos: o "?" numa pílula creme igual à do "Configurações" (alvo de 40 px, contraste AA sobre a folhagem). */
 .helpButton {
   display: flex;
   align-items: center;
   justify-content: center;
   flex: 0 0 auto;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   padding: 0;
   box-sizing: border-box;
   cursor: pointer;
@@ -518,6 +563,13 @@
 }
 
 .hostStatusButton:hover {
+  border-color: var(--persona-outline-control);
+}
+
+/* Muse/Carbon 11/11 (#05): no escuro a pílula do Claude usa o mesmo cartão escuro do Configurações/Ajuda (era cream-50 = branco puro). */
+:global(body[data-ds-dark-theme='true']) .hostStatusButton {
+  background: var(--persona-card);
+  color: var(--persona-ink);
   border-color: var(--persona-outline-control);
 }
 
@@ -770,6 +822,21 @@
   height: 10px;
 }
 
+/*
+ * The 64 px rail shows only the dot. The text ("Claude · pronto") must leave the grid flow: as a grid item, even empty, it took half of the
+ * 40 px box and pushed the dot against the top edge (Carbon, quill-b7 #6). It stays for screen readers (the button also has the aria-label).
+ */
+.sidebar[data-conversations][data-collapsed] .hostStatusText {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 .sidebar[data-conversations][data-collapsed] .footActions {
   flex-direction: column;
   width: auto;
@@ -811,10 +878,29 @@
   :global(body[data-ds-dark-theme='true']) .halo:not([hidden]) {
     display: block;
     position: absolute;
-    width: 90px;
-    height: 90px;
+    width: 120px;
+    height: 120px;
     pointer-events: none;
     mix-blend-mode: screen;
-    background: radial-gradient(90px 90px at 50% 50%, rgb(242 186 110 / 0.35), transparent 70%);
+    /* Muse/Carbon 11/11: `closest-side` termina o gradiente DENTRO da caixa (alfa 0 na borda): sem o quadrado luminoso recortado. */
+    background: radial-gradient(closest-side, rgb(242 186 110 / 0.36) 0%, rgb(242 186 110 / 0.12) 52%, transparent 100%);
+  }
+
+  /* Uau 5 (Muse 11/11): o halo ACOMPANHA o acender da luminária. O `FoliageLampOff` (a imagem apagada que faz o crossfade de
+     420 ms) é o sinal: enquanto ele está no DOM, o halo sobe de 0 a 1 no mesmo tempo e com a mesma curva; quando ele sai, o
+     halo fica parado em 1. No claro e em reduced-motion a imagem apagada nem entra, então o halo já nasce aceso. */
+  :global(body[data-ds-dark-theme='true']) .foliage:has([data-persona-foliage-dark-off]) .halo:not([hidden]) {
+    animation: haloLightUp 420ms var(--ease-glow) 1 forwards;
+  }
+}
+
+@keyframes haloLightUp {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global(body[data-ds-dark-theme='true']) .foliage:has([data-persona-foliage-dark-off]) .halo:not([hidden]) {
+    animation: none;
   }
 }

@@ -40,11 +40,14 @@ import pose_bento_trabalhando from './poses/bento-trabalhando.webp'
 import pose_capivara_acenando from './poses/capivara-acenando.webp'
 import pose_capivara_aguardando_aprovacao from './poses/capivara-aguardando-aprovacao.webp'
 import pose_capivara_aguardando_resposta from './poses/capivara-aguardando-resposta.webp'
+import pose_capivara_comemorando from './poses/capivara-comemorando.webp'
 import pose_capivara_descansando from './poses/capivara-descansando.webp'
 import pose_capivara_disponivel_blink from './poses/capivara-disponivel-blink.webp'
 import pose_capivara_disponivel_tail from './poses/capivara-disponivel-tail.webp'
 import pose_capivara_disponivel from './poses/capivara-disponivel.webp'
 import pose_capivara_erro from './poses/capivara-erro.webp'
+import pose_capivara_fora_ate_candidato from './poses/capivara-fora-ate-candidato.webp'
+import pose_capivara_fora_ate from './poses/capivara-fora-ate.webp'
 import pose_capivara_offline from './poses/capivara-offline.webp'
 import pose_capivara_pensando_1 from './poses/capivara-pensando-1.webp'
 import pose_capivara_pensando_2 from './poses/capivara-pensando-2.webp'
@@ -54,6 +57,7 @@ import pose_capivara_trabalhando from './poses/capivara-trabalhando.webp'
 import pose_cervo_acenando from './poses/cervo-acenando.webp'
 import pose_cervo_aguardando_aprovacao from './poses/cervo-aguardando-aprovacao.webp'
 import pose_cervo_aguardando_resposta from './poses/cervo-aguardando-resposta.webp'
+import pose_cervo_comemorando from './poses/cervo-comemorando.webp'
 import pose_cervo_descansando from './poses/cervo-descansando.webp'
 import pose_cervo_disponivel_blink from './poses/cervo-disponivel-blink.webp'
 import pose_cervo_disponivel_tail from './poses/cervo-disponivel-tail.webp'
@@ -68,6 +72,7 @@ import pose_cervo_trabalhando from './poses/cervo-trabalhando.webp'
 import pose_coelho_acenando from './poses/coelho-acenando.webp'
 import pose_coelho_aguardando_aprovacao from './poses/coelho-aguardando-aprovacao.webp'
 import pose_coelho_aguardando_resposta from './poses/coelho-aguardando-resposta.webp'
+import pose_coelho_comemorando from './poses/coelho-comemorando.webp'
 import pose_coelho_descansando from './poses/coelho-descansando.webp'
 import pose_coelho_disponivel_blink from './poses/coelho-disponivel-blink.webp'
 import pose_coelho_disponivel_tail from './poses/coelho-disponivel-tail.webp'
@@ -82,6 +87,7 @@ import pose_coelho_trabalhando from './poses/coelho-trabalhando.webp'
 import pose_coruja_acenando from './poses/coruja-acenando.webp'
 import pose_coruja_aguardando_aprovacao from './poses/coruja-aguardando-aprovacao.webp'
 import pose_coruja_aguardando_resposta from './poses/coruja-aguardando-resposta.webp'
+import pose_coruja_comemorando from './poses/coruja-comemorando.webp'
 import pose_coruja_descansando from './poses/coruja-descansando.webp'
 import pose_coruja_disponivel_blink from './poses/coruja-disponivel-blink.webp'
 import pose_coruja_disponivel_tail from './poses/coruja-disponivel-tail.webp'
@@ -96,6 +102,7 @@ import pose_coruja_trabalhando from './poses/coruja-trabalhando.webp'
 import pose_guaxinim_acenando from './poses/guaxinim-acenando.webp'
 import pose_guaxinim_aguardando_aprovacao from './poses/guaxinim-aguardando-aprovacao.webp'
 import pose_guaxinim_aguardando_resposta from './poses/guaxinim-aguardando-resposta.webp'
+import pose_guaxinim_comemorando from './poses/guaxinim-comemorando.webp'
 import pose_guaxinim_descansando from './poses/guaxinim-descansando.webp'
 import pose_guaxinim_disponivel_blink from './poses/guaxinim-disponivel-blink.webp'
 import pose_guaxinim_disponivel_tail from './poses/guaxinim-disponivel-tail.webp'
@@ -110,6 +117,7 @@ import pose_guaxinim_trabalhando from './poses/guaxinim-trabalhando.webp'
 import pose_lobo_guara_acenando from './poses/lobo-guara-acenando.webp'
 import pose_lobo_guara_aguardando_aprovacao from './poses/lobo-guara-aguardando-aprovacao.webp'
 import pose_lobo_guara_aguardando_resposta from './poses/lobo-guara-aguardando-resposta.webp'
+import pose_lobo_guara_comemorando from './poses/lobo-guara-comemorando.webp'
 import pose_lobo_guara_descansando from './poses/lobo-guara-descansando.webp'
 import pose_lobo_guara_disponivel_blink from './poses/lobo-guara-disponivel-blink.webp'
 import pose_lobo_guara_disponivel_tail from './poses/lobo-guara-disponivel-tail.webp'
@@ -124,6 +132,7 @@ import pose_lobo_guara_trabalhando from './poses/lobo-guara-trabalhando.webp'
 import pose_lontra_acenando from './poses/lontra-acenando.webp'
 import pose_lontra_aguardando_aprovacao from './poses/lontra-aguardando-aprovacao.webp'
 import pose_lontra_aguardando_resposta from './poses/lontra-aguardando-resposta.webp'
+import pose_lontra_comemorando from './poses/lontra-comemorando.webp'
 import pose_lontra_descansando from './poses/lontra-descansando.webp'
 import pose_lontra_disponivel_blink from './poses/lontra-disponivel-blink.webp'
 import pose_lontra_disponivel_tail from './poses/lontra-disponivel-tail.webp'
@@ -156,6 +165,7 @@ import pose_luna_trabalhando from './poses/luna-trabalhando.webp'
 import pose_mico_leao_dourado_acenando from './poses/mico-leao-dourado-acenando.webp'
 import pose_mico_leao_dourado_aguardando_aprovacao from './poses/mico-leao-dourado-aguardando-aprovacao.webp'
 import pose_mico_leao_dourado_aguardando_resposta from './poses/mico-leao-dourado-aguardando-resposta.webp'
+import pose_mico_leao_dourado_comemorando from './poses/mico-leao-dourado-comemorando.webp'
 import pose_mico_leao_dourado_descansando from './poses/mico-leao-dourado-descansando.webp'
 import pose_mico_leao_dourado_disponivel_blink from './poses/mico-leao-dourado-disponivel-blink.webp'
 import pose_mico_leao_dourado_disponivel_tail from './poses/mico-leao-dourado-disponivel-tail.webp'
@@ -188,6 +198,7 @@ import pose_nina_trabalhando from './poses/nina-trabalhando.webp'
 import pose_ourico_acenando from './poses/ourico-acenando.webp'
 import pose_ourico_aguardando_aprovacao from './poses/ourico-aguardando-aprovacao.webp'
 import pose_ourico_aguardando_resposta from './poses/ourico-aguardando-resposta.webp'
+import pose_ourico_comemorando from './poses/ourico-comemorando.webp'
 import pose_ourico_descansando from './poses/ourico-descansando.webp'
 import pose_ourico_disponivel_blink from './poses/ourico-disponivel-blink.webp'
 import pose_ourico_disponivel_tail from './poses/ourico-disponivel-tail.webp'
@@ -202,6 +213,7 @@ import pose_ourico_trabalhando from './poses/ourico-trabalhando.webp'
 import pose_panda_acenando from './poses/panda-acenando.webp'
 import pose_panda_aguardando_aprovacao from './poses/panda-aguardando-aprovacao.webp'
 import pose_panda_aguardando_resposta from './poses/panda-aguardando-resposta.webp'
+import pose_panda_comemorando from './poses/panda-comemorando.webp'
 import pose_panda_descansando from './poses/panda-descansando.webp'
 import pose_panda_disponivel_blink from './poses/panda-disponivel-blink.webp'
 import pose_panda_disponivel_tail from './poses/panda-disponivel-tail.webp'
@@ -216,6 +228,7 @@ import pose_panda_trabalhando from './poses/panda-trabalhando.webp'
 import pose_raposa_acenando from './poses/raposa-acenando.webp'
 import pose_raposa_aguardando_aprovacao from './poses/raposa-aguardando-aprovacao.webp'
 import pose_raposa_aguardando_resposta from './poses/raposa-aguardando-resposta.webp'
+import pose_raposa_comemorando from './poses/raposa-comemorando.webp'
 import pose_raposa_descansando from './poses/raposa-descansando.webp'
 import pose_raposa_disponivel_blink from './poses/raposa-disponivel-blink.webp'
 import pose_raposa_disponivel_tail from './poses/raposa-disponivel-tail.webp'
@@ -248,6 +261,7 @@ import pose_sol_trabalhando from './poses/sol-trabalhando.webp'
 import pose_tamandua_acenando from './poses/tamandua-acenando.webp'
 import pose_tamandua_aguardando_aprovacao from './poses/tamandua-aguardando-aprovacao.webp'
 import pose_tamandua_aguardando_resposta from './poses/tamandua-aguardando-resposta.webp'
+import pose_tamandua_comemorando from './poses/tamandua-comemorando.webp'
 import pose_tamandua_descansando from './poses/tamandua-descansando.webp'
 import pose_tamandua_disponivel_blink from './poses/tamandua-disponivel-blink.webp'
 import pose_tamandua_disponivel_tail from './poses/tamandua-disponivel-tail.webp'
@@ -262,6 +276,7 @@ import pose_tamandua_trabalhando from './poses/tamandua-trabalhando.webp'
 import pose_tucano_acenando from './poses/tucano-acenando.webp'
 import pose_tucano_aguardando_aprovacao from './poses/tucano-aguardando-aprovacao.webp'
 import pose_tucano_aguardando_resposta from './poses/tucano-aguardando-resposta.webp'
+import pose_tucano_comemorando from './poses/tucano-comemorando.webp'
 import pose_tucano_descansando from './poses/tucano-descansando.webp'
 import pose_tucano_disponivel_blink from './poses/tucano-disponivel-blink.webp'
 import pose_tucano_disponivel_tail from './poses/tucano-disponivel-tail.webp'
@@ -297,6 +312,7 @@ import nav_sprints from './icons/nav/sprints.svg'
 import nav_uso_e_limites from './icons/nav/uso-e-limites.svg'
 import nav_visao_geral from './icons/nav/visao-geral.svg'
 import nav_ajudou from './icons/ui/ajudou.svg'
+import nav_antes_depois_alca from './icons/ui/antes-depois-alca.svg'
 import nav_assumir_controle from './icons/ui/assumir-controle.svg'
 import nav_atalho from './icons/ui/atalho.svg'
 import nav_atencao from './icons/ui/atencao.svg'
@@ -304,11 +320,14 @@ import nav_avisos from './icons/ui/avisos.svg'
 import nav_bom_dia from './icons/ui/bom-dia.svg'
 import nav_caminho from './icons/ui/caminho.svg'
 import nav_citar from './icons/ui/citar.svg'
+import nav_cursor_lapis from './icons/ui/cursor-lapis.svg'
 import nav_desfazer from './icons/ui/desfazer.svg'
 import nav_direcionar from './icons/ui/direcionar.svg'
 import nav_ensinar from './icons/ui/ensinar.svg'
 import nav_entregou from './icons/ui/entregou.svg'
 import nav_fila from './icons/ui/fila.svg'
+import nav_giro_manha_claro from './icons/ui/giro-manha-claro.svg'
+import nav_giro_manha_noite from './icons/ui/giro-manha-noite.svg'
 import nav_gostei from './icons/ui/gostei.svg'
 import nav_lado from './icons/ui/lado.svg'
 import nav_mover_assunto from './icons/ui/mover-assunto.svg'
@@ -423,6 +442,7 @@ import accent_doodle_arrow from './accents/doodle-arrow.svg'
 import accent_doodle_circle from './accents/doodle-circle.svg'
 import accent_leaf_1 from './accents/leaf-1.svg'
 import accent_leaf_2 from './accents/leaf-2.svg'
+import accent_patinhas_trilha_64 from './accents/patinhas-trilha-64.svg'
 import accent_paw_prints from './accents/paw-prints.svg'
 import accent_paw_trail from './accents/paw-trail.svg'
 import accent_sparkle_1 from './accents/sparkle-1.svg'
@@ -436,6 +456,9 @@ import ill_team_banner_light from './illustrations/team-banner-light.webp'
 import ill_team_banner_dark from './illustrations/team-banner-dark.webp'
 import ill_rail_foliage_light from './illustrations/rail-foliage-light.webp'
 import ill_rail_foliage_dark from './illustrations/rail-foliage-dark.webp'
+import ill_rail_foliage_dark_off from './illustrations/rail-foliage-dark-off.webp'
+import ill_onboarding_porta_dia from './illustrations/onboarding-porta-dia.webp'
+import ill_onboarding_porta_noite from './illustrations/onboarding-porta-noite.webp'
 import ill_empty_col_todo from './illustrations/empty-col-todo.webp'
 import ill_empty_col_doing from './illustrations/empty-col-doing.webp'
 import ill_empty_col_review from './illustrations/empty-col-review.webp'
@@ -462,6 +485,7 @@ import ill_empty_aprovacoes from './illustrations/empty-aprovacoes.webp'
 import ill_sucesso_skill_aprendida from './illustrations/sucesso-skill-aprendida.webp'
 import ill_sucesso_convite_aceito from './illustrations/sucesso-convite-aceito.webp'
 import ill_sucesso_equipe_chegou from './illustrations/sucesso-equipe-chegou.webp'
+import ill_ligar_ia_equipe from './illustrations/ligar-ia-equipe.webp'
 import ill_spot_limite from './illustrations/spot-limite.webp'
 import ill_spot_ajuda_conectar_ia from './illustrations/spot-ajuda-conectar-ia.webp'
 import ill_spot_ajuda_contratar from './illustrations/spot-ajuda-contratar.webp'
@@ -486,9 +510,28 @@ import ill_empty_connections from './illustrations/empty-connections.webp'
 import ill_empty_error from './illustrations/empty-error.webp'
 import ill_empty_dm from './illustrations/empty-dm.webp'
 import ill_empty_sem_ia from './illustrations/empty-sem-ia.webp'
+import ill_empty_sem_arquivos from './illustrations/empty-sem-arquivos.webp'
+import ill_empty_regras_da_casa from './illustrations/empty-regras-da-casa.webp'
+import ill_empty_memoria_resumo from './illustrations/empty-memoria-resumo.webp'
+import ill_empty_primeiro_projeto from './illustrations/empty-primeiro-projeto.webp'
+import ill_empty_uso_indisponivel from './illustrations/empty-uso-indisponivel.webp'
+import ill_empty_seus_numeros from './illustrations/empty-seus-numeros.webp'
+import ill_empty_conversa_tarefa from './illustrations/empty-conversa-tarefa.webp'
 import ill_empty_dm_noite from './illustrations/empty-dm-noite.webp'
 import ill_empty_aprovacoes_noite from './illustrations/empty-aprovacoes-noite.webp'
 import ill_empty_geral_noite from './illustrations/empty-geral-noite.webp'
+import ill_empty_regras_da_casa_noite from './illustrations/empty-regras-da-casa-noite.webp'
+import ill_empty_kanban_noite from './illustrations/empty-kanban-noite.webp'
+import ill_empty_routines_noite from './illustrations/empty-routines-noite.webp'
+import ill_empty_connections_noite from './illustrations/empty-connections-noite.webp'
+import ill_empty_search_noite from './illustrations/empty-search-noite.webp'
+import ill_empty_sem_arquivos_noite from './illustrations/empty-sem-arquivos-noite.webp'
+import ill_empty_primeiro_projeto_noite from './illustrations/empty-primeiro-projeto-noite.webp'
+import ill_empty_equipe_remota_noite from './illustrations/empty-equipe-remota-noite.webp'
+import ill_empty_uso_indisponivel_noite from './illustrations/empty-uso-indisponivel-noite.webp'
+import ill_empty_memoria_resumo_noite from './illustrations/empty-memoria-resumo-noite.webp'
+import ill_empty_seus_numeros_noite from './illustrations/empty-seus-numeros-noite.webp'
+import ill_stamp_primeira_entrega from './illustrations/stamp-primeira-entrega.webp'
 import ill_channel_marketing from './illustrations/channel-marketing.webp'
 import ill_channel_atendimento from './illustrations/channel-atendimento.webp'
 import ill_channel_financeiro from './illustrations/channel-financeiro.webp'
@@ -523,13 +566,17 @@ import sticker_bento_joinha from './stickers/bento-joinha.webp'
 import sticker_bento_pensando from './stickers/bento-pensando.webp'
 import sticker_bento_rindo from './stickers/bento-rindo.webp'
 import sticker_capivara_ate_amanha from './stickers/capivara-ate-amanha.webp'
+import sticker_capivara_boa_ideia from './stickers/capivara-boa-ideia.webp'
 import sticker_capivara_bom_dia from './stickers/capivara-bom-dia.webp'
+import sticker_capivara_combinado from './stickers/capivara-combinado.webp'
 import sticker_capivara_comemorando from './stickers/capivara-comemorando.webp'
 import sticker_capivara_coracao from './stickers/capivara-coracao.webp'
 import sticker_capivara_feito from './stickers/capivara-feito.webp'
 import sticker_capivara_joinha from './stickers/capivara-joinha.webp'
+import sticker_capivara_obrigada from './stickers/capivara-obrigada.webp'
 import sticker_capivara_pensando from './stickers/capivara-pensando.webp'
 import sticker_capivara_rindo from './stickers/capivara-rindo.webp'
+import sticker_capivara_uau from './stickers/capivara-uau.webp'
 import sticker_cervo_ate_amanha from './stickers/cervo-ate-amanha.webp'
 import sticker_cervo_bom_dia from './stickers/cervo-bom-dia.webp'
 import sticker_cervo_comemorando from './stickers/cervo-comemorando.webp'
@@ -692,11 +739,14 @@ registerPoseUrl('bento-trabalhando', pose_bento_trabalhando)
 registerPoseUrl('capivara-acenando', pose_capivara_acenando)
 registerPoseUrl('capivara-aguardando-aprovacao', pose_capivara_aguardando_aprovacao)
 registerPoseUrl('capivara-aguardando-resposta', pose_capivara_aguardando_resposta)
+registerPoseUrl('capivara-comemorando', pose_capivara_comemorando)
 registerPoseUrl('capivara-descansando', pose_capivara_descansando)
 registerPoseUrl('capivara-disponivel-blink', pose_capivara_disponivel_blink)
 registerPoseUrl('capivara-disponivel-tail', pose_capivara_disponivel_tail)
 registerPoseUrl('capivara-disponivel', pose_capivara_disponivel)
 registerPoseUrl('capivara-erro', pose_capivara_erro)
+registerPoseUrl('capivara-fora-ate-candidato', pose_capivara_fora_ate_candidato)
+registerPoseUrl('capivara-fora-ate', pose_capivara_fora_ate)
 registerPoseUrl('capivara-offline', pose_capivara_offline)
 registerPoseUrl('capivara-pensando-1', pose_capivara_pensando_1)
 registerPoseUrl('capivara-pensando-2', pose_capivara_pensando_2)
@@ -706,6 +756,7 @@ registerPoseUrl('capivara-trabalhando', pose_capivara_trabalhando)
 registerPoseUrl('cervo-acenando', pose_cervo_acenando)
 registerPoseUrl('cervo-aguardando-aprovacao', pose_cervo_aguardando_aprovacao)
 registerPoseUrl('cervo-aguardando-resposta', pose_cervo_aguardando_resposta)
+registerPoseUrl('cervo-comemorando', pose_cervo_comemorando)
 registerPoseUrl('cervo-descansando', pose_cervo_descansando)
 registerPoseUrl('cervo-disponivel-blink', pose_cervo_disponivel_blink)
 registerPoseUrl('cervo-disponivel-tail', pose_cervo_disponivel_tail)
@@ -720,6 +771,7 @@ registerPoseUrl('cervo-trabalhando', pose_cervo_trabalhando)
 registerPoseUrl('coelho-acenando', pose_coelho_acenando)
 registerPoseUrl('coelho-aguardando-aprovacao', pose_coelho_aguardando_aprovacao)
 registerPoseUrl('coelho-aguardando-resposta', pose_coelho_aguardando_resposta)
+registerPoseUrl('coelho-comemorando', pose_coelho_comemorando)
 registerPoseUrl('coelho-descansando', pose_coelho_descansando)
 registerPoseUrl('coelho-disponivel-blink', pose_coelho_disponivel_blink)
 registerPoseUrl('coelho-disponivel-tail', pose_coelho_disponivel_tail)
@@ -734,6 +786,7 @@ registerPoseUrl('coelho-trabalhando', pose_coelho_trabalhando)
 registerPoseUrl('coruja-acenando', pose_coruja_acenando)
 registerPoseUrl('coruja-aguardando-aprovacao', pose_coruja_aguardando_aprovacao)
 registerPoseUrl('coruja-aguardando-resposta', pose_coruja_aguardando_resposta)
+registerPoseUrl('coruja-comemorando', pose_coruja_comemorando)
 registerPoseUrl('coruja-descansando', pose_coruja_descansando)
 registerPoseUrl('coruja-disponivel-blink', pose_coruja_disponivel_blink)
 registerPoseUrl('coruja-disponivel-tail', pose_coruja_disponivel_tail)
@@ -748,6 +801,7 @@ registerPoseUrl('coruja-trabalhando', pose_coruja_trabalhando)
 registerPoseUrl('guaxinim-acenando', pose_guaxinim_acenando)
 registerPoseUrl('guaxinim-aguardando-aprovacao', pose_guaxinim_aguardando_aprovacao)
 registerPoseUrl('guaxinim-aguardando-resposta', pose_guaxinim_aguardando_resposta)
+registerPoseUrl('guaxinim-comemorando', pose_guaxinim_comemorando)
 registerPoseUrl('guaxinim-descansando', pose_guaxinim_descansando)
 registerPoseUrl('guaxinim-disponivel-blink', pose_guaxinim_disponivel_blink)
 registerPoseUrl('guaxinim-disponivel-tail', pose_guaxinim_disponivel_tail)
@@ -762,6 +816,7 @@ registerPoseUrl('guaxinim-trabalhando', pose_guaxinim_trabalhando)
 registerPoseUrl('lobo-guara-acenando', pose_lobo_guara_acenando)
 registerPoseUrl('lobo-guara-aguardando-aprovacao', pose_lobo_guara_aguardando_aprovacao)
 registerPoseUrl('lobo-guara-aguardando-resposta', pose_lobo_guara_aguardando_resposta)
+registerPoseUrl('lobo-guara-comemorando', pose_lobo_guara_comemorando)
 registerPoseUrl('lobo-guara-descansando', pose_lobo_guara_descansando)
 registerPoseUrl('lobo-guara-disponivel-blink', pose_lobo_guara_disponivel_blink)
 registerPoseUrl('lobo-guara-disponivel-tail', pose_lobo_guara_disponivel_tail)
@@ -776,6 +831,7 @@ registerPoseUrl('lobo-guara-trabalhando', pose_lobo_guara_trabalhando)
 registerPoseUrl('lontra-acenando', pose_lontra_acenando)
 registerPoseUrl('lontra-aguardando-aprovacao', pose_lontra_aguardando_aprovacao)
 registerPoseUrl('lontra-aguardando-resposta', pose_lontra_aguardando_resposta)
+registerPoseUrl('lontra-comemorando', pose_lontra_comemorando)
 registerPoseUrl('lontra-descansando', pose_lontra_descansando)
 registerPoseUrl('lontra-disponivel-blink', pose_lontra_disponivel_blink)
 registerPoseUrl('lontra-disponivel-tail', pose_lontra_disponivel_tail)
@@ -808,6 +864,7 @@ registerPoseUrl('luna-trabalhando', pose_luna_trabalhando)
 registerPoseUrl('mico-leao-dourado-acenando', pose_mico_leao_dourado_acenando)
 registerPoseUrl('mico-leao-dourado-aguardando-aprovacao', pose_mico_leao_dourado_aguardando_aprovacao)
 registerPoseUrl('mico-leao-dourado-aguardando-resposta', pose_mico_leao_dourado_aguardando_resposta)
+registerPoseUrl('mico-leao-dourado-comemorando', pose_mico_leao_dourado_comemorando)
 registerPoseUrl('mico-leao-dourado-descansando', pose_mico_leao_dourado_descansando)
 registerPoseUrl('mico-leao-dourado-disponivel-blink', pose_mico_leao_dourado_disponivel_blink)
 registerPoseUrl('mico-leao-dourado-disponivel-tail', pose_mico_leao_dourado_disponivel_tail)
@@ -840,6 +897,7 @@ registerPoseUrl('nina-trabalhando', pose_nina_trabalhando)
 registerPoseUrl('ourico-acenando', pose_ourico_acenando)
 registerPoseUrl('ourico-aguardando-aprovacao', pose_ourico_aguardando_aprovacao)
 registerPoseUrl('ourico-aguardando-resposta', pose_ourico_aguardando_resposta)
+registerPoseUrl('ourico-comemorando', pose_ourico_comemorando)
 registerPoseUrl('ourico-descansando', pose_ourico_descansando)
 registerPoseUrl('ourico-disponivel-blink', pose_ourico_disponivel_blink)
 registerPoseUrl('ourico-disponivel-tail', pose_ourico_disponivel_tail)
@@ -854,6 +912,7 @@ registerPoseUrl('ourico-trabalhando', pose_ourico_trabalhando)
 registerPoseUrl('panda-acenando', pose_panda_acenando)
 registerPoseUrl('panda-aguardando-aprovacao', pose_panda_aguardando_aprovacao)
 registerPoseUrl('panda-aguardando-resposta', pose_panda_aguardando_resposta)
+registerPoseUrl('panda-comemorando', pose_panda_comemorando)
 registerPoseUrl('panda-descansando', pose_panda_descansando)
 registerPoseUrl('panda-disponivel-blink', pose_panda_disponivel_blink)
 registerPoseUrl('panda-disponivel-tail', pose_panda_disponivel_tail)
@@ -868,6 +927,7 @@ registerPoseUrl('panda-trabalhando', pose_panda_trabalhando)
 registerPoseUrl('raposa-acenando', pose_raposa_acenando)
 registerPoseUrl('raposa-aguardando-aprovacao', pose_raposa_aguardando_aprovacao)
 registerPoseUrl('raposa-aguardando-resposta', pose_raposa_aguardando_resposta)
+registerPoseUrl('raposa-comemorando', pose_raposa_comemorando)
 registerPoseUrl('raposa-descansando', pose_raposa_descansando)
 registerPoseUrl('raposa-disponivel-blink', pose_raposa_disponivel_blink)
 registerPoseUrl('raposa-disponivel-tail', pose_raposa_disponivel_tail)
@@ -900,6 +960,7 @@ registerPoseUrl('sol-trabalhando', pose_sol_trabalhando)
 registerPoseUrl('tamandua-acenando', pose_tamandua_acenando)
 registerPoseUrl('tamandua-aguardando-aprovacao', pose_tamandua_aguardando_aprovacao)
 registerPoseUrl('tamandua-aguardando-resposta', pose_tamandua_aguardando_resposta)
+registerPoseUrl('tamandua-comemorando', pose_tamandua_comemorando)
 registerPoseUrl('tamandua-descansando', pose_tamandua_descansando)
 registerPoseUrl('tamandua-disponivel-blink', pose_tamandua_disponivel_blink)
 registerPoseUrl('tamandua-disponivel-tail', pose_tamandua_disponivel_tail)
@@ -914,6 +975,7 @@ registerPoseUrl('tamandua-trabalhando', pose_tamandua_trabalhando)
 registerPoseUrl('tucano-acenando', pose_tucano_acenando)
 registerPoseUrl('tucano-aguardando-aprovacao', pose_tucano_aguardando_aprovacao)
 registerPoseUrl('tucano-aguardando-resposta', pose_tucano_aguardando_resposta)
+registerPoseUrl('tucano-comemorando', pose_tucano_comemorando)
 registerPoseUrl('tucano-descansando', pose_tucano_descansando)
 registerPoseUrl('tucano-disponivel-blink', pose_tucano_disponivel_blink)
 registerPoseUrl('tucano-disponivel-tail', pose_tucano_disponivel_tail)
@@ -951,6 +1013,7 @@ export const NAV_ICONS = {
   'uso-e-limites': nav_uso_e_limites,
   'visao-geral': nav_visao_geral,
   'ajudou': nav_ajudou,
+  'antes-depois-alca': nav_antes_depois_alca,
   'assumir-controle': nav_assumir_controle,
   'atalho': nav_atalho,
   'atencao': nav_atencao,
@@ -958,11 +1021,14 @@ export const NAV_ICONS = {
   'bom-dia': nav_bom_dia,
   'caminho': nav_caminho,
   'citar': nav_citar,
+  'cursor-lapis': nav_cursor_lapis,
   'desfazer': nav_desfazer,
   'direcionar': nav_direcionar,
   'ensinar': nav_ensinar,
   'entregou': nav_entregou,
   'fila': nav_fila,
+  'giro-manha-claro': nav_giro_manha_claro,
+  'giro-manha-noite': nav_giro_manha_noite,
   'gostei': nav_gostei,
   'lado': nav_lado,
   'mover-assunto': nav_mover_assunto,
@@ -1108,6 +1174,7 @@ export const ACCENTS: Readonly<Record<string, string>> = {
   'doodle-circle': accent_doodle_circle,
   'leaf-1': accent_leaf_1,
   'leaf-2': accent_leaf_2,
+  'patinhas-trilha-64': accent_patinhas_trilha_64,
   'paw-prints': accent_paw_prints,
   'paw-trail': accent_paw_trail,
   'sparkle-1': accent_sparkle_1,
@@ -1138,13 +1205,17 @@ export const STICKERS: Readonly<Record<string, string>> = {
   'bento-pensando': sticker_bento_pensando,
   'bento-rindo': sticker_bento_rindo,
   'capivara-ate-amanha': sticker_capivara_ate_amanha,
+  'capivara-boa-ideia': sticker_capivara_boa_ideia,
   'capivara-bom-dia': sticker_capivara_bom_dia,
+  'capivara-combinado': sticker_capivara_combinado,
   'capivara-comemorando': sticker_capivara_comemorando,
   'capivara-coracao': sticker_capivara_coracao,
   'capivara-feito': sticker_capivara_feito,
   'capivara-joinha': sticker_capivara_joinha,
+  'capivara-obrigada': sticker_capivara_obrigada,
   'capivara-pensando': sticker_capivara_pensando,
   'capivara-rindo': sticker_capivara_rindo,
+  'capivara-uau': sticker_capivara_uau,
   'cervo-ate-amanha': sticker_cervo_ate_amanha,
   'cervo-bom-dia': sticker_cervo_bom_dia,
   'cervo-comemorando': sticker_cervo_comemorando,
@@ -1273,6 +1344,9 @@ export const ILLUSTRATIONS: Readonly<Record<string, string>> = {
   'team-banner-dark': ill_team_banner_dark,
   'rail-foliage-light': ill_rail_foliage_light,
   'rail-foliage-dark': ill_rail_foliage_dark,
+  'rail-foliage-dark-off': ill_rail_foliage_dark_off,
+  'onboarding-porta-dia': ill_onboarding_porta_dia,
+  'onboarding-porta-noite': ill_onboarding_porta_noite,
   'empty-col-todo': ill_empty_col_todo,
   'empty-col-doing': ill_empty_col_doing,
   'empty-col-review': ill_empty_col_review,
@@ -1299,6 +1373,7 @@ export const ILLUSTRATIONS: Readonly<Record<string, string>> = {
   'sucesso-skill-aprendida': ill_sucesso_skill_aprendida,
   'sucesso-convite-aceito': ill_sucesso_convite_aceito,
   'sucesso-equipe-chegou': ill_sucesso_equipe_chegou,
+  'ligar-ia-equipe': ill_ligar_ia_equipe,
   'spot-limite': ill_spot_limite,
   'spot-ajuda-conectar-ia': ill_spot_ajuda_conectar_ia,
   'spot-ajuda-contratar': ill_spot_ajuda_contratar,
@@ -1323,9 +1398,28 @@ export const ILLUSTRATIONS: Readonly<Record<string, string>> = {
   'empty-error': ill_empty_error,
   'empty-dm': ill_empty_dm,
   'empty-sem-ia': ill_empty_sem_ia,
+  'empty-sem-arquivos': ill_empty_sem_arquivos,
+  'empty-regras-da-casa': ill_empty_regras_da_casa,
+  'empty-memoria-resumo': ill_empty_memoria_resumo,
+  'empty-primeiro-projeto': ill_empty_primeiro_projeto,
+  'empty-uso-indisponivel': ill_empty_uso_indisponivel,
+  'empty-seus-numeros': ill_empty_seus_numeros,
+  'empty-conversa-tarefa': ill_empty_conversa_tarefa,
   'empty-dm-noite': ill_empty_dm_noite,
   'empty-aprovacoes-noite': ill_empty_aprovacoes_noite,
   'empty-geral-noite': ill_empty_geral_noite,
+  'empty-regras-da-casa-noite': ill_empty_regras_da_casa_noite,
+  'empty-kanban-noite': ill_empty_kanban_noite,
+  'empty-routines-noite': ill_empty_routines_noite,
+  'empty-connections-noite': ill_empty_connections_noite,
+  'empty-search-noite': ill_empty_search_noite,
+  'empty-sem-arquivos-noite': ill_empty_sem_arquivos_noite,
+  'empty-primeiro-projeto-noite': ill_empty_primeiro_projeto_noite,
+  'empty-equipe-remota-noite': ill_empty_equipe_remota_noite,
+  'empty-uso-indisponivel-noite': ill_empty_uso_indisponivel_noite,
+  'empty-memoria-resumo-noite': ill_empty_memoria_resumo_noite,
+  'empty-seus-numeros-noite': ill_empty_seus_numeros_noite,
+  'stamp-primeira-entrega': ill_stamp_primeira_entrega,
   'channel-marketing': ill_channel_marketing,
   'channel-atendimento': ill_channel_atendimento,
   'channel-financeiro': ill_channel_financeiro,

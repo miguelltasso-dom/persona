@@ -34,6 +34,7 @@ import type {
 import { runnerLabel } from '../team/engine-label.ts'
 import { accountPolicyToRunnerSwapPolicy, runnerSwapPolicyToAccountPolicy } from './connection-swap-policy-map.ts'
 import { EngineBrandIcon } from './engine-brand-icon.tsx'
+import { EngineCapabilityChip, EngineCapabilityNote } from './engine-capability.tsx'
 import { resolvePersonaFace } from '../approvals/approvals-ui-helpers.ts'
 import { AddAccountDialog, RemoveAccountDialog, RenameAccountDialog } from './AccountDialogs.tsx'
 
@@ -41,6 +42,8 @@ export type ConnectionsSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
 
 function accountState(entry: Pick<ConnectionEntry, 'status' | 'errorCode'>): AccountState {
   if (entry.errorCode === 'quota_exhausted') return 'limit'
+  if (entry.status === 'unconfirmed') return 'unconfirmed'
+  if (entry.status === 'checking') return 'checking'
   if (entry.status === 'missing') return 'checking'
   if (entry.status === 'expired' || entry.errorCode === 'not_logged_in') return 'login'
   if (entry.status === 'ready') return 'ready'
@@ -96,6 +99,13 @@ function accountCount(ui: ConnectionsAccountsUi): number {
   return ui.groups.reduce((sum, g) => sum + g.accounts.length, 0)
 }
 
+/** Ids crus que o host manda como nome da conta padrão viram nome humano (Muse §5.2 #12). Match exato: um nome que o usuário digitou fica como está. */
+function accountDisplayLabel(label: string, t: (key: string) => string): string {
+  if (label === 'claude') return t('account.label.claude')
+  if (label === 'dsh') return t('account.label.dsh')
+  return label
+}
+
 /** The three choices offered (D-078), in this order. `round_robin` is no longer offered; a host that still reports it gets a note. */
 const OFFERED_POLICIES: readonly AccountPolicy[] = ['ask', 'next_on_limit', 'fixed']
 
@@ -135,6 +145,8 @@ export interface ConnectionsViewProps {
   readonly onOpenGuide?: (() => void) | undefined
   /** "Ver uso e cotas" on a seat that ran out. */
   readonly onOpenUsage?: (() => void) | undefined
+  /** Harvest 19b: the inbox rule card (built by the panel; absent = no card). */
+  readonly emailRule?: ReactNode | undefined
 }
 
 /** CLI connection list. */
@@ -154,6 +166,7 @@ export function ConnectionsView({
   onRecheck,
   onOpenGuide,
   onOpenUsage,
+  emailRule,
 }: ConnectionsViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string>>) => bindLocale(dict, key, params)
   const [surfaceState, setSurfaceState] = useState(initialState)
@@ -311,86 +324,85 @@ export function ConnectionsView({
       />
     )
   } else {
+    const policyCard = (
+      <Card padding="l" className={styles.policyCard}>
+        {ui.legacySingleSeat && (
+          <Notice tone="info">{t('swapPolicy.pendingHost')}</Notice>
+        )}
+        {/* What happens when nobody chose: the Persona asks (D-078). Said once, above the choices. */}
+        <p className={styles.sectionHint}>{t('swapPolicy.hint')}</p>
+        <Tabs
+          idPrefix={`${policyCardId}-scope`}
+          label={t('swapPolicy.scopeLabel')}
+          value={scopeDraft}
+          onChange={(next) => { setScopeDraft(next); setPolicyNote(null) }}
+          items={[
+            { id: 'workspace', label: t('swapPolicy.scope.workspace') },
+            { id: 'persona', label: t('swapPolicy.scope.persona') },
+          ]}
+        />
+        {scopeDraft === 'persona' && (
+          personas.length === 0 ? (
+            <p className={styles.sectionHint}>{t('swapPolicy.noPersonas')}</p>
+          ) : (
+            <fieldset className={styles.personaPicker} disabled={policyDisabled || policyBusy}>
+              <legend className={styles.personaLegend}>{t('swapPolicy.personaLabel')}</legend>
+              <div className={styles.personaOptions}>
+                {personas.map((row) => {
+                  const checked = selectedPersona?.id === row.id
+                  const src = resolvePersonaFace({ id: row.id, characterId: row.characterId, name: row.name })
+                  return (
+                    <label key={row.id} className={styles.personaOption} data-checked={checked ? '' : undefined}>
+                      <input
+                        type="radio"
+                        className="persona-sr-only"
+                        name={`${policyCardId}-persona`}
+                        value={row.id}
+                        checked={checked}
+                        onChange={() => { setPersonaId(row.id); setPolicyNote(null) }}
+                      />
+                      <Avatar name={row.name} {...(src === undefined ? {} : { src })} size={32} decorative />
+                      <span>{row.name}</span>
+                    </label>
+                  )
+                })}
+              </div>
+              {selectedPersona !== undefined && (
+                <p className={styles.sectionHint}>
+                  {selectedHasOwnRule
+                    ? t('swapPolicy.personaOwn', { name: selectedPersona.name })
+                    : t('swapPolicy.personaFollowsTeam', { name: selectedPersona.name })}
+                </p>
+              )}
+            </fieldset>
+          )
+        )}
+        {(scopeDraft === 'workspace' || selectedPersona !== undefined) && shownPolicy === 'split_balance' && (
+          <p className={styles.sectionHint}>{t('swapPolicy.legacyRule')}</p>
+        )}
+        {(scopeDraft === 'workspace' || selectedPersona !== undefined) && (
+          <AccountPolicyPicker
+            legend={t('accountPolicy.legend')}
+            policies={OFFERED_POLICIES}
+            name={`${policyCardId}-policy-${scopeDraft}-${selectedPersona?.id ?? 'team'}`}
+            value={shownPolicy === 'split_balance' ? undefined : shownPolicy}
+            disabled={policyDisabled || policyBusy}
+            copy={policyCopy}
+            onChange={savePolicy}
+          />
+        )}
+        <p
+          className={policyNote?.tone === 'error' ? styles.policyError : styles.policyOk}
+          aria-live="polite"
+        >
+          {policyNote?.text ?? ''}
+        </p>
+      </Card>
+    )
     body = (
       <>
         <p className={styles.note}>{t('valueFirst.note')}</p>
         <Notice tone="info">{t('wave2.termsNotice')}</Notice>
-
-        <Card padding="l" className={styles.policyCard}>
-          {ui.legacySingleSeat && (
-            <Notice tone="info">{t('swapPolicy.pendingHost')}</Notice>
-          )}
-          {/* What happens when nobody chose: the Persona asks (D-078). Said once, above the choices. */}
-          <p className={styles.sectionHint}>{t('swapPolicy.hint')}</p>
-          <Tabs
-            idPrefix={`${policyCardId}-scope`}
-            label={t('swapPolicy.scopeLabel')}
-            value={scopeDraft}
-            onChange={(next) => { setScopeDraft(next); setPolicyNote(null) }}
-            items={[
-              { id: 'workspace', label: t('swapPolicy.scope.workspace') },
-              { id: 'persona', label: t('swapPolicy.scope.persona') },
-            ]}
-          />
-          {scopeDraft === 'persona' && (
-            personas.length === 0 ? (
-              <p className={styles.sectionHint}>{t('swapPolicy.noPersonas')}</p>
-            ) : (
-              <fieldset className={styles.personaPicker} disabled={policyDisabled || policyBusy}>
-                <legend className={styles.personaLegend}>{t('swapPolicy.personaLabel')}</legend>
-                <div className={styles.personaOptions}>
-                  {personas.map((row) => {
-                    const checked = selectedPersona?.id === row.id
-                    const src = resolvePersonaFace({ id: row.id, characterId: row.characterId, name: row.name })
-                    return (
-                      <label key={row.id} className={styles.personaOption} data-checked={checked ? '' : undefined}>
-                        <input
-                          type="radio"
-                          className="persona-sr-only"
-                          name={`${policyCardId}-persona`}
-                          value={row.id}
-                          checked={checked}
-                          onChange={() => { setPersonaId(row.id); setPolicyNote(null) }}
-                        />
-                        <Avatar name={row.name} {...(src === undefined ? {} : { src })} size={32} decorative />
-                        <span>{row.name}</span>
-                      </label>
-                    )
-                  })}
-                </div>
-                {selectedPersona !== undefined && (
-                  <p className={styles.sectionHint}>
-                    {selectedHasOwnRule
-                      ? t('swapPolicy.personaOwn', { name: selectedPersona.name })
-                      : t('swapPolicy.personaFollowsTeam', { name: selectedPersona.name })}
-                  </p>
-                )}
-              </fieldset>
-            )
-          )}
-          {(scopeDraft === 'workspace' || selectedPersona !== undefined) && shownPolicy === 'split_balance' && (
-            <p className={styles.sectionHint}>{t('swapPolicy.legacyRule')}</p>
-          )}
-          {(scopeDraft === 'workspace' || selectedPersona !== undefined) && (
-            <AccountPolicyPicker
-              legend={t('accountPolicy.legend')}
-              policies={OFFERED_POLICIES}
-              name={`${policyCardId}-policy-${scopeDraft}-${selectedPersona?.id ?? 'team'}`}
-              value={shownPolicy === 'split_balance' ? undefined : shownPolicy}
-              recommended="ask"
-              recommendedLabel={t('accountPolicy.recommended')}
-              disabled={policyDisabled || policyBusy}
-              copy={policyCopy}
-              onChange={savePolicy}
-            />
-          )}
-          <p
-            className={policyNote?.tone === 'error' ? styles.policyError : styles.policyOk}
-            aria-live="polite"
-          >
-            {policyNote?.text ?? ''}
-          </p>
-        </Card>
 
         <div className={styles.providerList}>
           {ui.groups.map(group => (
@@ -400,12 +412,14 @@ export function ConnectionsView({
                   <EngineBrandIcon engineId={group.provider} size={44} />
                 </span>
                 <h3 className={styles.providerName}>{group.providerName}</h3>
+                <EngineCapabilityChip provider={group.provider} t={t} />
                 {onOpenGuide !== undefined && (
                   <Button size="s" variant="ghost" className={styles.learnLink} onClick={onOpenGuide}>
                     {t('action.learn')}
                   </Button>
                 )}
               </div>
+              <EngineCapabilityNote provider={group.provider} t={t} />
               <AccountList label={group.providerName}>
                 {group.accounts.map((entry) => {
                   const state = accountState(entry)
@@ -431,7 +445,10 @@ export function ConnectionsView({
                   }
                   let action: { label: string; onClick: () => void } | undefined
                   const seatCommand = entry.loginCommand ?? entry.copyCommand
-                  if (seatCommand !== undefined) {
+                  if (state === 'unconfirmed' && onRecheck !== undefined) {
+                    // Item 13: "Claude · não consegui conferir" tem UMA ação, "Tentar de novo" (o host esquece as checagens estouradas e confere de novo).
+                    action = { label: t('action.retryCheck'), onClick: () => { startRecheck(group.provider, group.providerName) } }
+                  } else if (seatCommand !== undefined) {
                     action = {
                       label: copiedId === entry.id ? t('action.copied') : t('action.copyCommand'),
                       onClick: () => {
@@ -451,13 +468,13 @@ export function ConnectionsView({
                   return (
                     <AccountRow
                       key={entry.id}
-                      label={entry.accountLabel}
+                      label={accountDisplayLabel(entry.accountLabel, t)}
                       providerName={group.providerName}
                       state={state}
                       stateText={t(statusTextKey(entry))}
                       {...(action === undefined ? {} : { action })}
                       {...(entry.quota === undefined ? {} : { quota: entry.quota })}
-                      labels={accountRowLabels(group.providerName, entry.accountLabel)}
+                      labels={accountRowLabels(group.providerName, accountDisplayLabel(entry.accountLabel, t))}
                       inUse={entry.inUseCount !== undefined && entry.inUseCount > 0}
                       {...(menu.length === 0 ? {} : { menu })}
                     />
@@ -493,6 +510,18 @@ export function ConnectionsView({
             </Card>
           ))}
         </div>
+        {emailRule !== undefined && (
+          <details className={styles.emailRuleDetails}>
+            <summary className={styles.policySummary}>{t('emailRule.legend')}</summary>
+            {emailRule}
+          </details>
+        )}
+        {accountCount(ui) <= 1 ? (
+          <details className={styles.policyDetails}>
+            <summary className={styles.policySummary}>{t('accountPolicy.legend')}</summary>
+            {policyCard}
+          </details>
+        ) : policyCard}
       </>
     )
   }

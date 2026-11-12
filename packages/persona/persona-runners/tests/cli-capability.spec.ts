@@ -11,7 +11,7 @@ const NEEDED = { PERSONA_CLI_ENV: 'needed' }
 
 describe('cliCapabilityReport: one honest row per CLI', () => {
   it('Claude in the end-state mode: connectors chosen per request, skills by option, the preview proven with a hook', () => {
-    expect(cliCapabilityReport('claude', NEEDED)).toEqual({ level: 'full', notIsolated: [], connectors: 'selected', skills: 'optional', permissionPreview: 'hook' })
+    expect(cliCapabilityReport('claude', NEEDED)).toEqual({ level: 'full', notIsolated: [], connectors: 'selected', skills: 'optional', permissionPreview: 'hook', connectorActions: 'gated' })
   })
 
   it('Claude today (answer-only default or native): tasks run native, so everything is loaded and the screen says so', () => {

@@ -13,6 +13,10 @@ export interface ApprovalItem {
   readonly title: string
   readonly question: string
   readonly primaryKey: string
+  /** Item 16: the label of the "no" button when it is not the generic "Dispensar" (a quiet-playbook offer says "Agora não"). */
+  readonly dismissKey?: string
+  /** Item 16: the word on the stamp after "yes" when it is not the generic "Aprovado" ("Virou skill"). */
+  readonly stampKey?: string
   readonly hireProposal?: PersonaProposal
   readonly proposerName?: string
   readonly proposerPersonaId?: string

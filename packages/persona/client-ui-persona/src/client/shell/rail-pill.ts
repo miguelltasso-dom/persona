@@ -1,4 +1,5 @@
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
+import { runnerLabel } from '../team/engine-label.ts'
 import { railAiNeedsWarning, type RailAiStatus } from './rail-ai-status.ts'
 
 type ShellT = PropsLocale<'persona.shell'>['t']
@@ -20,15 +21,22 @@ export interface RailPillInput {
   readonly ai: RailAiStatus | undefined
 }
 
-/** O texto do estado da IA sozinho ("Claude · 82% livre"); `null` quando ainda não há o que dizer. */
+/** O motor que a pílula nomeia quando o host ainda não disse qual é (1ª leitura): o padrão do produto. */
+const DEFAULT_ENGINE_LABEL = runnerLabel('claude')
+
+/**
+ * O texto do estado da IA sozinho; `null` quando ainda não há o que dizer. Muse §1.0.2: o travessão nunca aparece.
+ * "Claude · 82% livre" | "Claude · pronto" (sem cota publicada) | "Claude · no limite" (parado no limite, sem número) |
+ * "Claude · conectando…" | "Claude · sem login" | "Sem IA conectada · Conectar" (nenhum motor instalado).
+ */
 export function railAiText(t: ShellT, ai: RailAiStatus | undefined): string | null {
   if (ai === undefined) return null
-  if (ai.kind === 'checking') return t('rail.ai.checking')
-  if (ai.kind === 'unavailable') return t('rail.ai.none')
+  if (ai.kind === 'checking') return t('rail.ai.connecting', { engine: ai.engine ?? DEFAULT_ENGINE_LABEL })
+  if (ai.kind === 'unconfirmed') return t('rail.ai.unconfirmed', { engine: ai.engine ?? DEFAULT_ENGINE_LABEL })
+  if (ai.kind === 'unavailable') return ai.engine == null ? t('rail.ai.none') : t('rail.ai.noLogin', { engine: ai.engine })
   if (ai.engine === null) return t('overview.hostConnected')
-  return ai.freePct === null
-    ? t('rail.ai.noQuota', { engine: ai.engine })
-    : t('rail.ai.free', { engine: ai.engine, pct: String(ai.freePct) })
+  if (ai.freePct !== null) return t('rail.ai.free', { engine: ai.engine, pct: String(ai.freePct) })
+  return t(ai.limited ? 'rail.ai.limited' : 'rail.ai.ready', { engine: ai.engine })
 }
 
 /**
@@ -42,12 +50,13 @@ export function railAiHint(t: ShellT, ai: RailAiStatus | undefined): string | nu
 
 /** O texto da linha do popover: igual ao da pílula, menos o "· Conectar" que o botão ao lado já diz. */
 export function railAiRowText(t: ShellT, ai: RailAiStatus | undefined): string | null {
-  return ai?.kind === 'unavailable' ? t('rail.ai.noneLabel') : railAiText(t, ai)
+  return ai?.kind === 'unavailable' && ai.engine == null ? t('rail.ai.noneLabel') : railAiText(t, ai)
 }
 
 /**
- * O que a pílula do rodapé diz, um por vez (Muse, A-5): equipe fora do ar > "Fora até" > "Sem IA conectada · Conectar"
- * (warning) > "Conferindo a IA…" > "{motor} · {n}% livre". Abaixo de 20% livre o ponto vira âmbar com o mesmo texto.
+ * O que a pílula do rodapé diz, um por vez (Muse, A-5): equipe fora do ar > "Fora até" > "{motor} · sem login" / "Sem IA conectada ·
+ * Conectar" (warning) > "{motor} · conectando…" > "{motor} · {n}% livre" ou "{motor} · pronto". Abaixo de 20% livre o ponto vira
+ * âmbar com o mesmo texto.
  */
 export function deriveRailPill({ t, hostStatus, awayText, ai }: RailPillInput): RailPill {
   if (hostStatus === 'offline') return { text: t('overview.hostOffline'), tone: 'offline' }
@@ -56,6 +65,6 @@ export function deriveRailPill({ t, hostStatus, awayText, ai }: RailPillInput): 
   const text = railAiText(t, ai)
   if (ai === undefined || text === null) return { text: t('overview.hostConnected'), tone: 'online' }
   if (railAiNeedsWarning(ai)) return { text, tone: 'warning' }
-  if (ai.kind === 'checking') return { text, tone: 'pending' }
+  if (ai.kind === 'checking' || ai.kind === 'unconfirmed') return { text, tone: 'pending' }
   return { text, tone: 'online' }
 }

@@ -26,7 +26,7 @@ export function mockOrgChart(workspaceId: string, groupBy: 'person' | 'sector'):
     return {
       workspaceId,
       groupBy,
-      rightHand: { id: 'p-lodi', name: 'Lodi', role: 'Coordenação', characterId: 'sol', state: 'working' },
+      rightHand: { id: 'p-lena', name: 'Lena', role: 'Coordenação', characterId: 'sol', state: 'working' },
       rightHandCaption: 'seu braço direito',
       personaCount: personas.length + 1,
       humanCount: 4,
@@ -43,7 +43,7 @@ export function mockOrgChart(workspaceId: string, groupBy: 'person' | 'sector'):
   return {
     workspaceId,
     groupBy,
-    rightHand: { id: 'p-lodi', name: 'Lodi', role: 'Coordenação', characterId: 'sol', state: 'working' },
+    rightHand: { id: 'p-lena', name: 'Lena', role: 'Coordenação', characterId: 'sol', state: 'working' },
     rightHandCaption: 'seu braço direito',
     personaCount: personas.length + 1,
     humanCount: 9,

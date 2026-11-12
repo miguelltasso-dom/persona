@@ -5,6 +5,7 @@
 import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FoliageLampHalo } from '../src/client/shell/FoliageLampHalo.tsx'
+import { readFileSync } from 'node:fs'
 import {
   FOLIAGE_LAMP_CENTER,
   HALO_SIZE,
@@ -115,5 +116,25 @@ describe('a origem da luz do chat sai do halo', () => {
     const element = { left: 320, top: 700, width: 160, height: 40 }
     // mais perto da luminária real: mais luz do que com a origem fixa 110 px à esquerda
     expect(litFor(box, element, { x: 330, y: 720 })).toBeGreaterThan(litFor(box, element))
+  })
+})
+
+// Uau 5 (Muse 11/11): o halo acompanha o acender da luminária. O jsdom não pinta; a regra que o navegador aplica é verificada aqui.
+
+
+const sidebarCss = readFileSync('packages/persona/client-ui-persona/src/client/shell/PersonaSidebar.module.css', 'utf8')
+
+describe('o halo acompanha o acender da luminária (Uau 5)', () => {
+  it('sobe 0 -> 1 em 420 ms, --ease-glow (a mesma curva da luminária, Muse 17:06), 1 vez, enquanto o FoliageLampOff está no DOM', () => {
+    expect(sidebarCss).toContain('haloLightUp')
+    expect(sidebarCss).toContain('haloLightUp 420ms var(--ease-glow) 1 forwards')
+    expect(sidebarCss).toContain('data-persona-foliage-dark-off')
+    expect(sidebarCss).toContain('from { opacity: 0; }')
+    expect(sidebarCss).toContain('to { opacity: 1; }')
+  })
+
+  it('em reduced-motion o halo não anima (nasce aceso)', () => {
+    expect(sidebarCss).toContain('@media (prefers-reduced-motion: reduce)')
+    expect(sidebarCss).toContain('animation: none;')
   })
 })

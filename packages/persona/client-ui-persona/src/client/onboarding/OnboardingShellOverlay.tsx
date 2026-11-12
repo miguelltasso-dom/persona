@@ -122,6 +122,12 @@ export function OnboardingShellOverlay({
   )
   const live = useLive(state => state)
   // Antes da 1ª resposta do host ninguém é "pronto": todos estão sendo verificados (o mock só vale sem host, ex.: preview).
+  // The ambient pause reads this full-screen scrim as "the shell is covered"; announce it on mount/unmount so the pause
+  // and the resume do not wait for the 1 s sync tick.
+  useEffect(() => {
+    window.dispatchEvent(new Event('persona:cover-change'))
+    return () => { window.dispatchEvent(new Event('persona:cover-change')) }
+  }, [])
   const [harnesses, setHarnesses] = useState<readonly HarnessRow[]>(checkingHarnessRows)
   const panelRef = useRef<HTMLDivElement>(null)
   useFocusTrap(panelRef, open)
@@ -330,7 +336,7 @@ export function OnboardingShellOverlay({
     : undefined
 
   return (
-    <div className={styles.scrim} role="presentation">
+    <div className={styles.scrim} role="presentation" data-persona-cover="">
       <div
         ref={panelRef}
         className={styles.panel}

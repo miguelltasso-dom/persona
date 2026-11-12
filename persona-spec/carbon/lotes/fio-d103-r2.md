@@ -1,0 +1,9 @@
+VEREDITO: AJUSTES
+
+1. **`fio-a-pill-light-zoom200.png` e `fio-a-pill-dark-zoom200.png`**
+   - **Problema:** A `200%` de zoom, a frase principal `"Téo ouviu Bia e Lia · 2 ajustes"` (`.pillText`, `flex: 1 1 auto; min-width: 0`) é esmagada até **`0px` de largura** e some completamente da pílula, sobrando apenas a miniatura, os dois chips (`1 Sugestão`, `1 Ponto de atenção`) e o chevron. Além disso, no escuro (`fio-a-pill-dark-*`), a miniatura paisagem dentro do quadrado `36×36` (`.pill` em `DraftFileThumb.module.css:62-72`) usa `object-fit: contain`, criando duas faixas escuras em cima e embaixo.
+   - **Correção:** Em `OpinionBlock.module.css`, declarar `container-type: inline-size` no wrapper da pílula e, abaixo de `480px` (ou via `flex-wrap: wrap` com `min-width: 14ch` em `.pillText`), quebrar `.pillMarks` para uma 2ª linha alinhada ao texto (`padding-left: calc(36px + var(--persona-space-3))`), garantindo que `"Téo ouviu Bia e Lia · 2 ajustes"` nunca desapareça. Em `DraftFileThumb.module.css:68`, trocar `.pill .image` para `object-fit: cover`.
+
+2. **`fio-e-engine-dialog-light-zoom200.png` e `fio-e-engine-dialog-dark-zoom200.png`**
+   - **Problema:** A `200%` de zoom (`@media (max-height: 520px)`), o cabeçalho e o rodapé do `Modal` consomem quase toda a altura da janela (`margin-top: var(--persona-space-6)` em `.modalBody` e `.modalFooter` + `mask-image` de `40px` em `Overlays.module.css:73,80,95,101`), sobrando uma fresta onde só aparece a palavra `"Modelo"` apagada pelo fade e nenhuma opção visível.
+   - **Correção:** Em `Overlays.module.css`, dentro de `@media (max-height: 520px)`, reduzir `margin-top` de `.modalBody` e `.modalFooter` para `var(--persona-space-2)` (`8px`), `padding-top` de `.modalFooter` para `var(--persona-space-3)` (`12px`) e a faixa transparente de `.modalBody[data-more]` de `40px` para `20px`, liberando altura útil para exibir opções reais na abertura.

@@ -4,6 +4,7 @@ import { AVATAR_96 } from '../assets/generated-imports.ts'
 import { Avatar, Button, Chip, Modal, Tooltip, UiIcon } from '../primitives/index.ts'
 import type { AutonomyLevel } from '../persona-editor/persona-draft.ts'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
+import type { ResponderEngine } from './responder-engine.ts'
 import { ComposerLimitsPanel } from './ComposerLimitsPanel.tsx'
 import { ENGINE_LIMITS_UNAVAILABLE, type EngineLimitsUi } from '../remote/engine-limits.ts'
 import { ComposerSlashMenu } from './ComposerSlashMenu.tsx'
@@ -77,6 +78,8 @@ export interface ChannelComposerProps extends PropsLocale<'persona.chat'> {
   readonly pendingQuote?: MessageQuote | null
   readonly onClearQuote?: (() => void) | undefined
   readonly responderAutonomy?: AutonomyLevel | undefined
+  /** DESIGN-01 #03: a pílula "Modelo · Esforço" da persona que responde (só com persona definida: na DM sempre; no #geral não quando a Coordenação distribui). Sem isto não há pílula. */
+  readonly responderEngine?: ResponderEngine | undefined
   /** O que cada comando "/" faz (P0-27). Sem handler o comando não aparece no menu; `/limites` é sempre do composer. */
   readonly slashActions?: ComposerSlashActions | undefined
   /** IV-4: limites REAIS do motor para o `/limites`; sem fonte, "—" e "Este motor não informa a cota." (nunca número de exemplo). */
@@ -164,6 +167,7 @@ export function ChannelComposer({
   pendingQuote = null,
   onClearQuote,
   responderAutonomy = 'propose',
+  responderEngine,
   slashActions,
   engineLimits,
   onOpenLimits,
@@ -245,6 +249,10 @@ export function ChannelComposer({
   const comingSoon = t('composer.comingSoon')
   const responderWorking = responding ?? responder?.state === 'working'
   const defaultId = defaultChannelResponderId(members)
+  // #03: só com uma persona DEFINIDA respondendo: na DM (seletor oculto) sempre; no #geral, não quando a Coordenação distribui (o padrão) nem com "Toda a equipe".
+  const engineLabel = responderEngine !== undefined && responder !== undefined && fanoutChoice === undefined && (responderHidden || responder.id !== defaultId)
+    ? responderEngine.label(responder.id)
+    : undefined
   const teamFaces = members.map(member => ({ id: member.id, name: member.name }))
   const menuItems = menuMode && menuOpen
     ? buildResponderItems({ members, defaultId, query: menuQuery, fanoutTeamCount: fanoutChoices?.teamCount })
@@ -1052,6 +1060,21 @@ export function ChannelComposer({
                 </button>
               )}
             </div>
+          )}
+          {engineLabel !== undefined && responderEngine !== undefined && responder !== undefined && (
+            <Tooltip content={t('composer.enginePill.tip', { name: responder.name })}>
+              <button
+                type="button"
+                className={styles.enginePill}
+                data-persona-composer-engine=""
+                aria-haspopup="dialog"
+                aria-label={t('composer.enginePill.label', { name: responder.name, config: engineLabel })}
+                onClick={() => { responderEngine.onOpen(responder.id) }}
+              >
+                {engineLabel}
+                <UiIcon name="chevronDown" size={12} strokeWidth={2.2} />
+              </button>
+            </Tooltip>
           )}
           {responderWorking && (
             // O relógio nunca fica solto: o tooltip diz o que ele faz (a dica de texto some a ≤ 1180 px).

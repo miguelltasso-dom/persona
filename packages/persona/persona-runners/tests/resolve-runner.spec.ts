@@ -108,6 +108,30 @@ describe('resolveRunner', () => {
     expect(records[0]?.kind).toBe('execution')
   })
 
+  it('holds OpenCode to its own permission block (D-103a)', async () => {
+    const seen: Array<Readonly<Record<string, string | null>> | undefined> = []
+    const base = sayingRuntime()
+    const runtime = {
+      ...base,
+      session: async (...args: Parameters<typeof base.session>) => {
+        seen.push(args[1]?.env)
+        return base.session(...args)
+      },
+    }
+    const runner = await resolveRunner({
+      spec: { kind: 'cli', cli: 'opencode', model: 'haiku' },
+      permissionMode: 'allow-once',
+      tools: { files: 'write' },
+      runtime,
+      infra: { wait: async () => undefined },
+    })
+    const handle = await runner.start({ ticketId: 't', assignmentId: 'a', personaId: 'nina', cwd: 'C:/tmp', prompt: 'hi', model: 'haiku' })
+    await collect(runner.stream(handle))
+    const content = seen[0]?.OPENCODE_CONFIG_CONTENT
+    expect(typeof content).toBe('string')
+    expect(JSON.parse(content ?? '{}')).toMatchObject({ permission: { bash: 'deny', edit: 'allow', external_directory: 'deny', webfetch: 'deny' } })
+  })
+
   it('writes measured usage into an injected UsageStore', async () => {
     const events: Array<{ personaId: string; projectId: string; origin: string; inputTokens: number }> = []
     const runner = await resolveRunner({

@@ -11,7 +11,9 @@ import { unwrapRemote } from '../data/remote-call.ts'
 import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
 import { useRemoteTenantGate } from '../data/use-remote-tenant-gate.ts'
 import { pt as kanbanDict } from '../locale/kanban/locales.ts'
+import { readLastProject, rememberLastProject, resolveCurrentProject } from '../kanban/current-project.ts'
 import { NewProjectFlowModal } from '../kanban/NewProjectFlowModal.tsx'
+import { ProjectFlowBoard } from '../kanban/ProjectFlowBoard.tsx'
 import type { ShellState } from '../shell/create-shell-store.ts'
 import type { PersonaLiveSnapshot } from './persona-live-store.ts'
 import { ConnectedProjectFlowBoard } from './ConnectedProjectFlowBoard.tsx'
@@ -24,9 +26,9 @@ import type { PersonaCardShellBridge } from './persona-card-shell-bridge.ts'
 export interface ConnectedKanbanInjected {
   readonly persona: PersonaRemoteClient
   readonly refreshKanban: () => Promise<void>
-  readonly navigateProjectTab: (tab: ProjectWorkspaceTab) => void
   readonly clearBoardsFocusProject: () => void
   readonly clearKanbanFocusTicket: () => void
+  /** The project of the moment: the Quadro, Arquivos and Canvas tabs of the place all read it. */
   readonly setProjectWorkspaceProjectId: (projectId: string | null) => void
   readonly hooks: {
     readonly live: HostObservable<PersonaLiveSnapshot>
@@ -35,21 +37,30 @@ export interface ConnectedKanbanInjected {
   }
   readonly personaCard?: PersonaCardShellBridge | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
-  /** Where a new task starts: the conversation with the team (the same door as "Nova tarefa" on Visão geral). */
-  readonly selectMainPanel?: ((panel: 'channels') => void) | undefined
+  /** Moves to another screen: the conversation with the team (where a new task starts), the board, or the grid of projects. */
+  readonly selectMainPanel?: ((panel: 'channels' | 'kanban' | 'projects') => void) | undefined
+  /** Which screen of the Projetos place this registration is: the board of the project of the moment (default) or the grid ("Ver todos os projetos"). */
+  readonly view?: 'board' | 'grid' | undefined
 }
 
 export type ConnectedGlobalKanbanProps = InjectFace<ConnectedKanbanInjected>
 
-type HubMode = 'grid' | 'global' | 'project'
+type GridMode = 'grid' | 'global'
 
-/** Quadros hub + per-project flow board (legacy slot key `kanban`). */
+/** How long the board of a project may take to mount before a requested card is given up on (a card focused from Ctrl K or "Ver no quadro"). */
+const FOCUS_CARD_POLL_MS = 100
+const FOCUS_CARD_MAX_TRIES = 30
+
+/**
+ * The Projetos place (DESIGN-01-MUSE §5.1 #10). With `view` "board" (the `kanban` panel) it opens on the board of the project of the moment (the
+ * last one used, or the only one) under a "Pessoal ▾" header; with `view` "grid" (the `projects` panel, reached by "Ver todos os projetos") it
+ * shows the cards of every project. Legacy slot key `kanban`.
+ */
 export function ConnectedGlobalKanban({
   persona,
   useLive,
   useTenant,
   refreshKanban,
-  navigateProjectTab,
   clearBoardsFocusProject,
   clearKanbanFocusTicket,
   setProjectWorkspaceProjectId,
@@ -57,40 +68,66 @@ export function ConnectedGlobalKanban({
   personaCard,
   openPersonaProfile,
   selectMainPanel,
+  view = 'board',
 }: ConnectedGlobalKanbanProps): ReactNode {
   const live = useLive(state => state)
   const boardsFocusProjectId = useShell(state => state.boardsFocusProjectId)
   const kanbanFocusTicketId = useShell(state => state.kanbanFocusTicketId)
+  const shellProjectId = useShell(state => state.projectWorkspaceProjectId)
   const { gate } = useRemoteTenantGate(useTenant)
-  const [mode, setMode] = useState<HubMode>('grid')
-  const [openProjectId, setOpenProjectId] = useState<string | null>(null)
-  const [projectWorkspaceTab, setProjectWorkspaceTab] = useState<ProjectWorkspaceTab>('board')
+  const [gridMode, setGridMode] = useState<GridMode>('grid')
+  const [boardView, setBoardView] = useState<ProjectWorkspaceTab>('board')
+  const [lastUsedId, setLastUsedId] = useState<string | null>(() => readLastProject())
   const [newProjectOpen, setNewProjectOpen] = useState(false)
   // Bumped after a project is created so the list (and each project's flow) is read again.
   const [boardsToken, setBoardsToken] = useState(0)
 
+  const currentProjectId = resolveCurrentProject({ projects: live.projects, shellProjectId, lastUsedId })
+
+  const selectProject = useCallback((projectId: string): void => {
+    rememberLastProject(projectId)
+    setLastUsedId(projectId)
+    setProjectWorkspaceProjectId(projectId)
+    setBoardView('board')
+  }, [setProjectWorkspaceProjectId])
+
+  // The tabs Arquivos and Canvas read the shell's project: keep it equal to what the board shows (also when it came from the last-used memory).
   useEffect(() => {
-    if (boardsFocusProjectId === null) return
-    setOpenProjectId(boardsFocusProjectId)
-    setProjectWorkspaceTab('board')
-    setMode('project')
-    clearBoardsFocusProject()
-  }, [boardsFocusProjectId, clearBoardsFocusProject])
+    if (view !== 'board' || currentProjectId === null || shellProjectId === currentProjectId) return
+    setProjectWorkspaceProjectId(currentProjectId)
+    rememberLastProject(currentProjectId)
+  }, [view, currentProjectId, shellProjectId, setProjectWorkspaceProjectId])
 
   useEffect(() => {
-    if (kanbanFocusTicketId === null) return
-    setMode('global')
+    if (boardsFocusProjectId === null) return
+    selectProject(boardsFocusProjectId)
+    clearBoardsFocusProject()
+  }, [boardsFocusProjectId, clearBoardsFocusProject, selectProject])
+
+  // A card asked for from elsewhere (Ctrl K, "Ver no quadro"): open the board of ITS project, then focus the card once the board has drawn it.
+  useEffect(() => {
+    if (kanbanFocusTicketId === null) return undefined
     const ticketId = kanbanFocusTicketId
-    const frame = window.requestAnimationFrame(() => {
+    const owner = live.kanbanCards.find(card => card.id === ticketId)?.projectId
+    if (owner !== undefined && owner !== '' && owner !== currentProjectId && live.projects.some(project => project.id === owner)) {
+      selectProject(owner)
+    }
+    setBoardView('board')
+    let tries = 0
+    const timer = window.setInterval(() => {
+      tries += 1
       const card = document.querySelector(`[data-persona-kanban-card="${CSS.escape(ticketId)}"]`)
       if (card instanceof HTMLElement) {
         card.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
         card.focus({ preventScroll: true })
       }
-      clearKanbanFocusTicket()
-    })
-    return () => { window.cancelAnimationFrame(frame) }
-  }, [kanbanFocusTicketId, clearKanbanFocusTicket, live.kanbanCards.length])
+      if (card instanceof HTMLElement || tries >= FOCUS_CARD_MAX_TRIES) {
+        window.clearInterval(timer)
+        clearKanbanFocusTicket()
+      }
+    }, FOCUS_CARD_POLL_MS)
+    return () => { window.clearInterval(timer) }
+  }, [kanbanFocusTicketId, clearKanbanFocusTicket, selectProject, live.kanbanCards.length])
 
   const tenantScope: ProjectScopeRequest | null = useMemo(() => {
     if (gate === 'loading' || gate === 'error') return null
@@ -102,8 +139,9 @@ export function ConnectedGlobalKanban({
     return unwrapRemote(await persona.listBoards(tenantScope))
   }, [persona, tenantScope?.workspaceId, tenantScope?.projectId])
 
+  // Only the grid needs the summaries of every project.
   const boardsListKey = tenantScope === null ? '' : `${tenantScope.workspaceId}:boards:${boardsToken}`
-  const { state: boardsState } = usePersonaRemoteLoad(tenantScope !== null, boardsListKey, listBoardsLoad)
+  const { state: boardsState } = usePersonaRemoteLoad(tenantScope !== null && view === 'grid', boardsListKey, listBoardsLoad)
 
   // The list says nothing about a project's flow: read it from each project's own board, so a tile never keeps the old label.
   const boardProjectIds = boardsState.status === 'ready' ? boardsState.data.map(row => row.projectId) : []
@@ -120,7 +158,7 @@ export function ConnectedGlobalKanban({
     }))
     return Object.fromEntries(pairs.filter((pair): pair is NonNullable<typeof pair> => pair !== null))
   }, [persona, tenantScope?.workspaceId, modelsKey])
-  const { state: modelsState } = usePersonaRemoteLoad(tenantScope !== null && boardsState.status === 'ready', modelsKey, loadModels)
+  const { state: modelsState } = usePersonaRemoteLoad(tenantScope !== null && view === 'grid' && boardsState.status === 'ready', modelsKey, loadModels)
 
   const kanbanScaleSeed = readKanbanScaleSeed()
   const displayKanbanCards = useMemo(() => (
@@ -148,129 +186,137 @@ export function ConnectedGlobalKanban({
   }, [boardsState, modelsState, live.projects, displayKanbanCards, live.nowRows])
 
   const projectScope: ProjectScopeRequest | null = useMemo(() => {
-    if (tenantScope === null || openProjectId === null) return null
-    return { workspaceId: tenantScope.workspaceId, projectId: openProjectId }
-  }, [tenantScope, openProjectId])
+    if (tenantScope === null || currentProjectId === null) return null
+    return { workspaceId: tenantScope.workspaceId, projectId: currentProjectId }
+  }, [tenantScope, currentProjectId])
 
   const projectHint = useMemo(() => {
-    if (openProjectId === null) return ''
-    const project = live.projects.find(row => row.id === openProjectId)
+    if (currentProjectId === null) return ''
+    const project = live.projects.find(row => row.id === currentProjectId)
     return project === undefined ? '' : `${project.name} ${project.kind}`.trim()
-  }, [live.projects, openProjectId])
+  }, [live.projects, currentProjectId])
 
-  const handleProjectWorkspaceTab = useCallback((tab: ProjectWorkspaceTab): void => {
-    if (tab === 'board' || tab === 'sprints' || tab === 'history') {
-      setProjectWorkspaceTab(tab)
-      setProjectWorkspaceProjectId(null)
-      return
-    }
-    if (openProjectId !== null) {
-      setProjectWorkspaceProjectId(openProjectId)
-    }
-    navigateProjectTab(tab)
-  }, [navigateProjectTab, openProjectId, setProjectWorkspaceProjectId])
+  const newProjectModal = newProjectOpen && tenantScope !== null && (
+    <NewProjectFlowModal
+      dict={kanbanDict}
+      onClose={() => { setNewProjectOpen(false) }}
+      onSelectTemplate={async (template, name) => {
+        // A NEW project with its own flow — never a new flow on the project the person already has.
+        const id = `proj-${crypto.randomUUID().slice(0, 8)}`
+        await unwrapRemote(await persona.createProject({
+          id,
+          workspaceId: tenantScope.workspaceId,
+          name,
+          description: '',
+          template,
+        }))
+        setNewProjectOpen(false)
+        setBoardsToken(token => token + 1)
+        await refreshKanban()
+        // The new project becomes the project of the moment and the person lands on its (empty) board.
+        selectProject(id)
+        selectMainPanel?.('kanban')
+      }}
+    />
+  )
 
   if (!live.ready || gate === 'loading') {
-    return (
+    return view === 'grid' ? (
       <BoardsHome
         dict={kanbanDict}
         summaries={[]}
         surfaceState="loading"
         onOpenProject={() => {}}
       />
-    )
-  }
-
-  if (mode === 'global') {
-    return (
-      <GlobalCategoryLanes
+    ) : (
+      <ProjectFlowBoard
         dict={kanbanDict}
-        summaries={summaries}
-        previewCards={displayKanbanCards}
-        onBack={() => { setMode('grid') }}
+        flow={{ projectId: '', projectName: kanbanDict['projects.switcher.title'], template: 'simples', columns: [], cards: [] }}
+        surfaceState="loading"
       />
     )
   }
 
-  if (mode === 'project' && projectScope !== null && projectWorkspaceTab === 'history') {
+  if (view === 'grid') {
+    if (gridMode === 'global') {
+      return (
+        <GlobalCategoryLanes
+          dict={kanbanDict}
+          summaries={summaries}
+          previewCards={displayKanbanCards}
+          onBack={() => { setGridMode('grid') }}
+        />
+      )
+    }
+    return (
+      <>
+        <BoardsHome
+          dict={kanbanDict}
+          summaries={summaries}
+          surfaceState="ready"
+          onOpenProject={(projectId) => {
+            selectProject(projectId)
+            selectMainPanel?.('kanban')
+          }}
+          onNewProject={() => { setNewProjectOpen(true) }}
+          onGlobalView={() => { setGridMode('global') }}
+          {...(selectMainPanel === undefined ? {} : { onCreateFirstTask: () => { selectMainPanel('channels') } })}
+        />
+        {newProjectModal}
+      </>
+    )
+  }
+
+  // No project yet: the place invites to create the first one.
+  if (currentProjectId === null || projectScope === null) {
+    return (
+      <>
+        <BoardsHome
+          dict={kanbanDict}
+          summaries={[]}
+          surfaceState="empty"
+          onOpenProject={() => {}}
+          onNewProject={() => { setNewProjectOpen(true) }}
+        />
+        {newProjectModal}
+      </>
+    )
+  }
+
+  if (boardView === 'history') {
     return (
       <ConnectedProjectHistory
         persona={persona}
         scope={projectScope}
         kanbanDict={kanbanDict}
         tasks={live.kanbanCards}
-        onBack={() => {
-          setOpenProjectId(null)
-          setProjectWorkspaceTab('board')
-          setProjectWorkspaceProjectId(null)
-          setMode('grid')
-        }}
-        onWorkspaceTabChange={handleProjectWorkspaceTab}
-      />
-    )
-  }
-
-  if (mode === 'project' && projectScope !== null) {
-    return (
-      <ConnectedProjectFlowBoard
-        persona={persona}
-        scope={projectScope}
-        projectHint={projectHint}
-        channelSubjects={live.channelSubjects}
-        workspaceTab={projectWorkspaceTab}
-        onBack={() => {
-          setOpenProjectId(null)
-          setProjectWorkspaceTab('board')
-          setProjectWorkspaceProjectId(null)
-          setMode('grid')
-        }}
-        onMutate={() => { void refreshKanban() }}
-        onWorkspaceTabChange={handleProjectWorkspaceTab}
-        {...(selectMainPanel === undefined ? {} : { onNewTask: () => { selectMainPanel('channels') } })}
-        {...(personaCard === undefined ? {} : { personaCard })}
-        {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
+        onBack={() => { setBoardView('board') }}
       />
     )
   }
 
   return (
     <>
-      <BoardsHome
-        dict={kanbanDict}
-        summaries={summaries}
-        surfaceState="ready"
-        onOpenProject={(projectId) => {
-          setOpenProjectId(projectId)
-          setProjectWorkspaceTab('board')
-          setMode('project')
+      <ConnectedProjectFlowBoard
+        persona={persona}
+        scope={projectScope}
+        projectHint={projectHint}
+        channelSubjects={live.channelSubjects}
+        workspaceTab={boardView}
+        onWorkspaceTabChange={setBoardView}
+        onMutate={() => { void refreshKanban() }}
+        switcher={{
+          projects: live.projects,
+          currentId: currentProjectId,
+          onSelect: selectProject,
+          onSeeAll: () => { selectMainPanel?.('projects') },
         }}
         onNewProject={() => { setNewProjectOpen(true) }}
-        onGlobalView={() => { setMode('global') }}
-        {...(selectMainPanel === undefined ? {} : { onCreateFirstTask: () => { selectMainPanel('channels') } })}
+        {...(selectMainPanel === undefined ? {} : { onNewTask: () => { selectMainPanel('channels') } })}
+        {...(personaCard === undefined ? {} : { personaCard })}
+        {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
       />
-      {newProjectOpen && tenantScope !== null && (
-        <NewProjectFlowModal
-          dict={kanbanDict}
-          onClose={() => { setNewProjectOpen(false) }}
-          onSelectTemplate={async (template, name) => {
-            // A NEW project with its own flow — never a new flow on the project the person already has.
-            const id = `proj-${crypto.randomUUID().slice(0, 8)}`
-            await unwrapRemote(await persona.createProject({
-              id,
-              workspaceId: tenantScope.workspaceId,
-              name,
-              description: '',
-              template,
-            }))
-            setNewProjectOpen(false)
-            setBoardsToken(token => token + 1)
-            await refreshKanban()
-            setOpenProjectId(id)
-            setProjectWorkspaceTab('board')
-            setMode('project')
-          }}
-        />
-      )}
+      {newProjectModal}
     </>
   )
 }

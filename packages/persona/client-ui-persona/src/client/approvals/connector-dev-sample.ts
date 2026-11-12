@@ -24,8 +24,12 @@ export function connectorDevSampleEnabled(): boolean {
 
 const ACTION_BASE = { items: [], count: 0, blind: false, requestedByPerson: false, status: 'pending' } as const
 
+/** COLHEITA 5: the deadlines of the examples, from the moment the sample loads (CAPTURES ONLY: "Vale até …", "Vence em …", "Passou do prazo"). */
+const inHours = (hours: number): string => new Date(Date.now() + hours * 3_600_000).toISOString()
+
 const EMAIL_PREVIEW: ActionPreviewUi = {
   ...ACTION_BASE,
+  expiresAt: inHours(6),
   approvalId: 'dev-action-email',
   actionClass: 'send',
   verb: 'email',
@@ -39,8 +43,38 @@ const EMAIL_PREVIEW: ActionPreviewUi = {
   body: 'Oi, Ana! Confirmo os 3 bolos de cenoura para sexta, com retirada às 9h.\nSe precisar mudar o horário, é só me avisar por aqui.\nUm abraço, Nina.',
 }
 
+const DELETE_PREVIEW: ActionPreviewUi = {
+  ...ACTION_BASE,
+  expiresAt: inHours(20),
+  approvalId: 'dev-action-delete',
+  actionClass: 'delete',
+  verb: 'delete',
+  connectorName: 'Drive',
+  personaId: 'bento',
+  personaName: 'Bento',
+  characterId: 'bento',
+  items: ['contrato-antigo.pdf', 'rascunho-folheto.docx', 'foto-balcao-1.png'],
+  count: 3,
+}
+
+const EXPIRED_PREVIEW: ActionPreviewUi = {
+  ...ACTION_BASE,
+  expiresAt: inHours(-2),
+  approvalId: 'dev-action-expired',
+  actionClass: 'send',
+  verb: 'email',
+  connectorName: 'Gmail',
+  personaId: 'nina',
+  personaName: 'Nina',
+  characterId: 'nina',
+  to: 'carlos@padarialua.com.br',
+  subject: 'Orçamento da reforma',
+  body: 'Oi, Carlos! Segue o orçamento da reforma do balcão, como combinamos.',
+}
+
 const PAYMENT_PREVIEW: ActionPreviewUi = {
   ...ACTION_BASE,
+  expiresAt: inHours(0.66),
   approvalId: 'dev-action-pay',
   actionClass: 'pay',
   verb: 'pay',
@@ -81,6 +115,32 @@ export const CONNECTOR_DEV_SAMPLE: readonly ApprovalItem[] = [
     risk: 'normal',
     decisionState: 'pending',
     actionPreview: PAYMENT_PREVIEW,
+  },
+  {
+    id: 'dev-action-delete',
+    kind: 'action',
+    title: 'Apagar 3 itens no Drive',
+    question: '',
+    primaryKey: 'action.primary.attention',
+    proposerName: 'Bento',
+    proposerPersonaId: 'bento',
+    example: true,
+    risk: 'normal',
+    decisionState: 'pending',
+    actionPreview: DELETE_PREVIEW,
+  },
+  {
+    id: 'dev-action-expired',
+    kind: 'action',
+    title: 'Enviar um email pelo Gmail',
+    question: '',
+    primaryKey: 'action.primary.attention',
+    proposerName: 'Nina',
+    proposerPersonaId: 'nina',
+    example: true,
+    risk: 'normal',
+    decisionState: 'pending',
+    actionPreview: EXPIRED_PREVIEW,
   },
   {
     id: 'dev-connector-colleague',

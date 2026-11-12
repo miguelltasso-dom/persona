@@ -6,7 +6,6 @@ import {
   CONVERSATION_GROUPS_KEY,
   GROUP_FACES_MAX,
   PEOPLE_SHOW_ALL_MAX,
-  RECENT_MAX,
   buildConversationsModel,
   normalizeQuery,
   readCollapsedGroups,
@@ -61,27 +60,27 @@ describe('até 8 pessoas: todas, em linhas completas', () => {
     expect(model.people.mode).toBe('all')
   })
 
-  it('quem já conversou vem primeiro, pela atividade; quem nunca conversou depois, na ordem recebida', () => {
+  it('ORDEM ESTÁVEL: a ordem recebida (Coordenação primeiro, depois a do host); a atividade nunca reordena', () => {
     const model = buildConversationsModel(input([
       person('luna'),
       person('nina', { hasConversation: true, recentRank: 1 }),
       person('bento', { hasConversation: true, recentRank: 0 }),
       person('sol'),
     ]))
-    expect(model.people.mode === 'all' && model.people.people.map(p => p.id)).toEqual(['bento', 'nina', 'luna', 'sol'])
+    expect(model.people.mode === 'all' && model.people.people.map(p => p.id)).toEqual(['luna', 'nina', 'bento', 'sol'])
   })
 
   it('a ordem do teclado é canais e depois pessoas, como aparecem', () => {
     const model = buildConversationsModel(input([person('luna'), person('nina', { hasConversation: true, recentRank: 0 })]))
     expect(model.order).toEqual([
       { kind: 'channel', id: 'geral' },
-      { kind: 'dm', personaId: 'nina' },
       { kind: 'dm', personaId: 'luna' },
+      { kind: 'dm', personaId: 'nina' },
     ])
   })
 })
 
-describe('mais de 8: Recentes + "Todas as personas" por equipe', () => {
+describe('mais de 8: "Todas as personas" por equipe, em ordem estável', () => {
   const talked = (people: ConversationPerson[], ranks: Readonly<Record<string, number>>): ConversationPerson[] =>
     people.map(p => (p.id in ranks ? { ...p, hasConversation: true, recentRank: ranks[p.id] } : p))
 
@@ -91,35 +90,33 @@ describe('mais de 8: Recentes + "Todas as personas" por equipe', () => {
     expect(model.people.mode === 'grouped' && model.people.total).toBe(PEOPLE_SHOW_ALL_MAX + 1)
   })
 
-  it(`Recentes: só quem já conversou, pela atividade, no máximo ${String(RECENT_MAX)}`, () => {
+  it('não existe "Recentes": ter conversa ou não, a atividade não muda a ordem nem cria uma lista à parte', () => {
     const ranks = Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`p${String(i).padStart(2, '0')}`, 7 - i]))
-    const model = buildConversationsModel(input(talked(many(12), ranks)))
-    if (model.people.mode !== 'grouped') throw new Error('esperava grouped')
-    expect(model.people.recent).toHaveLength(RECENT_MAX)
-    expect(model.people.recent.map(p => p.id)).toEqual(['p07', 'p06', 'p05', 'p04', 'p03', 'p02'])
+    const withActivity = buildConversationsModel(input(talked(many(12), ranks)))
+    const without = buildConversationsModel(input(many(12)))
+    if (withActivity.people.mode !== 'grouped' || without.people.mode !== 'grouped') throw new Error('esperava grouped')
+    expect('recent' in withActivity.people).toBe(false)
+    expect(withActivity.people.groups.map(g => g.people.map(p => p.id))).toEqual(without.people.groups.map(g => g.people.map(p => p.id)))
   })
 
-  it('sem nenhuma conversa não há "Recentes" (lista vazia), só os grupos', () => {
-    const model = buildConversationsModel(input(many(10)))
-    expect(model.people.mode === 'grouped' && model.people.recent).toEqual([])
-  })
-
-  it('os grupos vêm por nome de equipe (pt-BR) e as pessoas sem equipe por último', () => {
+  it('as equipes vêm na ordem em que cada uma aparece primeiro (não por nome), e quem não tem equipe entra onde chega', () => {
     const people = [...many(9), person('solo', { teamId: null, teamName: null })]
     const model = buildConversationsModel(input(people))
     if (model.people.mode !== 'grouped') throw new Error('esperava grouped')
-    expect(model.people.groups.map(g => g.teamName)).toEqual(['Atendimento', 'Engenharia', 'Marketing', null])
+    expect(model.people.groups.map(g => g.teamName)).toEqual(['Marketing', 'Engenharia', 'Atendimento', null])
     expect(model.people.groups.at(-1)?.key).toBe(teamGroupKey(null))
   })
 
-  it('dentro do grupo as pessoas vêm por nome; o grupo traz a soma das não lidas e até 4 rostos', () => {
+  it('dentro do grupo as pessoas ficam na ordem recebida; o grupo traz a soma das não lidas e até 4 rostos', () => {
     const people = [
       ...many(9).map(p => ({ ...p, teamId: 'eng', teamName: 'Engenharia' })),
     ].map((p, i) => ({ ...p, unread: i === 0 ? 2 : i === 1 ? 3 : 0 }))
-    const model = buildConversationsModel(input(people))
+    // chega fora de ordem alfabética: continua como chegou
+    const reversed = [...people].reverse()
+    const model = buildConversationsModel(input(reversed))
     if (model.people.mode !== 'grouped') throw new Error('esperava grouped')
     const [group] = model.people.groups
-    expect(group?.people.map(p => p.id)).toEqual([...(group?.people ?? [])].map(p => p.id).sort((a, b) => a.localeCompare(b, 'pt-BR')))
+    expect(group?.people.map(p => p.id)).toEqual(reversed.map(p => p.id))
     expect(group?.unread).toBe(5)
     expect(group?.faces).toHaveLength(GROUP_FACES_MAX)
   })
@@ -153,14 +150,13 @@ describe('mais de 8: Recentes + "Todas as personas" por equipe', () => {
     expect(remembered.people.groups.find(g => g.teamId === 'eng')?.collapsed).toBe(true)
   })
 
-  it('a ordem do teclado: canais, Recentes e só os grupos abertos; ninguém aparece duas vezes', () => {
+  it('a ordem do teclado: canais e só os grupos abertos, na ordem do rail; ninguém aparece duas vezes', () => {
     const people = talked(many(10), { p01: 0, p04: 1 })
     const model = buildConversationsModel(input(people, { active: { kind: 'dm', personaId: 'p01' } }))
     const keys = model.order.map(t => (t.kind === 'channel' ? `#${t.id}` : t.personaId))
-    expect(keys.slice(0, 3)).toEqual(['#geral', 'p01', 'p04'])
+    // o grupo "eng" (p01, p04, p07) é o aberto; conversar mais com p04 não o põe antes de p01
+    expect(keys).toEqual(['#geral', 'p01', 'p04', 'p07'])
     expect(new Set(keys).size).toBe(keys.length)
-    // o grupo "eng" (p01, p04, p07) está aberto; p01 e p04 já tinham aparecido em Recentes
-    expect(keys.slice(3)).toEqual(['p07'])
     // o grupo "mkt" está recolhido: p00, p03... não entram
     expect(keys).not.toContain('p00')
   })

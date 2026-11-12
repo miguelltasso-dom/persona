@@ -1,0 +1,20 @@
+/* A moldura não rola: o corpo (o Screen ou a pilha da aba) é que rola dentro dela. */
+.frame {
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.frame > * {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Cena 17 (Muse) e revisão do Carbon: a guilhotina de 12 px no topo, ativa só com o corpo rolado. */
+.frame[data-scrolled='true'] {
+  mask-image: linear-gradient(to bottom, transparent 0, black 12px);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 12px);
+}

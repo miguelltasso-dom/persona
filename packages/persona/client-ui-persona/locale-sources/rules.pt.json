@@ -1,7 +1,7 @@
 {
   "header.eyebrow": "Empresa",
-  "title": "Regras de triagem",
-  "subtitle": "Limites de proatividade, silêncio e triagem em linguagem natural",
+  "title": "Regras da casa",
+  "subtitle": "O que a equipe resolve sozinha, quando fica em silêncio e o que nunca faz sem você.",
   "limits.title": "Orçamento e propostas",
   "limits.subtitle": "Evita barulho e uso descontrolado da sua cota",
   "limits.maxProposals": "Máx. propostas por persona / dia",
@@ -20,9 +20,9 @@
   "log.empty": "Nenhuma simulação ainda",
   "action.addRule": "Adicionar regra",
   "action.save": "Salvar regras",
-  "empty.title": "Nenhuma regra",
-  "empty.hint": "Descreva em texto quando a persona pode agir sozinha.",
-  "empty.action": "Criar primeira regra",
+  "empty.title": "Nenhuma regra da casa por enquanto",
+  "empty.hint": "As regras que valem para a equipe toda ficam aqui.",
+  "empty.action": "Criar a primeira regra",
   "empty.illustration": "Ilustração: regras vazias",
   "loading": "Carregando regras…",
   "error.title": "Não consegui falar com a equipe agora",
@@ -38,5 +38,6 @@
   "preset.recommended": "Recomendado",
   "preset.tasksHint": "≈ {tasks} tarefas médias por mês",
   "preset.saved": "Regras em uso",
-  "limits.maxProposalsHint": "Quantas ideias novas cada persona pode trazer por dia"
+  "limits.maxProposalsHint": "Quantas ideias novas cada persona pode trazer por dia",
+  "rule.lastApplied": "Última aplicação"
 }

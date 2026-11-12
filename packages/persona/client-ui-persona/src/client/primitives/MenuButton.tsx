@@ -5,7 +5,7 @@
  */
 
 import { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
-import { IconButton } from './Button.tsx'
+import { Button, IconButton } from './Button.tsx'
 import { UiIcon } from './icons.tsx'
 import styles from './MenuButton.module.css'
 
@@ -28,6 +28,8 @@ export interface MenuButtonProps {
   readonly variant?: 'ghost' | 'secondary'
   readonly className?: string | undefined
   readonly icon?: ReactNode
+  /** A visible word on the button ("Opções ▾"): then the button is a text button and `label` is also the name of the menu. */
+  readonly text?: string | undefined
 }
 
 export interface MenuButtonHandle {
@@ -36,7 +38,7 @@ export interface MenuButtonHandle {
 }
 
 export const MenuButton = forwardRef<MenuButtonHandle, MenuButtonProps>(function MenuButton(
-  { label, items, align = 'end', variant = 'secondary', className, icon },
+  { label, items, align = 'end', variant = 'secondary', className, icon, text },
   handle,
 ): ReactNode {
   const [open, setOpen] = useState(false)
@@ -83,18 +85,32 @@ export const MenuButton = forwardRef<MenuButtonHandle, MenuButtonProps>(function
 
   return (
     <div ref={wrapRef} className={className === undefined ? styles.wrap : `${styles.wrap} ${className}`}>
-      <IconButton
-        ref={buttonRef}
-        size="s"
-        variant={variant}
-        className={variant === 'secondary' ? styles.button : undefined}
-        label={label}
-        icon={icon ?? <UiIcon name="more" size={18} />}
-        aria-haspopup="menu"
-        aria-expanded={open}
-        aria-controls={open ? menuId : undefined}
-        onClick={() => { setOpen(value => !value) }}
-      />
+      {text === undefined ? (
+        <IconButton
+          ref={buttonRef}
+          size="s"
+          variant={variant}
+          className={variant === 'secondary' ? styles.button : undefined}
+          label={label}
+          icon={icon ?? <UiIcon name="more" size={18} />}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={open ? menuId : undefined}
+          onClick={() => { setOpen(value => !value) }}
+        />
+      ) : (
+        <Button
+          ref={buttonRef}
+          variant={variant}
+          iconEnd={<UiIcon name="chevronDown" size={16} strokeWidth={2.4} />}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-controls={open ? menuId : undefined}
+          onClick={() => { setOpen(value => !value) }}
+        >
+          {text}
+        </Button>
+      )}
       {open && (
         <ul ref={listRef} id={menuId} role="menu" aria-label={label} className={styles.menu} data-align={align} onKeyDown={onKeyDown}>
           {items.map(item => (

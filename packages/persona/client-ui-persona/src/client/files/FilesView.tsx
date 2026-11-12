@@ -7,7 +7,6 @@ import { Button, Card, Chip, Screen, ScreenHeader, Skeleton } from '../primitive
 import { PersonaSurfaceEmpty, PersonaSurfaceError } from '../kanban/PersonaSurface.tsx'
 import styles from './Files.module.css'
 import type { FileEntry } from './mock-data.ts'
-import { ProjectWorkspaceScopeChip } from '../data/ProjectWorkspaceScopeChip.tsx'
 import { pt as defaultDict } from '../locale/files/locales.ts'
 
 export type FilesSurfaceState = 'loading' | 'error' | 'empty' | 'ready' | 'needRoot'
@@ -18,8 +17,8 @@ export interface FilesViewProps {
   readonly initialState?: FilesSurfaceState
   readonly onChooseProjectRoot?: () => void
   readonly onRemoteRetry?: () => void
-  /** PB-5: project opened from Quadros workspace tabs. */
-  readonly scopeProjectId?: string | null
+  /** The NAME of the project of the moment (Projetos place tabs): the screen says which project it shows. */
+  readonly scopeProjectName?: string | null
   readonly onEmptyPrimary?: (() => void) | undefined
   /** Row actions. A missing one means no button (the host has no way to open or download a file yet). */
   readonly onOpenFile?: ((fileId: string) => void) | undefined
@@ -33,7 +32,7 @@ export function FilesView({
   initialState = 'ready',
   onChooseProjectRoot,
   onRemoteRetry,
-  scopeProjectId = null,
+  scopeProjectName = null,
   onEmptyPrimary,
   onOpenFile,
   onDownloadFile,
@@ -45,21 +44,23 @@ export function FilesView({
     setSurfaceState(initialState)
   }, [initialState])
 
+  // The tabs of the Projetos place are of the project of the moment: the eyebrow says which one, by NAME ("Trabalho · Site / produto").
+  const eyebrow = scopeProjectName === null || scopeProjectName.length === 0
+    ? t('header.eyebrow')
+    : bindLocale(dict, 'header.eyebrowProject', { project: scopeProjectName })
   const header = (
     <ScreenHeader
       icon="arquivos"
-      eyebrow={t('header.eyebrow')}
+      eyebrow={eyebrow}
       title={t('title')}
       subtitle={t('subtitle')}
     />
   )
-  const scopeChip = <ProjectWorkspaceScopeChip dict={dict} projectId={scopeProjectId} />
 
   if (surfaceState === 'loading') {
     return (
       <Screen className={styles.shell} data-persona-surface="files" role="status" aria-busy="true">
         {header}
-        {scopeChip}
         <Card padding="l">
           <Skeleton height={14} width="30%" />
           <Skeleton height={48} shape="block" />
@@ -73,7 +74,6 @@ export function FilesView({
     return (
       <Screen className={styles.shell} data-persona-surface="files">
         {header}
-        {scopeChip}
         <PersonaSurfaceError
           dict={dict}
           titleKey="error.title"
@@ -88,15 +88,16 @@ export function FilesView({
     return (
       <Screen className={styles.shell} data-persona-surface="files">
         {header}
-        {scopeChip}
-        <PersonaSurfaceEmpty
-          dict={dict}
-          illustrationKey="empty-inbox"
-          titleKey="needRoot.title"
-          hintKey="needRoot.hint"
-          primaryKey="needRoot.action"
-          {...(onChooseProjectRoot !== undefined ? { onPrimary: onChooseProjectRoot } : {})}
-        />
+        <div className={styles.emptyBlock}>
+          <PersonaSurfaceEmpty
+            dict={dict}
+            illustrationKey="empty-inbox"
+            titleKey="needRoot.title"
+            hintKey="needRoot.hint"
+            primaryKey="needRoot.action"
+            {...(onChooseProjectRoot !== undefined ? { onPrimary: onChooseProjectRoot } : {})}
+          />
+        </div>
       </Screen>
     )
   }
@@ -105,15 +106,16 @@ export function FilesView({
     return (
       <Screen className={styles.shell} data-persona-surface="files">
         {header}
-        {scopeChip}
-        <PersonaSurfaceEmpty
-          dict={dict}
-          illustrationKey="empty-inbox"
-          titleKey="empty.title"
-          hintKey="empty.hint"
-          primaryKey="empty.action"
-          {...(onEmptyPrimary === undefined ? {} : { onPrimary: onEmptyPrimary })}
-        />
+        <div className={styles.emptyBlock}>
+          <PersonaSurfaceEmpty
+            dict={dict}
+            illustrationKey="empty-inbox"
+            titleKey="empty.title"
+            hintKey="empty.hint"
+            primaryKey="empty.action"
+            {...(onEmptyPrimary === undefined ? {} : { onPrimary: onEmptyPrimary })}
+          />
+        </div>
       </Screen>
     )
   }
@@ -121,7 +123,6 @@ export function FilesView({
   return (
     <Screen className={styles.shell} data-persona-surface="files">
       {header}
-      {scopeChip}
       {files.length > 0 && (
         <div className={styles.breadcrumb}>
           <Chip tone="neutral" size="s">{files[0]?.projectName ?? t('column.project')}</Chip>

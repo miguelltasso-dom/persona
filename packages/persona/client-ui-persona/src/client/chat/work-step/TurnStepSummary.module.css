@@ -1,0 +1,131 @@
+/* COLHEITA §6: o resumo recolhido. A linha recolhida é um controle de 32 px; a lista abre com grid 0fr→1fr no preset panel. Só tokens. */
+.summary {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  max-width: 100%;
+  margin: var(--persona-space-1) 0;
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--control-h-s);
+  padding: 0 var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--control-r-s);
+  background: var(--persona-card);
+  color: var(--persona-ink-muted);
+  font: 600 13px/18px var(--persona-font-text);
+  text-align: start;
+  cursor: pointer;
+}
+
+.head:focus-visible {
+  outline: 2px solid var(--persona-brand);
+  outline-offset: 2px;
+}
+
+.icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--persona-success);
+}
+
+.summary[data-failed] .icon {
+  color: var(--persona-state-waiting);
+}
+
+.label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  transition: transform var(--motion-panel) var(--ease-enter);
+}
+
+.head[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+.panel {
+  display: grid;
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--motion-panel) var(--ease-enter),
+    opacity var(--motion-panel) var(--ease-enter),
+    visibility var(--motion-panel) var(--ease-enter);
+}
+
+.panel[data-open] {
+  grid-template-rows: 1fr;
+  opacity: 1;
+  visibility: visible;
+}
+
+.panelInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: var(--persona-space-2) var(--persona-space-3) 0;
+  list-style: none;
+}
+
+.step {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--persona-space-1) var(--persona-space-3);
+  color: var(--persona-ink-soft);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.stepText {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.time {
+  color: var(--persona-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.details {
+  grid-column: 1 / -1;
+  color: var(--persona-ink-muted);
+}
+
+.detailsSummary {
+  display: flex;
+  align-items: center;
+  min-height: var(--control-h-s);
+  cursor: pointer;
+}
+
+.code {
+  display: block;
+  font: 500 13px/18px var(--persona-font-mono);
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .panel {
+    transition: opacity var(--motion-reduced-fade) var(--ease-standard), visibility var(--motion-reduced-fade) var(--ease-standard);
+  }
+}

@@ -170,6 +170,13 @@ export interface StartTurnInput {
   model: string
   history?: readonly HistoryTurn[]
   resumeSessionId?: string
+  /**
+   * The conversation this turn belongs to, when it is not the engine session id. A talk reply has a session id of its own per
+   * message (`talk-<event>`), yet every reply of a channel is the same conversation: the runner keys its live CLI process and its
+   * `--resume` target by this value, so two conversations never share a process and a reopened one reattaches to its own session.
+   * Absent = the runner's default scope (one conversation per persona, cwd and model).
+   */
+  threadKey?: string
   /** When true the runner prepends the engine recovery note. */
   recovery?: boolean
   /** Explicit permission mode for CLI runners; DSH ignores it. */
@@ -182,11 +189,25 @@ export interface StartTurnInput {
   /** HT-0: product tools this turn may call (CLIs with `mcpTools: 'available'`; Cursor ignores them). Absent = none. */
   mcpTools?: TurnToolSet
   /**
+   * COLHEITA 17: extra stdio MCP servers this turn carries besides the product tools (the persona's browser, attached to
+   * the Chrome of its profile). The runner appends them to the session's `mcpServers`; a CLI with `mcpTools:
+   * 'unavailable'` gets none. Part of the session key: a warm session opened without them is not reused.
+   */
+  extraMcpServers?: readonly TurnMcpServer[]
+  /**
    * TEAM-5: images that travel with this turn (an attachment of the team channel the host already saved on this machine). Delivered as the
    * engine's native image input, never as a path in the prompt. Refused whole, in human words, when the engine does not read images or an
    * image is too big/not an image (`ImagesRefusedError`); never silently dropped. Not sticky: a later turn carries only its own.
    */
   images?: readonly TurnImage[]
+}
+
+/** COLHEITA 17: one stdio MCP server a turn carries besides the product tools. */
+export interface TurnMcpServer {
+  /** The name the CLI knows the tools by (`mcp__<name>__<tool>` in Claude). */
+  readonly name: string
+  readonly command: string
+  readonly args: readonly string[]
 }
 
 /** TEAM-5: an image file on this machine that goes with a turn. */
@@ -209,6 +230,10 @@ export type RunEvent =
   | { type: 'usage'; at: string; usage: RunnerUsage }
   | { type: 'ended'; at: string; report: NormalizedReport }
   | { type: 'infra'; at: string; kind: InfraFailureKind; attempt: number; summary: string }
+  /** The runtime echoed an input it took (`user_message` with its id): the steer was read, not merely accepted. */
+  | { type: 'inputRead'; at: string; inputId: string }
+  /** The runtime discarded an accepted input before reading it (`input_dropped`): the caller owns it again. */
+  | { type: 'inputDropped'; at: string; inputId: string; reason: string }
 
 export interface RunnerHealth {
   ok: boolean
@@ -233,6 +258,14 @@ export interface Runner {
   stream(handle: RunHandle): AsyncIterable<RunEvent>
   events(handle: RunHandle): AsyncIterable<RunEvent>
   cancel(handle: RunHandle): Promise<void>
+  /**
+   * Put text into the turn that is open right now, without starting another one.
+   * @param handle - The open turn.
+   * @param requestId - Input id the runtime echoes back (and reports when it drops it).
+   * @param text - What the person wants to change.
+   * @returns `true` when the runtime accepted it; `false` when no turn is open (the caller starts one).
+   */
+  steer?(handle: RunHandle, requestId: string, text: string): Promise<boolean>
   resume(input: StartTurnInput): Promise<RunHandle>
   usage(handle?: RunHandle): Promise<RunnerUsage>
   /** Open the CLI session without a model turn (host boot prewarm). */

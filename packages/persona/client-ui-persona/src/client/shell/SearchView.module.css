@@ -186,3 +186,44 @@
   border-color: color-mix(in srgb, var(--persona-accent) 70%, var(--persona-outline-soft));
   background: color-mix(in srgb, var(--persona-accent) 10%, var(--persona-card));
 }
+
+/*
+ * The view inside the Ctrl K palette (DESIGN-01-MUSE §5.2 #11): no page header, a flatter field, and a results list that scrolls inside the 460 px
+ * dialog. The numbers 1–9 beside the "Fazer agora" actions are the shortcuts that exist only while the palette is open.
+ */
+.palette {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+  min-height: 0;
+  padding: var(--persona-space-4);
+}
+
+.palette .field {
+  flex-shrink: 0;
+  height: 52px;
+  border-radius: var(--persona-radius-l);
+  box-shadow: none;
+}
+
+.palette .field:focus-within {
+  box-shadow: 0 0 0 4px var(--persona-focus-halo);
+}
+
+.palette .results {
+  flex: 1 1 auto;
+  min-height: 0;
+  margin-top: 0;
+  overflow-y: auto;
+  gap: var(--persona-space-4);
+}
+
+.shortcut {
+  margin-left: auto;
+  padding: 2px 7px;
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: 6px;
+  background: var(--persona-paper);
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}

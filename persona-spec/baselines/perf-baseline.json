@@ -1,0 +1,123 @@
+{
+  "geradoEm": "2026-11-12T01:53:32.153Z",
+  "runs": 3,
+  "nota": "baseline-inicial-11-11-dev-host-tsx-maquina-compartilhada-sob-carga",
+  "metrics": {
+    "shellMountMs": {
+      "median": 1814,
+      "samples": [
+        4926,
+        1814,
+        1725
+      ]
+    },
+    "onboardingMs": {
+      "median": 6965,
+      "samples": [
+        6965
+      ]
+    },
+    "tourMs": {
+      "median": 10290,
+      "samples": [
+        10173,
+        10848,
+        10290
+      ]
+    },
+    "tourFailures": {
+      "median": 0,
+      "samples": [
+        0,
+        0,
+        0
+      ]
+    },
+    "fcpMs": {
+      "median": 200,
+      "samples": [
+        1960,
+        200,
+        188
+      ]
+    },
+    "lcpMs": {
+      "median": 1732,
+      "samples": [
+        4836,
+        1732,
+        1628
+      ]
+    },
+    "longTaskTotalMs": {
+      "median": 1493,
+      "samples": [
+        1352,
+        1594,
+        1493
+      ]
+    },
+    "longTaskMaxMs": {
+      "median": 685,
+      "samples": [
+        654,
+        718,
+        685
+      ]
+    },
+    "layoutShift": {
+      "median": 0,
+      "samples": [
+        0.009,
+        0,
+        0
+      ]
+    },
+    "jsHeapMb": {
+      "median": 23.914,
+      "samples": [
+        23.914,
+        23.462,
+        24.595
+      ]
+    },
+    "domNodes": {
+      "median": 1909,
+      "samples": [
+        1768,
+        1966,
+        1909
+      ]
+    },
+    "scriptMs": {
+      "median": 975.536,
+      "samples": [
+        1066.754,
+        975.536,
+        918.171
+      ]
+    },
+    "transferKb": {
+      "median": 3511.454,
+      "samples": [
+        3617.948,
+        3511.454,
+        3511.454
+      ]
+    },
+    "requests": {
+      "median": 159,
+      "samples": [
+        265,
+        159,
+        159
+      ]
+    },
+    "hostReadyMs": {
+      "median": 49255,
+      "samples": [
+        49255
+      ]
+    }
+  }
+}

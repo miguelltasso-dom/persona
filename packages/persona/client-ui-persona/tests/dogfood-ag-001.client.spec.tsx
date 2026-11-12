@@ -50,7 +50,7 @@ describe('dogfood AG-001 — sprint nos Quadros (client)', () => {
         <ConnectedProjectFlowBoard
           persona={persona}
           scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
-          onBack={() => {}}
+
           onMutate={() => {}}
         />
       </PreviewFrame>,
@@ -79,7 +79,7 @@ describe('dogfood AG-001 — sprint nos Quadros (client)', () => {
         <ConnectedProjectFlowBoard
           persona={persona}
           scope={{ workspaceId: 'ws', projectId: 'pp' }}
-          onBack={() => {}}
+
           onMutate={() => {}}
         />
       </PreviewFrame>,

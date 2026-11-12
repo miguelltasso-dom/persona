@@ -50,6 +50,15 @@ function toolPart(name: string): string {
   return at < 0 ? name.slice(5) : name.slice(at + 2)
 }
 
+/**
+ * The whole words of a tool name, lowercase (`mcp__social__send_tweet` → `send`, `tweet`). A word that is only PART of another (`postgres`, `republish`) is not
+ * a match for `post` / `publish`. Used by the host's house rules (HONEST-1) to hold one verb of a class.
+ * @param name - `mcp__server__tool` or a bare tool name. Only the tool part is read, never the server part.
+ */
+export function toolWords(name: string): string[] {
+  return tokensOf(name)
+}
+
 /** Lowercase words of a tool name: splits on `_ - . : /` and spaces, and between camelCase words. */
 function tokensOf(name: string): string[] {
   return toolPart(name)
@@ -79,4 +88,15 @@ export function classifyTool(toolName: string, annotations?: ToolAnnotations): T
   // name without it is not trusted (it could do anything), so it is an action that leaves.
   if (annotations?.readOnlyHint === true) return { actionClass: 'read', verb: tokens.find(token => READ_VERBS.includes(token)) ?? 'read' }
   return { actionClass: 'send', verb: 'send' }
+}
+
+/**
+ * D-103a: true when the NAME alone proves a read: a read verb is there and no write verb (`change`, `send`, `pay`, `delete`) is. Used on the engines whose permission gate is not proven,
+ * where nothing else (no annotation, no hook) can vouch for a call: a harmless-looking name with no verb at all is NOT a read (same fail-closed rule as {@link classifyTool}).
+ * @param toolName - `mcp__server__tool` or a bare tool name. Only the tool part of a prefixed name is read, never the server part.
+ */
+export function isReadByName(toolName: string): boolean {
+  const tokens = tokensOf(toolName)
+  const writes = (['delete', 'pay', 'send', 'change'] as const).some(actionClass => tokens.some(token => VERBS[actionClass].includes(token)))
+  return !writes && tokens.some(token => READ_VERBS.includes(token))
 }

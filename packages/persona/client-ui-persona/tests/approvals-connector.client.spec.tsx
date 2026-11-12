@@ -253,8 +253,8 @@ describe('the capture-only example cards (two dev keys; never in the real app, n
     const { decideDecision } = mountPanel()
     await waitFor(() => { expect(screen.getByRole('heading', { name: 'Liberar o Gmail para Bento' })).toBeTruthy() })
     expect(screen.getByRole('heading', { name: 'Liberar o Drive para Luna' })).toBeTruthy()
-    // two external-action cards (HT-9) + the two connector cards, every one tagged as an example
-    expect(screen.getAllByText('Exemplo')).toHaveLength(4)
+    // four external-action cards (HT-9 + COLHEITA 5: e-mail, payment, delete and an expired one) + the two connector cards, every one tagged as an example
+    expect(screen.getAllByText('Exemplo')).toHaveLength(6)
     expect(screen.getByText('Nina pediu a Bento “Responder o orçamento da gráfica”, mas Bento não pode usar o Gmail.')).toBeTruthy()
     // the initiative card: the host offered no "sempre", so the card has none
     expect(screen.getAllByRole('button', { name: /Sempre permitir/ })).toHaveLength(1)

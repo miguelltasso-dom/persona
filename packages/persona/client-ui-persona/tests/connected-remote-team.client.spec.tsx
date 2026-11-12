@@ -239,7 +239,7 @@ describe('Membros: a Equipe remota aparece como seção da tela', () => {
     return bindObservableForTest({ getSnapshot: () => store.getSnapshot(), subscribe: listener => store.subscribe(listener) })
   }
 
-  it('com só o dono na equipe (estado vazio) a seção Equipe remota continua acessível', async () => {
+  it('com só o dono e a equipe não ligada, a Membros mostra o estado calmo (sem Cofre indisponível e sem convite)', async () => {
     const { remote } = fakeHost()
     const persona = {
       ...remote,
@@ -251,7 +251,23 @@ describe('Membros: a Equipe remota aparece como seção da tela', () => {
         <RemoteMembersPanel persona={persona} useTenant={tenantHarness()} useShell={shell} />
       </PreviewFrame>,
     )
+    expect(await screen.findByText('Ainda não ligada')).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Equipe remota' })).toBeNull()
+    expect(screen.queryByText(/Cofre indisponível/u)).toBeNull()
+  })
+
+  it('com a equipe ligada, a seção Equipe remota aparece na Membros', async () => {
+    const { remote } = fakeHost({ state: connected() })
+    const persona = {
+      ...remote,
+      listTeam: vi.fn(() => Promise.resolve(ok({ personas: [], members: [] }))),
+    } as unknown as PersonaRemoteClient
+    const shell = bindObservableForTest(createShellStore().store)
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <RemoteMembersPanel persona={persona} useTenant={tenantHarness()} useShell={shell} />
+      </PreviewFrame>,
+    )
     expect(await screen.findByRole('heading', { name: 'Equipe remota' })).toBeTruthy()
-    expect(await screen.findByText('Não conectada')).toBeTruthy()
   })
 })

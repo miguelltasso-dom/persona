@@ -93,7 +93,9 @@
 
 .blink {
   opacity: 0;
-  animation: persona-rail-blink 6.5s steps(1, end) infinite;
+  /* DESIGN-01 §2.7 rule 4 (Muse): Disponível blinks in steps every 7-11 s, only while the window is focused (the ambient
+     pause covers the rest); the per-avatar delay spreads the blinks. */
+  animation: persona-rail-blink 7s steps(1, end) infinite;
   animation-delay: var(--blink-delay, 2s);
 }
 
@@ -135,6 +137,23 @@
 .seal[data-state='reviewing'] { background: var(--persona-info-tint); }
 .seal[data-state='waiting'] {
   background: var(--persona-accent);
+}
+
+/* The "Esperando você" ping (the only state that pulses in the rail: it asks for the person; Disponível/Descansando/Trabalhando/Revisando
+   stay still). A disc the size of the seal sits BEHIND it and grows while it fades: the seal hides the disc at scale 1, so only the ring
+   that has grown past the edge shows — the same look the old `box-shadow` spread gave, but transform + opacity only (composite, no
+   repaint per frame; Keel 11/11). It hangs off the avatar (tree order puts it under the face and the seal), at the seal's own offsets. */
+.row[data-state='waiting'] .avatar::before {
+  content: '';
+  position: absolute;
+  right: -5px;
+  bottom: -5px;
+  width: 19px;
+  height: 19px;
+  border-radius: 999px;
+  background: var(--persona-accent);
+  opacity: 0.55;
+  pointer-events: none;
   animation: persona-rail-pulse 2.4s ease-in-out infinite;
 }
 .seal[data-state='stuck'] { background: var(--persona-danger-tint); }
@@ -311,14 +330,18 @@
 }
 
 @keyframes persona-rail-pulse {
-  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgb(232 175 84 / 0.55); }
-  50% { transform: scale(1.08); box-shadow: 0 0 0 4px rgb(232 175 84 / 0); }
+  0%, 100% { transform: scale(1); opacity: 0.55; }
+  50% { transform: scale(1.5); opacity: 0; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .blink,
-  .seal[data-state='waiting'] {
+  .blink {
     animation: none;
+  }
+
+  .row[data-state='waiting'] .avatar::before {
+    animation: none;
+    opacity: 0;
   }
 }
 
@@ -379,7 +402,8 @@
   height: 32px;
 }
 
-.group[data-density='avatars']:not([data-collapsed]) .seal {
+.group[data-density='avatars']:not([data-collapsed]) .seal,
+.group[data-density='avatars']:not([data-collapsed]) .row[data-state='waiting'] .avatar::before {
   width: 17px;
   height: 17px;
 }

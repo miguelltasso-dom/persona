@@ -477,23 +477,6 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* A folhinha: o único enfeite do balão, fora do texto. Some a 200% e em forced-colors. */
-.sprig {
-  position: absolute;
-  top: -9px;
-  right: 14px;
-  width: 22px;
-  height: 16px;
-  color: var(--persona-success);
-  pointer-events: none;
-}
-
-@media (max-width: 640px), (max-height: 599px), (forced-colors: active) {
-  .sprig {
-    display: none;
-  }
-}
-
 /* O texto dentro do balão herda a fonte do balão; a tabela e o código rolam POR DENTRO dele (o renderizador do IV-3). */
 .bubbleRow .text {
   margin: 0;
@@ -824,7 +807,6 @@
     background:
       radial-gradient(1150px 780px at -110px 93%, rgb(242 186 110 / 0.3), rgb(242 186 110 / 0.13) 34%, rgb(242 186 110 / 0.04) 58%, transparent 74%),
       radial-gradient(115% 105% at 10% 92%, transparent 42%, rgb(8 4 12 / 0.55));
-    animation: lampBreathe 14s ease-in-out infinite alternate;
   }
 
   /* o conteúdo fica acima da camada de luz */
@@ -840,16 +822,6 @@
   }
 }
 
-@keyframes lampBreathe {
-  from {
-    opacity: 0.9;
-  }
-
-  to {
-    opacity: 1;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
   :global(body[data-ds-dark-theme='true']) .view[data-lamp] .lampLayer {
     animation: none;
@@ -860,5 +832,27 @@
 @media (forced-colors: none) {
   :global(body[data-ds-dark-theme='true']) .view[data-lamp] .composerDock {
     background: none;
+  }
+}
+
+/*
+ * A message found by Ctrl K (DESIGN-01-MUSE §5.2 #11): scrolled to and highlighted ONCE for 900 ms (message-focus.ts puts `data-focus-pulse` on it).
+ * The daily brief has its own pulse; with reduced motion only a still outline remains.
+ */
+:global([data-message-id][data-focus-pulse]:not([data-daily-brief])) {
+  border-radius: var(--persona-radius-m);
+  animation: searchFound 900ms var(--ease-standard) 1;
+}
+
+@keyframes searchFound {
+  0% { background: color-mix(in srgb, var(--persona-accent) 38%, transparent); }
+  100% { background: transparent; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :global([data-message-id][data-focus-pulse]:not([data-daily-brief])) {
+    animation: none;
+    outline: 2px solid var(--persona-accent);
+    outline-offset: 2px;
   }
 }

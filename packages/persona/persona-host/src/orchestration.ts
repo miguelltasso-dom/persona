@@ -84,6 +84,8 @@ import {
 import { compileSubjectVault } from './wave2.ts'
 import { doneEventId } from './ticket-done.ts'
 import { QuotaWaitBook, type QuotaWaitRow } from './quota-wait.ts'
+import { WindowResumeQueue, conversationResolved, reserveLine, windowClock, WINDOW_NOTICE_KIND, type WindowReserveNotice, type WindowResumeRow } from './window-reserve.ts'
+import { backgroundWorkAllowed, ownerAnswerAllowed, type WindowReserve } from '@deepseek-ai/dsh-persona-usage'
 import { safeUsedContext } from './used-context-safety.ts'
 import { foldSubjectSummary, shouldFoldSubject, SUBJECT_RECENT } from './subject-summary.ts'
 import type { AutonomyMode, EngineStatusView, UsedContextRecord } from './types.ts'
@@ -96,15 +98,25 @@ import { MessageFlags } from './message-flags.ts'
 import { warmKeySuffix } from './connector-policy.ts'
 import { firstMention, mentionsOf } from './mentions.ts'
 import { routeByFunction, type FunctionPart, type FunctionRoute, type RoutablePersona } from './function-route.ts'
+import { blockedSummary, chainOf, chainSentence, downstreamIds, failureLine, SPLIT_BLOCKED, SPLIT_HOLD, SPLIT_NEXT, type SplitHold, type SplitNext } from './split-chain.ts'
+import { ticketIdOfThread } from './task-thread.ts'
 import type { FanoutGate } from './fanout-plan.ts'
 import type { ActionBridge } from './action-bridge.ts'
 import { engineChoiceOf } from './engine-choice.ts'
 import { canSaveFiles, toolsForTask } from './file-tools.ts'
 import { engineNoteOf } from './engine-note.ts'
 import type { ProductToolsOpener } from './harness-turn.ts'
+import type { TurnBrowser } from './browser/turn-browser.ts'
 import { MAX_IMAGE_BYTES, MAX_TURN_IMAGES, type SkippedImage, type TurnImage } from './turn-images.ts'
 import { collaboratorViews, joinNames, MAX_COLLABORATORS, putCollaborators } from './ticket-collaborators.ts'
 import { ReplyStream } from './reply-stream.ts'
+import { backgroundWorkOf, type BackgroundWork } from './background-work.ts'
+import { talkActivityRows, type TalkStep } from './talk-activity.ts'
+import { clipSpeech, PASSED_LINE, QUIET_TASK_LINE, readPass, shapeSpeech, speechLayer, streamSafe, type SpeechStyle } from './speech.ts'
+import { draftInputFiles, runTurnClose, savedFilesSince, type TurnCloseLogEntry } from './turn-close-host.ts'
+import type { KnownFacts, TurnCloseVerdict } from './turn-close.ts'
+import { readSpeechStyle, saveSpeechStyle, styleRequestOf } from './speech-style.ts'
+import { ACCESS_RULE, accessLabelOf, type AccessEntry } from './access-map.ts'
 import { FIRST_DELIVERY_EVENT_ID } from './onboarding.ts'
 import { humanTitle } from './ticket-title.ts'
 import type { DeadLetterBook } from './dead-letter.ts'
@@ -120,6 +132,9 @@ import {
   lastRunnerQuestion,
   lastRunnerReport,
   lastRunnerReportAt,
+  lastRunnerStep,
+  lastRunnerToolSteps,
+  lastRunnerTools,
   setRunnerPartialSink,
   lastRunnerText,
   NO_FINAL_WORDS,
@@ -132,6 +147,8 @@ import {
   type HostConnectorGrant,
   type RunnerPurpose,
 } from './runner.ts'
+import { isStatusAsk, statusLine, stepWords } from './busy-status.ts'
+import { isContinueStop, stoppedLineOf } from './continue-card.ts'
 
 /** Sticker (Brush catalog) the persona answers a courtesy line with: a heart for thanks, a thumbs-up for the rest. Muse owns the final form. */
 export function courtesyStickerFor(body: string): 'coracao' | 'joinha' {
@@ -381,8 +398,8 @@ export class Orchestration {
   work: Promise<void> = Promise.resolve()
   readonly budget: ExecutionBudget
   readonly cancelled: Set<string> = new Set<string>()
-  /** Minimum gap between two writes of a reply that is streaming into the thread. */
-  streamThrottleMs: number = 120
+  /** Minimum gap between two writes of a reply that is streaming into the thread (live deltas, ~20 writes/s). */
+  streamThrottleMs: number = 50
   /** Tickets whose open turn a person stopped (Parar): the run loop must not report them afterwards. */
   readonly stopped: Set<string> = new Set<string>()
   readonly lastErrors: string[] = []
@@ -439,6 +456,12 @@ export class Orchestration {
    * request is open, so the Task reports `waiting` instead of `done`; unset or undefined = nothing is waited for.
    */
   handoffWait: ((projectId: string, ticketId: string, delivered: string) => string | undefined) | undefined = undefined
+  /** Item 1: pure read (no effect, unlike `handoffWait`): does this Task have a help it asked for that is not back yet? The end of its turn is then "esperando colega", never "Pronto". */
+  handoffPending: ((projectId: string, ticketId: string) => boolean) | undefined = undefined
+  /** Item 18: who answers a message written in a Task's thread when it names nobody (the persona that takes care of the Task); unset = the usual routing. */
+  threadResponderOf: ((event: StoredEvent) => StoredPersona | undefined) | undefined = undefined
+  /** Item 18: the brief of the Task a thread's message is about, one more record of the context the persona reads. */
+  threadContextOf: ((event: StoredEvent) => UsedContextRecord[]) | undefined = undefined
   /** P0-2: the `<entrega>` block a colleague or reviewer reads after the bilhete, by the request that opened her Task (the team layer sets it). */
   entregaOf: ((projectId: string, requestId: string) => string | undefined) | undefined = undefined
   /** P0-2: the art (SVG) of that delivery as PNG images for the colleague's turn (the team layer sets it). */
@@ -458,6 +481,8 @@ export class Orchestration {
   readonly turnInputs: { personaId: string; ticketId: string; purpose: 'task' | 'review' | 'answer'; prompt: string; toolNames: string[] }[] = []
   /** D-097: the team orientation paragraph for a Task that is offered the team tools (undefined = none). Set by the host. */
   teamGuidanceOf: ((projectId: string, persona: StoredPersona, ticketId: string) => string | undefined) | undefined = undefined
+  /** Item 16: who holds which access (the grants the owner gave), for the list of colleagues in a prompt. Set by the host; undefined = nobody is told. */
+  accessOf: ((workspaceId: string) => AccessEntry[]) | undefined = undefined
   /** D-097: the tool names a worker turn of this Task is offered (what the opener will announce). Set by the host. */
   offeredToolsOf: ((projectId: string, persona: StoredPersona, ticketId: string) => string[]) | undefined = undefined
   /**
@@ -493,12 +518,18 @@ export class Orchestration {
   connectorLabel: ((cli: string, id: string) => string | undefined) | undefined = undefined
   /** HT-0 (v1.1, OFF by default): the host's opener of the product tools (board, sprints, routines) for a persona's Task turns. */
   productToolsOf: ((persona: StoredPersona, projectId: string) => ProductToolsOpener | undefined) | undefined = undefined
+  /** COLHEITA 17: the browser of a persona's Task turns (opened once per runner, released when the runner is forgotten). */
+  browserOf: ((personaId: string, cli: string) => Promise<TurnBrowser | undefined>) | undefined = undefined
+  /** The release of each runner's browser lease, keyed by the runner that holds it. */
+  private browserLeases = new Map<Runner, () => void>()
   /** Persist T3 §9 rows from `Engine.report` (`assignment.reported`). */
   recordActivity: ((projectId: string, row: TurnActivityEvent) => void) | undefined = undefined
   /** Notify the host after task execution and its channel reply settle; failed means execution threw. */
   onTaskSettled: ((event: StoredEvent, failed: boolean) => void) | undefined = undefined
   /** Cached-only admission decision; scripted/test composition can return ready. */
   engineReadinessOf: (() => Pick<EngineStatusView, 'state' | 'reason'>) | undefined = undefined
+  /** Harvest 10: the official window that pauses the team's own work at 95% (`undefined` = the whole window is free). */
+  windowReserveOf: ((projectId: string) => WindowReserve | undefined) | undefined = undefined
   /** Arm host reconnection polling after intake retains a message. */
   onEngineDeferred: (() => void) | undefined = undefined
   /** A Task was stopped by the quota window (IV-7): the host arms its re-check (reset clock, or a fixed period). */
@@ -526,6 +557,16 @@ export class Orchestration {
   liveQuestion: string | undefined = undefined
   /** Test hook: `ended.report.ask`, the structured question a persona wrote (chips, a sequence). */
   liveAsk: unknown = undefined
+  /** Test hook: the tools the next turn called (a rig that plays a turn without the OAR tap). */
+  liveTools: string[] | undefined = undefined
+  /** Colheita §6: test hook — the conversation turn's steps with their instants (a rig that plays a turn without the OAR tap). */
+  liveToolSteps: readonly TalkStep[] | undefined = undefined
+  /** Item 3 (colheita): the end-of-turn rules run (index.ts resolves it: ON in the real app, OFF under Vitest unless asked). */
+  turnClose: boolean = false
+  /** Item 3: the last decisions of the rules, for diagnostics and tests (never shown to the owner). */
+  readonly turnCloseLog: Array<TurnCloseLogEntry & { readonly ticketId: string }> = []
+  /** Item 3 → item 7: the card "Continuar" a Task waits with when the extra turns did not fix the turn (Flint wires it). */
+  continueCard: ((card: { projectId: string; ticketId: string; personaId: string; motivo: string; fala: string }) => void) | undefined = undefined
   /**
    * Token lever SK (D-073): do not spend the coordination triage call. It runs on an answer-only runner (no tools) and
    * nothing reads its answer: Tickets come from the router, the worker from the Ticket. Turn it off to bring the call back,
@@ -610,6 +651,8 @@ export class Orchestration {
 
   /** Close warm leases and Rivet's process pool (quit / pause). */
   async disposeRunners(): Promise<void> {
+    for (const release of this.browserLeases.values()) release()
+    this.browserLeases.clear()
     for (const runner of this.warmRunners.values()) this.actions?.release(runner)
     this.warmRunners.clear()
     await this.actions?.closeAll()
@@ -678,8 +721,9 @@ export class Orchestration {
    * @param responderId - Explicit responder, empty for the stored mention or Coordination.
    * @param resumed - Trigger already released by engineReady; omitted performs initial receive.
    * @param firstDelivery - Host-authorized onboarding target; never supplied by the message Remote.
+   * @param resumeText - The combined requests of a window resume (the release itself, never re-queued).
    */
-  ingest(event: StoredEvent, streamKind: 'channel' | 'dm', ownerId: string, responderId: string = '', resumed?: Trigger, firstDelivery?: FirstDeliveryRouteDirective): void {
+  ingest(event: StoredEvent, streamKind: 'channel' | 'dm', ownerId: string, responderId: string = '', resumed?: Trigger, firstDelivery?: FirstDeliveryRouteDirective, resumeText?: string): void {
     const firstDeliveryTarget = firstDelivery ?? this.firstDeliveryRoute(event.projectId, event.id)
     // A persona's own message wakes nobody — except the line she wrote to hand work to a colleague (TEAM-3): it is authored by HER, and
     // the route carries the member whose mandate she ran under, so the colleague's Task inherits that scope and nothing more.
@@ -689,7 +733,7 @@ export class Orchestration {
     const mentioned = this.mentionedPersona(event.projectId, event.body)
     const dmPeer = streamKind === 'dm' ? this.dmPersona(ownerId, event.actorId) : undefined
     const chosen = firstDeliveryTarget === undefined
-      ? ((responderId === '' ? undefined : this.product.getPersona(responderId)) ?? mentioned ?? dmPeer)
+      ? ((responderId === '' ? undefined : this.product.getPersona(responderId)) ?? mentioned ?? this.threadResponderOf?.(event) ?? dmPeer)
       : this.product.listPersonas(event.projectId).find(persona => persona.id === firstDeliveryTarget.executorId)
     const speaker = chosen ?? coordination
     // TEAM-13: a request that names nobody goes to the persona of its FUNCTION, or is split by function when it lists several.
@@ -723,9 +767,11 @@ export class Orchestration {
       this.holdPaused(event, streamKind, ownerId, owner.id, owner)
       return
     }
+    // Harvest 10: at 95% the team's own work waits and the last 5% answers the owner. A spent window (100%) belongs to the limit flow (D-078).
+    if (this.holdForWindow(event, streamKind, ownerId, responderId, speaker, asksWork || firstDelivery !== undefined, resumeText)) return
     const rt = this.runtime(event.projectId)
     const original = this.triggerOf(mandateActorId === undefined ? event : { ...event, actorId: mandateActorId }, streamKind, ownerId, mentioned !== undefined || streamKind === 'dm')
-    const trigger = resumed ?? { ...original, meta: { ...original.meta, responderId,
+    const trigger = resumed ?? { ...original, ...(resumeText === undefined ? {} : { text: resumeText }), meta: { ...original.meta, responderId,
       ...(firstDelivery === undefined ? {} : { firstDelivery }),
     } }
     const unavailable = readiness !== undefined && readiness.state !== 'ready' && pauseCommandOf(event.body) === undefined
@@ -787,7 +833,10 @@ export class Orchestration {
         this.settleCandidates(rt, event)
         return
       }
-      this.noteBusy(rt, event, speaker)
+      if (this.noteBusy(rt, event, speaker)) {
+        this.settleCandidates(rt, event)
+        return
+      }
     }
     const work = firstDeliveryTarget !== undefined || asksWork
     this.mark(work ? 'triage:ticket' : 'triage:talk')
@@ -935,6 +984,8 @@ export class Orchestration {
     for (const [key, runner] of [...this.warmRunners]) {
       if (!key.startsWith(`${projectId}:${personaId}:`)) continue
       this.warmRunners.delete(key)
+      this.browserLeases.get(runner)?.()
+      this.browserLeases.delete(runner)
       this.actions?.release(runner)
       evicted += 1
       const dispose: unknown = Reflect.get(runner, 'dispose')
@@ -1051,6 +1102,8 @@ export class Orchestration {
     const runner = this.warmRunners.get(key)
     if (runner === undefined) return
     this.warmRunners.delete(key)
+    this.browserLeases.get(runner)?.()
+    this.browserLeases.delete(runner)
     this.actions?.release(runner)
     const dispose: unknown = Reflect.get(runner, 'dispose')
     if (typeof dispose === 'function') {
@@ -1068,6 +1121,14 @@ export class Orchestration {
         if (key.includes(`:task:${ticket.id}:`)) this.dropWarm(key)
       }
     }
+  }
+
+  /**
+   * Item 12: the background book of this host. The book takes its clock when it is created, so every access goes through here with the
+   * host's clock — a read that created it with the wall clock would compare real time with the host's and detach every Task at once.
+   */
+  private get backgroundWork(): BackgroundWork {
+    return backgroundWorkOf(this, { nowMs: () => Date.parse(this.now()) })
   }
 
   /**
@@ -1106,7 +1167,22 @@ export class Orchestration {
     const owner = ticket.execution?.name
     const persona = owner === undefined ? undefined : this.product.listPersonas(projectId).find(item => item.name === owner)
     const run = this.work.then(() => this.settleTask(rt, event, this.coordinationOf(projectId), persona, ticketId))
-    this.work = run.catch(() => undefined)
+    // Item 12: past 4 minutes of active work the Task moves itself to the background and the work chain is free for the
+    // persona's channel; the Task keeps running and is tracked until it settles (the 20-tool-call trigger waits for Bolt's counter).
+    const onDetach = (): void => {
+      if (persona === undefined) return
+      try {
+        this.postAs(event, persona, `background-${ticketId}`, 'Sigo no fundo; te aviso quando terminar.')
+      } catch (error: unknown) {
+        this.lastErrors.push(error instanceof Error ? error.message : String(error))
+      }
+    }
+    // Item 12: the round's clock starts NOW, when the host starts driving it. An Assignment that is already RUNNING is a resumed run
+    // (the app reopened mid-turn) and keeps its own clock; a pending one (the person answered a question hours later) starts at zero,
+    // whatever its old startedAt says — otherwise the Task would detach the moment it starts and `flush` would not wait for the turn.
+    const latest = latestAssignment(ticket)
+    const startedAt = latest?.state === 'running' ? latest.startedAt : undefined
+    this.work = this.backgroundWork.run(ticketId, run, startedAt, 0, onDetach).catch(() => undefined)
     return run
   }
 
@@ -1343,19 +1419,22 @@ export class Orchestration {
     if (!this.isPersonAuthor(event)) return undefined
     const here = `${streamKind}:${ownerId}`
     const subject = event.topicId ?? ''
-    const open = rt.repo.tickets.list().filter(ticket => ticket.ended === undefined && this.conversationOf(rt, ticket) === here)
+    const threadOf = ticketIdOfThread(subject) // item 18: a message in a Task's thread is about THAT Task only
+    const open = rt.repo.tickets.list().filter(ticket => ticket.ended === undefined && this.conversationOf(rt, ticket) === here && (threadOf === undefined || ticket.id === threadOf))
     const cited = mentionsOf(this.product.listPersonas(event.projectId), event.body)
     const toAnother = (ticket: Ticket): boolean => cited.length > 0 && !cited.some(persona => persona.name === ticket.execution?.name)
     // An answer in plain words (not a new request), or any reply written ON the line where the persona asked.
     const asking = open.find(ticket => ticket.attention !== undefined && latestAssignment(ticket)?.report?.state === 'waiting'
-      && ((!wantsWork(event.body) && !toAnother(ticket)) || event.replyToId === doneEventId(ticket)))
+      && ((!wantsWork(event.body) && !toAnother(ticket) && !this.asksStatus(event)) || event.replyToId === doneEventId(ticket)))
     if (asking !== undefined) return { ticket: asking, kind: 'answer' }
     for (const ticket of open) {
+      // Item 12: a Task in the background must not absorb the message; it becomes a talk turn and the persona is free.
+      if (this.backgroundWork.isBackground(ticket.id)) continue
       if (toAnother(ticket)) continue
       const latest = latestAssignment(ticket)
       const turnOpen = latest?.state === 'running' && (latest.report === undefined || latest.report.state === 'progress')
       const ticketSubject = this.screens?.get<{ subjectId: string }>(event.projectId, 'ticket_subject', ticket.id)?.subjectId ?? ''
-      if (turnOpen && ticketSubject === subject && this.taskRunnerOf(event.projectId, ticket.id)?.status(workerSessionId(ticket.id)) === 'running') {
+      if (turnOpen && (ticketSubject === subject || threadOf === ticket.id) && this.taskRunnerOf(event.projectId, ticket.id)?.status(workerSessionId(ticket.id)) === 'running') {
         return { ticket, kind: 'continuation' }
       }
     }
@@ -1384,6 +1463,11 @@ export class Orchestration {
       if (runner === undefined) return false
       // "Direcionar agora" delivers itself into the turn (as a steer); the message in the thread is its visible reaction.
       if (event.id.startsWith('steer:')) return true
+      // Item 7: a question that only asks how it is going is answered here by the host (zero tokens); it never goes into the turn.
+      if (persona !== undefined && this.asksStatus(event)) {
+        this.postStatus(rt, event, persona, ticket, true)
+        return true
+      }
       // Straight into the open turn's queue (the running task itself holds the work chain): it reads the text after this step.
       void runner.deliver(workerSessionId(ticket.id), `msg:${event.id}`, event.body, 'queue').catch((error: unknown) => {
         this.lastErrors.push(error instanceof Error ? error.message : String(error))
@@ -1414,19 +1498,64 @@ export class Orchestration {
     return true
   }
 
-  /** The persona is in the middle of a task: say so, so the message is never met with silence. */
-  private noteBusy(rt: ProjectRuntime, event: StoredEvent, speaker: StoredPersona): void {
-    if (this.budget.of(event.projectId) === 0) return
+  /**
+   * The persona is in the middle of a task: say so, so the message is never met with silence. A message that ONLY asks how it is going
+   * is answered right here (item 7, zero tokens, `coord-<id>-status` is a final line): the caller then stops.
+   * @returns true when the line IS the answer.
+   */
+  private noteBusy(rt: ProjectRuntime, event: StoredEvent, speaker: StoredPersona): boolean {
+    if (this.budget.of(event.projectId) === 0) return false
     const running = rt.repo.tickets.list().find(ticket => ticket.ended === undefined && latestAssignment(ticket)?.state === 'running')
-    if (running === undefined) return
+    if (running === undefined) return false
+    const asks = this.asksStatus(event)
+    this.postStatus(rt, event, speaker, running, asks)
+    return asks
+  }
+
+  /** Item 7: ends the Task as stopped by the person and writes the same short line "Parar" writes, in the thread of the answer. */
+  private stopByAnswer(projectId: string, ticketId: string, messageId: string): void {
+    const ticket = this.runtime(projectId).repo.tickets.get(ticketId)
+    const answer = this.events.get(messageId)
+    const persona = this.product.listPersonas(projectId).find(item => item.name === ticket?.execution?.name)
+    void this.stopTicketRun(projectId, ticketId, 'Parado por você').then(() => {
+      if (ticket === undefined || answer === undefined || persona === undefined) return
+      const lineId = `stop:${ticketId}:${this.now()}`
+      this.postAs(answer, persona, lineId, stoppedLineOf(ticket.title))
+      if (this.screens !== undefined) new MessageFlags(this.screens).set(projectId, lineId, { stopped: true, stoppedTicketId: ticketId })
+    }).catch((error: unknown) => {
+      this.lastErrors.push(error instanceof Error ? error.message : String(error))
+    })
+  }
+
+  /** Item 7: the person's message is only a question about how the work is going (a request that also asks for something is not). */
+  private asksStatus(event: StoredEvent): boolean {
+    return this.isPersonAuthor(event) && isStatusAsk(event.body, this.product.listPersonas(event.projectId).map(item => item.name))
+  }
+
+  /**
+   * Item 7: the step the open turn of a Task is on, in plain words (never a tool name or a path), from the last tool the turn really called.
+   * @returns undefined when the turn is not live, nothing was called yet, or the tool is one the words table cannot say honestly.
+   */
+  stepSentenceOf(projectId: string, ticketId: string): string | undefined {
+    const runner = this.taskRunnerOf(projectId, ticketId)
+    if (runner === undefined || runner.status(workerSessionId(ticketId)) !== 'running') return undefined
+    return stepWords(lastRunnerStep(runner)?.tool)
+  }
+
+  /** Item 7: the busy line, or (`answersNow`) the status answer: real time since the Assignment started and the step the turn is on now. */
+  private postStatus(rt: ProjectRuntime, event: StoredEvent, speaker: StoredPersona, running: Ticket, answersNow: boolean): void {
     const mine = running.execution?.name === speaker.name
     // The task's title is said only where its conversation (or the person who asked for it) can read it: the DM of another
     // person with the same persona never learns the title of a channel task.
     const sees = this.conversationOf(rt, running) === event.streamId || running.mandate.actor.id === event.actorId
-    const what = sees ? `“${running.title}”` : 'uma tarefa'
-    this.postAs(event, speaker, `coord-${event.id}-busy`, mine
-      ? `Estou terminando ${what}; respondo em seguida.`
-      : `A equipe está terminando ${what}; respondo em seguida.`)
+    const latest = latestAssignment(running)
+    const waiting = latest?.report?.state === 'waiting' || running.attention !== undefined
+    const started = Date.parse(latest?.startedAt ?? '')
+    const step = waiting ? undefined : this.stepSentenceOf(event.projectId, running.id)
+    this.postAs(event, speaker, `coord-${event.id}-${answersNow ? 'status' : 'busy'}`, statusLine({
+      name: speaker.name, mine, who: mine ? undefined : running.execution?.name, title: sees ? running.title : undefined,
+      elapsedMs: Number.isNaN(started) ? undefined : Date.parse(this.now()) - started, step, waiting, answersNow,
+    }))
   }
 
   /**
@@ -1444,6 +1573,7 @@ export class Orchestration {
     const ticket = rt.repo.tickets.get(ticketId)
     if (ticket === undefined) return false
     const attentionId = ticket.attention?.id ?? ''
+    const stopsHere = isContinueStop(ticket.attention, optionIds) // read before the answer clears it
     const files = this.attachmentNamesOf?.(messageId) ?? []
     const stage = files.length > 0 ? workerDirOf(projectId, ticket) : undefined
     if (stage !== undefined) this.stageAttachments?.(messageId, stage, false)
@@ -1452,7 +1582,10 @@ export class Orchestration {
       ? rt.engine.answerAsk(ticketId, { text: words, optionIds }).done
       : rt.engine.answerAttention(ticketId, words).attention === undefined
     this.attentionAnswered?.({ projectId, ticketId, attentionId, optionIds, text, messageId, done })
-    if (done) {
+    // Item 7: "Parar por aqui" on the Continuar card only ENDS the Task: nobody is woken and no turn is spent.
+    if (done && stopsHere) {
+      this.stopByAnswer(projectId, ticketId, messageId)
+    } else if (done) {
       void this.wakeAfterAnswer(projectId, ticketId).catch((error: unknown) => {
         this.lastErrors.push(error instanceof Error ? error.message : String(error))
       })
@@ -1526,7 +1659,108 @@ export class Orchestration {
     if (latestAssignment(ticket)?.report?.state !== 'waiting' || ticket.attention !== undefined) return false
     if (ticket.follows === undefined || ticket.follows.length === 0) rt.engine.bindThread(ticketId, { source: 'review', id: ticketId }, true)
     rt.engine.report(ticketId, { state: 'ready', summary })
-    this.ticketSettled?.({ projectId, ticketId, state: 'ready' })
+    this.settled({ projectId, ticketId, state: 'ready' })
+    return true
+  }
+
+  /**
+   * A Task's run ended (see {@link ticketSettled}). D-100: when it DELIVERED (after its review, when it has one) the part of the same request that was waiting for it starts now.
+   * @param info - The Task and how its run ended.
+   */
+  private settled(info: { readonly projectId: string; readonly ticketId: string; readonly state: 'ready' | 'failed' | 'blocked' }): void {
+    this.ticketSettled?.(info)
+    if (info.state === 'ready') this.releaseSplitNext(info.projectId, info.ticketId)
+    else this.holdSplitFailed(info.projectId, info.ticketId)
+  }
+
+  /** A Task of a split request has DELIVERED: it ended well, or its last report is `ready` (a part waits for the person's review in that state). */
+  private partDelivered(ticket: Ticket): boolean {
+    if (ticket.ended !== undefined) return ticket.ended.outcome === 'completed' || ticket.ended.outcome === 'merged'
+    return latestAssignment(ticket)?.report?.state === 'ready'
+  }
+
+  /**
+   * D-100: the part that waits for this one, started. Nothing when the Task is not the producer of a chain; the wait itself is read from the producer's state at the
+   * moment the consumer runs ({@link holdSplitPart}), so a second call (or a restart) can only run it once, after the producer.
+   */
+  private releaseSplitNext(projectId: string, ticketId: string): void {
+    const rt = this.runtime(projectId)
+    const ticket = rt.repo.tickets.get(ticketId)
+    const next = ticket === undefined ? undefined : this.screens?.get<SplitNext>(projectId, SPLIT_NEXT, ticket.origin.triggerId)
+    if (next === undefined) return
+    const consumer = rt.repo.tickets.list().find(row => row.origin.triggerId === next.nextId)
+    if (consumer === undefined || consumer.ended !== undefined) return
+    // A part the host BLOCKED because this one had not delivered (`holdSplitFailed`) starts again by itself now that it did: a new Assignment under the same Mandate.
+    // The new Assignment is the part's FIRST RUN, so it reads what the one before delivered (`runOn`: the prompt carries the delivery block on that Assignment, not only on the first).
+    const blocked = this.screens?.get<{ afterId: string; runOn?: string }>(projectId, SPLIT_BLOCKED, consumer.origin.triggerId)
+    if (blocked !== undefined && blocked.runOn === undefined) {
+      try {
+        const retried = rt.engine.retryTicket(consumer.id)
+        this.screens?.put(projectId, SPLIT_BLOCKED, consumer.origin.triggerId, { ...blocked, runOn: latestAssignment(retried)?.id ?? '' })
+      } catch (error: unknown) { this.lastErrors.push(error instanceof Error ? error.name : 'Error') }
+    }
+    void this.driveTicket(projectId, consumer.id).catch((error: unknown) => {
+      this.lastErrors.push(error instanceof Error ? error.name : 'Error')
+    })
+  }
+
+  /**
+   * D-100: the part in front of the chain did NOT deliver (failed or blocked): the parts that wait for it would stay "Esperando…" forever, with nothing said to the owner. They are
+   * blocked now — no turn, no cost, the card names who is missing — and the owner reads ONE honest line (once per request). When that part delivers in a new round the release
+   * above starts them again by themselves, in order.
+   * @param projectId - Tenant.
+   * @param ticketId - The Task whose run ended without delivering.
+   * @param how - `failed` (its run ended failed/blocked) or `stopped` (the person pressed Parar: that part is over and the line says so).
+   */
+  private holdSplitFailed(projectId: string, ticketId: string, how: 'failed' | 'stopped' = 'failed'): void {
+    const screens = this.screens
+    const rt = this.runtime(projectId)
+    const producer = rt.repo.tickets.get(ticketId)
+    const request = producer === undefined ? undefined : /^split:([^:]+):/u.exec(producer.origin.triggerId)?.[1]
+    if (screens === undefined || producer === undefined || request === undefined) return
+    const labelOf = (triggerId: string): string => /^Parte de [^:]+: (.+)$/u.exec(this.events.get(triggerId)?.body ?? '')?.[1] ?? ''
+    const waiting: { name: string; label: string }[] = []
+    let before = { name: producer.execution?.name ?? 'Alguém', label: labelOf(producer.origin.triggerId), triggerId: producer.origin.triggerId }
+    for (const triggerId of downstreamIds(producer.origin.triggerId, id => screens.get<SplitNext>(projectId, SPLIT_NEXT, id))) {
+      const part = rt.repo.tickets.list().find(row => row.origin.triggerId === triggerId)
+      if (part === undefined || part.ended !== undefined || this.partDelivered(part) || latestAssignment(part)?.state !== 'running') break
+      rt.engine.report(part.id, { state: 'blocked', summary: blockedSummary(before.name, before.label, before.triggerId === producer.origin.triggerId ? how : 'failed') })
+      screens.put(projectId, SPLIT_BLOCKED, triggerId, { afterId: before.triggerId })
+      waiting.push({ name: part.execution?.name ?? 'Alguém', label: labelOf(triggerId) })
+      before = { name: part.execution?.name ?? 'Alguém', label: labelOf(triggerId), triggerId }
+    }
+    const original = this.events.get(request)
+    if (waiting.length === 0 || original === undefined) return
+    this.postAs(original, this.coordinationOf(projectId), `coord-${request}-split-failed`, failureLine({ name: producer.execution?.name ?? 'Alguém', label: labelOf(producer.origin.triggerId) }, waiting, how))
+  }
+
+  /**
+   * D-100: the person STOPPED a Task (Parar / "Parar" on the card): when it is the part in front of a chain, the parts that wait for it are blocked and the owner reads one honest line
+   * (a stop does not come through {@link settled}). Nothing when the Task is not part of a split.
+   * @param projectId - Tenant.
+   * @param ticketId - The Task that was stopped.
+   */
+  splitProducerStopped(projectId: string, ticketId: string): void {
+    this.holdSplitFailed(projectId, ticketId, 'stopped')
+  }
+
+  /**
+   * D-100: does this Task wait for the part before it in a chain (text → art → posts)? When it does, it reports `waiting` ("Esperando Bia: texto") — no turn, no line, no cost — and
+   * the caller does not run it. The wait is DERIVED from the producer's own state, never a flag that can go stale: the producer delivered = no wait.
+   * @param rt - The project's runtime.
+   * @param ticketId - The Task about to run.
+   * @returns true when it waits (and must not run now).
+   */
+  private holdSplitPart(rt: ProjectRuntime, projectId: string, ticketId: string): boolean {
+    const ticket = rt.repo.tickets.get(ticketId)
+    if (ticket === undefined || this.screens === undefined || ticket.ended !== undefined) return false
+    const latest = latestAssignment(ticket)
+    if (latest?.state !== 'running') return false
+    const hold = this.screens.get<SplitHold>(projectId, SPLIT_HOLD, ticket.origin.triggerId)
+    if (hold === undefined) return false
+    const producer = rt.repo.tickets.list().find(row => row.origin.triggerId === hold.afterId)
+    if (producer === undefined || this.partDelivered(producer)) return false // nobody to wait for (never opened), or it delivered
+    if (latest.report?.state !== 'waiting' && latest.report?.state !== 'blocked') rt.engine.report(ticket.id, { state: 'waiting', summary: `Esperando ${hold.afterName}: ${hold.afterLabel}` })
     return true
   }
 
@@ -1577,6 +1811,105 @@ export class Orchestration {
       new HeldMessages(this.screens).hold(event.projectId, { eventId: event.id, streamKind, ownerId, responderId, at: this.now() })
     }
     this.postAs(event, speaker, `coord-${event.id}-held`, heldLine(speaker.name, silenceEnd))
+  }
+
+  /**
+   * Harvest 10: keep a request for the window to renew. One row per conversation, and ONE line per conversation per
+   * window cycle (never one per message). A request is never dropped: without the doc store the gate stays open. A spent
+   * window is not held here: the limit flow (D-078) records it and proposes another account.
+   * @param work - A work request (the team's own or the owner's); a short owner answer is the last 5%.
+   * @param resumeText - The release itself, which never re-queues.
+   * @returns true when the request was kept (the caller must stop).
+   */
+  private holdForWindow(
+    event: StoredEvent,
+    streamKind: 'channel' | 'dm',
+    ownerId: string,
+    responderId: string,
+    speaker: StoredPersona | undefined,
+    work: boolean,
+    resumeText: string | undefined,
+  ): boolean {
+    if (resumeText !== undefined || pauseCommandOf(event.body) !== undefined) return false
+    const reserve = this.windowReserveOf?.(event.projectId)
+    if (reserve === undefined) return false
+    // A spent window belongs to the limit flow (D-078): it records the limit and proposes another account. Holding here would hide it.
+    if (reserve.state !== 'reserve') return false
+    const allowed = (!this.isPersonAuthor(event) || work) ? backgroundWorkAllowed(reserve) : ownerAnswerAllowed(reserve)
+    if (allowed) return false
+    if (this.screens === undefined) return false
+    const conversationId = `${streamKind}:${ownerId}`
+    const queue = new WindowResumeQueue(this.screens)
+    const row: WindowResumeRow = {
+      conversationId,
+      streamKind,
+      ownerId,
+      eventIds: [event.id],
+      responderId,
+      since: event.occurredAt,
+      sinceSeq: event.seq,
+      ...(reserve.resetsAt === undefined ? {} : { resetAt: reserve.resetsAt }),
+    }
+    const result = queue.hold(event.projectId, row)
+    const notice = this.screens.get<WindowReserveNotice>(event.projectId, WINDOW_NOTICE_KIND, conversationId)
+    if (result === 'new' && (notice === undefined || notice.windowId !== reserve.windowId || notice.resetsAt !== reserve.resetsAt)) {
+      const id = `coord-${event.id}-window`
+      this.postAs(event, speaker, id, reserveLine(reserve, windowClock(reserve)))
+      this.screens.put(event.projectId, WINDOW_NOTICE_KIND, conversationId, {
+        windowId: reserve.windowId,
+        ...(reserve.resetsAt === undefined ? {} : { resetsAt: reserve.resetsAt }),
+        messageId: id,
+      } satisfies WindowReserveNotice)
+    }
+    return true
+  }
+
+  /**
+   * Harvest 10: the window renewed (or the person chose “Continuar agora”): run ONE turn per waiting conversation with
+   * everything that arrived, and skip a conversation the persona already answered since the pause.
+   * @param projectId - Tenant.
+   * @param options - `force` releases even while the window still reports the reserve (the person's override).
+   * @returns How many conversations were resumed.
+   */
+  releaseWindowQueue(projectId: string, options: { readonly force?: boolean } = {}): number {
+    if (this.screens === undefined) return 0
+    if (options.force !== true && this.windowReserveOf?.(projectId) !== undefined) return 0
+    const queue = new WindowResumeQueue(this.screens)
+    const rows = queue.list(projectId)
+    let released = 0
+    for (const row of rows) {
+      const resolved = conversationResolved(
+        this.events.listProject(projectId),
+        row,
+        event => this.isPersonAuthor(event),
+        id => this.hasFinalLine(projectId, id),
+      )
+      if (resolved) {
+        queue.drop(projectId, row.conversationId)
+        continue
+      }
+      const events = row.eventIds
+        .map(id => this.events.get(id))
+        .filter((event): event is StoredEvent => event !== undefined)
+      if (events.length === 0) {
+        queue.drop(projectId, row.conversationId)
+        continue
+      }
+      const carrier = events.find(event => this.isPersonAuthor(event)) ?? events[0]!
+      const text = events.map(event => event.body).join('\n\n')
+      this.ingest(
+        carrier,
+        row.streamKind,
+        row.ownerId,
+        row.responderId,
+        undefined,
+        undefined,
+        `Pedidos que chegaram enquanto a janela estava cheia (retome todos, em ordem):\n\n${text}`,
+      )
+      queue.drop(projectId, row.conversationId)
+      released += 1
+    }
+    return released
   }
 
   /**
@@ -1652,8 +1985,11 @@ export class Orchestration {
    */
   async steerTicket(projectId: string, ticketId: string, requestId: string, text: string): Promise<boolean> {
     const runner = this.taskRunnerOf(projectId, ticketId)
-    if (runner === undefined || runner.status(workerSessionId(ticketId)) !== 'running') return false
-    await runner.deliver(workerSessionId(ticketId), requestId, text, 'steer')
+    const sessionId = workerSessionId(ticketId)
+    if (runner === undefined || runner.status(sessionId) !== 'running') return false
+    // The open turn takes the text and answers at once: the person's request must not wait for the turn to end.
+    if (runner.steer !== undefined) return runner.steer(sessionId, requestId, text)
+    await runner.deliver(sessionId, requestId, text, 'steer')
     return true
   }
 
@@ -2215,6 +2551,8 @@ export class Orchestration {
     const connectors = !answerOnly && purpose === 'task' && spec.kind === 'cli' ? this.connectorsOf?.(persona, spec.cli, ticketId) : undefined
     // The product tools (HT-0) are only for a Task's execution on a CLI, never for conversation or the answer-only calls.
     const productTools = !answerOnly && purpose === 'task' && spec.kind === 'cli' ? this.productToolsOf?.(persona, projectId) : undefined
+    // COLHEITA 17: the browser is opened once per runner (Chrome stays up); a refusal leaves the turn without it.
+    const browser = !answerOnly && purpose === 'task' && spec.kind === 'cli' ? await this.browserOf?.(persona.id, spec.cli) : undefined
     // D-099: on a CLI the persona's file grant is effective only INSIDE a draft folder (see file-tools.ts): a Task without one is text-only. The key carries it, so a
     // runner built with the grant is never reused for a Task without a draft.
     const draftDirectory = !answerOnly && purpose === 'task' && ticketId !== undefined ? this.runtime(projectId).repo.tickets.get(ticketId)?.execution?.directory : undefined
@@ -2261,6 +2599,7 @@ export class Orchestration {
       ...(connectors === undefined || connectors.length === 0 ? {} : { connectors }),
       ...(gate === undefined ? {} : { permissionGate: gate }),
       ...(productTools === undefined ? {} : { productTools }),
+      ...(browser === undefined ? {} : { extraMcpServers: [browser.server] }),
       ...(talkCwd === '' ? {} : { cwd: talkCwd }),
       ...(onFirstToken === undefined ? {} : { onFirstToken }),
       ...(home === '' ? {} : { home }),
@@ -2324,6 +2663,7 @@ export class Orchestration {
       throw error
     }
     if (gate !== undefined) this.actions?.adopt(runner, gate)
+    if (browser !== undefined) this.browserLeases.set(runner, browser.release)
     this.usageContexts.set(runner, usageContext)
     this.warmRunners.set(key, runner)
     this.mark(`resolve:${purpose}:ready`)
@@ -2352,7 +2692,7 @@ export class Orchestration {
     } catch (postError: unknown) {
       if (!(postError instanceof Error && /not open/i.test(postError.message))) this.softFailure('failure-line', postError)
     }
-    this.ticketSettled?.({ projectId: event.projectId, ticketId, state: 'blocked' })
+    this.settled({ projectId: event.projectId, ticketId, state: 'blocked' })
   }
 
   private async runLaunched(
@@ -2362,6 +2702,8 @@ export class Orchestration {
     preferred?: StoredPersona,
     only?: string,
   ): Promise<void> {
+    // D-100: a part of a request that waits for the part before it (the art for the text) costs nothing and says nothing until that part delivers.
+    if (only !== undefined && this.holdSplitPart(rt, event.projectId, only)) return
     const acquired = this.budget.acquire(event.projectId)
     if (!acquired) {
       this.postAs(event, coordination, `coord-${event.id}-wait`, 'Aguardando vaga neste projeto.')
@@ -2457,7 +2799,8 @@ export class Orchestration {
         // D-097: a Task that is offered the team tools is told, in one short paragraph, that it works in a team (no magic word needed to use them).
         const guidance = answerOnlyRoute ? undefined : this.teamGuidanceOf?.(event.projectId, executor, ticket.id)
         // P0-2 “o bilhete leva a entrega”: what the colleague/reviewer who sent this work wrote, whole (data), from the first Assignment only.
-        const handed = !answerOnlyRoute && ticket.assignments.length <= 1 ? this.entregaOf?.(event.projectId, ticket.origin.triggerId) : undefined
+        const firstRunOfPart = ticket.assignments.length <= 1 || this.screens?.get<{ runOn?: string }>(event.projectId, SPLIT_BLOCKED, ticket.origin.triggerId)?.runOn === latest.id // (a chain part the host blocked and restarted: its 1st RUN)
+        const handed = !answerOnlyRoute && firstRunOfPart ? this.entregaOf?.(event.projectId, ticket.origin.triggerId) : undefined
         // The art (an SVG in her words) as an image for the colleague's turn, through the same bridge as a photo the person attached. No PNG = the SVG text is in the block.
         const handedImages = handed === undefined || !runnerSeesImages(runner) ? [] : (await this.entregaImagesOf?.(event.projectId, ticket.origin.triggerId, ticket.execution?.directory ?? '.')) ?? []
         const withHanded = handed === undefined ? withColleagues : `${withColleagues}\n\n${handed}${handedImages.length === 0 ? '' : '\n[Anexo: a arte em SVG acima foi convertida em PNG e vai como imagem neste pedido.]'}`
@@ -2479,7 +2822,9 @@ export class Orchestration {
         })
         if (this.turnInputs.length > 100) this.turnInputs.shift()
         const seen = this.turnImages(event, executor, runner, [ticket.origin.triggerId, ...ticket.origin.triggerIds, ...splitParentOf(ticket.origin.triggerId)], ticket.execution?.directory ?? '.', `coord-${ticket.id}-images`)
-        this.actions?.arm(runner, ticket.id, ticket.execution?.directory) // HT-9: what the policy lets through + what the person approved for THIS Task
+        // COLHEITA 8/19b: a Task started by an e-mail the person received never pre-allows `send`; the person's card decides every send.
+        const runOrigin = { ...(rt.repo.triggers.get(ticket.origin.triggerId)?.viaEmail === true ? { viaEmail: true } : {}) }
+        this.actions?.arm(runner, ticket.id, ticket.execution?.directory, runOrigin) // HT-9: what the policy lets through + what the person approved for THIS Task
         await deliverWithImages(
           runner,
           sessionId,
@@ -2492,14 +2837,50 @@ export class Orchestration {
         if (heard.ids.length > 0) rt.engine.inputsDelivered(ticket.id, latest.id, heard.ids)
         await runner.whenIdle(sessionId)
         await this.noteUsage(event.projectId, executor, sessionId, runner)
-        const stoppedNow = this.stopped.delete(ticket.id)
+        let stoppedNow = this.stopped.delete(ticket.id)
         // HT-9: what the gate refused in this turn becomes one card per call (nothing for a Task the person stopped).
-        const held = this.actions?.settle(runner, { ticketId: ticket.id, failed: lastRunnerReport(runner)?.state === 'failed', stopped: stoppedNow })
+        let held = this.actions?.settle(runner, { ticketId: ticket.id, failed: lastRunnerReport(runner)?.state === 'failed', stopped: stoppedNow })
         if (stoppedNow) continue // Parar: the ticket already ended as stopped by the person
+        // Item 3 (colheita): how the turn ENDS is decided by rules (turn-close.ts) on her RAW words, before the speech layer and before anything is posted.
+        // A "Pronto!" no tool backs, a question she could answer herself and a secret asked in the chat go back to her ONCE as an internal note (never in the
+        // thread); after the budget (3 extra turns) her false words are replaced by an honest sentence and the Task waits with the card "Continuar".
+        let rawWords = this.takeLive(runner)
+        let closing: TurnCloseVerdict | undefined
+        if (this.turnClose) {
+          const outcome = await runTurnClose({
+            words: rawWords,
+            // Somebody else settles this turn: stopped, failed/blocked, an approval card, a question card.
+            stepAside: () => stoppedNow || held?.waiting === true || this.quietTask?.(event.projectId, ticket.id) === true
+              || ['failed', 'blocked', 'dropped'].includes(lastRunnerReport(runner)?.state ?? '')
+              || this.liveAsk !== undefined || lastRunnerAsk(runner) !== undefined || this.liveQuestion !== undefined || lastRunnerQuestion(runner) !== undefined
+              || (ticket.attention === undefined && rt.repo.tickets.get(ticket.id)?.attention !== undefined),
+            tools: () => this.takeTools(runner),
+            savedFiles: () => savedFilesSince(ticket.execution?.directory, turnFrom),
+            hadTools: !answerOnlyRoute,
+            // Forge: an ask_colleague she made has not come back yet (a pure read; pass_forward does not count): her turn is a wait, never a "Pronto".
+            waitingColleague: () => this.handoffPending?.(event.projectId, ticket.id) === true,
+            known: this.knownFor(event, ticket, heard.texts),
+            rerun: async (cobranca, turn) => {
+              this.actions?.arm(runner, ticket.id, ticket.execution?.directory, runOrigin)
+              await runner.deliver(sessionId, `close:${latest.id}:${String(turn)}`, cobranca, 'queue')
+              await runner.whenIdle(sessionId)
+              await this.noteUsage(event.projectId, executor, sessionId, runner)
+              stoppedNow = this.stopped.delete(ticket.id)
+              held = this.actions?.settle(runner, { ticketId: ticket.id, failed: lastRunnerReport(runner)?.state === 'failed', stopped: stoppedNow })
+              return this.takeLive(runner)
+            },
+          })
+          rawWords = outcome.words
+          closing = outcome.verdict
+          for (const entry of outcome.log) this.noteTurnClose(ticket.id, entry)
+          if (stoppedNow) continue // Parar, during an extra turn
+        }
         const report = lastRunnerReport(runner)
         // P0-2: her words are the text after her last tool. A turn that spoke only between tools (and ended on one) has no words of its own: ONE short
         // human sentence stands in (the line, the bilhete and the review carry it), never the monologue and never the adapter's placeholder.
-        const finalWords = this.takeLive(runner)
+        // Item 4: the pass token never reaches a line, a report or a review. A Task that answers it ends with ONE short line, never an empty one.
+        const heardFinal = readPass(rawWords)
+        const finalWords = heardFinal.passed ? QUIET_TASK_LINE : heardFinal.text
         const live = finalWords !== '' ? finalWords : lastRunnerNarrated(runner) ? NO_FINAL_WORDS : ''
         await this.noteDraftFiles(event, executor, ticket, turnFrom)
         // A turn of a real CLI that called no report tool ends with the adapter's placeholder (“turn ended”, persona-runners oar/adapter.ts): the words of
@@ -2519,7 +2900,7 @@ export class Orchestration {
           // HT-9: the turn ended asking for something the person must decide. The Task WAITS (no question, no "done"): the cards are in Aprovações and
           // her answer wakes it. What the persona said stays in the thread; the host's sentence is a state of the Task, not a line.
           rt.engine.report(ticket.id, { state: 'waiting', summary: held.summary ?? 'Esperando você aprovar uma ação' })
-          this.postAs(event, executor, doneId, clipWords(live !== '' ? live : (held.summary ?? 'Esperando você aprovar uma ação')), live === '' ? 'message' : 'runner', live === '' ? 'team:waiting' : undefined)
+          this.postAs(event, executor, doneId, this.taskLine(event.projectId, live, held.summary ?? 'Esperando você aprovar uma ação'), live === '' ? 'message' : 'runner', live === '' ? 'team:waiting' : undefined)
           continue
         }
         const login = loginFailureFromText(live, cliOfPersona(executor))
@@ -2533,7 +2914,15 @@ export class Orchestration {
           this.postAs(event, executor, doneId, runErrorLine({
             code: 'engine_unavailable', provider: providerOf(cliOfPersona(executor)), persona: executor.name,
           }), 'error')
-          this.ticketSettled?.({ projectId: event.projectId, ticketId: ticket.id, state: 'failed' })
+          this.settled({ projectId: event.projectId, ticketId: ticket.id, state: 'failed' })
+          continue
+        }
+        if (closing?.kind === 'cartao-continuar') {
+          // Item 3: the extra turns did not make it true. Her words never reach the thread: ONE honest sentence does, and the Task waits for the owner's "Continuar".
+          // The sentence is a line of the thread (hers, honest); the card (item 7, `sentenceShown`) then only asks "Quer que eu continue?". With no card (not wired, ended) the Task waits on the sentence.
+          this.postAs(event, executor, doneId, closing.fala, 'message')
+          this.continueCard?.({ projectId: event.projectId, ticketId: ticket.id, personaId: executor.id, motivo: closing.motivo, fala: closing.fala })
+          if (rt.repo.tickets.get(ticket.id)?.attention === undefined) rt.engine.report(ticket.id, { state: 'waiting', summary: closing.fala, question: closing.fala })
           continue
         }
         // A STRUCTURED question (chips, a sequence) opens as a card on the Ticket; if it cannot (budget, repeated, malformed) the plain
@@ -2551,7 +2940,9 @@ export class Orchestration {
           this.takeQuestion(runner)
           continue
         }
-        const asked = this.takeQuestion(runner) ?? firstAskQuestion(structured)
+        // Item 3: a secret asked in the chat never reaches the thread: the Task waits with the sentence that points to the Cofre.
+        const secretAsk = closing?.kind === 'esperar-dono' && closing.motivo === 'segredo' ? closing.fala : undefined
+        const asked = secretAsk ?? this.takeQuestion(runner) ?? firstAskQuestion(structured)
         // Once the person answered (a later Assignment), the title/body heuristic must not ask the same thing again.
         const firstRun = ticket.assignments.length <= 1
         const ask = asked !== undefined || (firstRun && (wantsAttention(ticket.title) || wantsAttention(event.body)))
@@ -2562,7 +2953,7 @@ export class Orchestration {
           this.postAs(event, executor, doneId, runErrorLine({
             code: 'engine_unavailable', provider: providerOf(cliOfPersona(executor)), persona: executor.name,
           }), 'error')
-          this.ticketSettled?.({ projectId: event.projectId, ticketId: ticket.id, state: 'failed' })
+          this.settled({ projectId: event.projectId, ticketId: ticket.id, state: 'failed' })
           continue
         }
         // TEAM-2: she asked a colleague for help and has nothing more to do until the answer comes: the Task WAITS (no question, no
@@ -2573,13 +2964,13 @@ export class Orchestration {
           // What she said stays in the thread; "Esperando …" is a state for the board and the Task, not a line (EQUIPE-REAL-SPEC §0).
           // While the REVIEW runs, those words are her delivery of the part: typed as such so the plan card absorbs them (Muse, 05/11).
           if (live !== '' && this.inReview?.(event.projectId, ticket.id) === true) this.tagState(event.projectId, doneId, ticket, 'done', 'result')
-          this.postAs(event, executor, doneId, clipWords(live !== '' ? live : waitingOn), live === '' ? 'message' : 'runner', live === '' ? 'team:waiting' : undefined)
+          this.postAs(event, executor, doneId, this.taskLine(event.projectId, live, waitingOn), live === '' ? 'message' : 'runner', live === '' ? 'team:waiting' : undefined)
           continue
         }
         if (ask) {
           rt.engine.report(ticket.id, {
             ...(report === undefined ? {} : withoutAsk(report)),
-            state: 'waiting', summary: report?.summary ?? question, question,
+            state: 'waiting', summary: secretAsk ?? report?.summary ?? question, question,
           })
         } else {
           const currentTicket = rt.repo.tickets.get(ticket.id)
@@ -2605,13 +2996,13 @@ export class Orchestration {
             doneId,
             ask
               ? `Precisa de você: ${question}`
-              : clipWords(this.scriptedReady(live, ticket.title)),
+              : this.taskLine(event.projectId, live, this.scriptedReady(live, ticket.title)),
             live === '' || ask ? 'message' : 'runner',
             stateOfPassage ? 'team:passage-done' : undefined,
           )
         }
         // TEAM-2: a colleague's delivery wakes whoever asked for it (inert unless the team switch is on).
-        if (!ask) this.ticketSettled?.({ projectId: event.projectId, ticketId: ticket.id, state: 'ready' })
+        if (!ask) this.settled({ projectId: event.projectId, ticketId: ticket.id, state: 'ready' })
       }
     } catch (error) {
       if (error instanceof Error && /not open/i.test(error.message)) return
@@ -2638,7 +3029,8 @@ export class Orchestration {
       const contextWork = this.compileUsed(event, speaker)
       runner = await this.resolveFor(speaker, event.projectId, 'asked', 'talk', () => { this.mark('first-token') })
       // The reply grows in the thread as ONE message while the model writes (streaming); it settles under the same id below.
-      setRunnerPartialSink(runner, (text) => { stream.push(text) })
+      // `streamSafe`: a silent run (the pass token, half-typed or whole) never opens a bubble, and a `<details` tag still being typed never shows.
+      setRunnerPartialSink(runner, (text) => { stream.push(streamSafe(text)) })
       const used = await contextWork
       const talkHome = process.env.PERSONA_HOME ?? process.env.DSH_HOME ?? ''
       if (talkHome !== '') this.stageAttachments?.(event.id, talkHome, runnerHasVision(runner))
@@ -2658,6 +3050,10 @@ export class Orchestration {
         return
       }
       await this.noteUsage(event.projectId, speaker, `talk-${event.id}`, runner)
+      // Colheita §6: the conversation turn leaves its steps in the activity book, so the collapsed "N passos · tempo" appears here too.
+      for (const row of talkActivityRows({ eventId: event.id, personaId: speaker.id, steps: this.takeToolSteps(runner) })) {
+        this.recordActivity?.(event.projectId, row)
+      }
     } catch (error: unknown) {
       stream.stop()
       this.failReply(event, speaker, error)
@@ -2675,7 +3071,13 @@ export class Orchestration {
       this.failReply(event, speaker, new Error('resposta vazia'))
       return
     }
-    const body = finishHostTalk(raw, event.body)
+    // Simple speech + the right to stay silent (harvest item 4): the owner's words, technical sentences folded, the pass token never shown.
+    const spoken = shapeSpeech(raw, { style: this.speechStyleOf(event.projectId), userText: event.body, lean: finishHostTalk })
+    if (spoken.passed) {
+      this.settlePassedReply(event, speaker, replyId)
+      return
+    }
+    const body = spoken.text
     this.store.tx(() => {
       let queuedId: string | undefined
       if (this.scripted) {
@@ -2690,6 +3092,38 @@ export class Orchestration {
     })
     this.mark('reply')
     this.deliverOutbox(rt, event, speaker)
+  }
+
+  /**
+   * The run answered with the pass token. Nobody is waiting on a team's own line, so nothing is posted (a bubble opened while streaming is
+   * settled so it does not stay half-written). A person's message always gets a line (D-079): the model was not offered the pass there.
+   */
+  private settlePassedReply(event: StoredEvent, speaker: StoredPersona, replyId: string): void {
+    if (this.isPersonAuthor(event) || this.events.has(replyId)) this.settleReply(event, speaker, replyId, PASSED_LINE, 'message')
+    this.mark('reply')
+  }
+
+  /** The owner's register for a project (harvest item 4): simple until the owner says otherwise (speech-style.ts keeps the choice). */
+  speechStyleOf: (projectId: string) => SpeechStyle = projectId => this.screens === undefined ? 'simple' : readSpeechStyle(this.screens, projectId)
+
+  /**
+   * The speech layer of a talk prompt (item 4): the owner's register, plus the right to stay silent only when no person waits on the line.
+   * A person who says "fala mais simples" / "pode ser técnico" changes the register right here, before the prompt is composed, so the very
+   * answer to that line already speaks the new way (no setting to find, no model call to read it).
+   */
+  private speechLayerFor(event: StoredEvent): string {
+    const person = this.isPersonAuthor(event)
+    const asked = person ? styleRequestOf(event.body) : undefined
+    if (asked !== undefined && this.screens !== undefined) saveSpeechStyle(this.screens, event.projectId, asked)
+    // The rule that sends her to a colleague who holds an access rides along only when someone holds one (constant per workspace: the prefix stays cache-stable).
+    const rule = (this.accessOf?.(event.workspaceId) ?? []).length > 0 ? ` ${ACCESS_RULE}` : ''
+    return `${speechLayer(asked ?? this.speechStyleOf(event.projectId), !person)}${rule}`
+  }
+
+  /** What a Task line says (item 4): her words in the owner's register (technical detail folded), or the host's own sentence when she said nothing. */
+  private taskLine(projectId: string, live: string, own: string): string {
+    const shaped = live === '' ? '' : shapeSpeech(live, { style: this.speechStyleOf(projectId) }).text
+    return clipWords(shaped !== '' ? shaped : live !== '' ? live : own)
   }
 
   /**
@@ -2715,16 +3149,20 @@ export class Orchestration {
     const role = speaker.systemRoles.includes('coordination')
       ? 'coordenação'
       : speaker.systemRoles.includes('watchdog') ? 'vigia' : speaker.title
+    // Item 16: what each colleague can reach rides on her line ("Nina (Mídia, acesso: Instagram)"): a lack is asked of whoever has it, not of the owner.
+    const access = this.accessOf?.(event.workspaceId) ?? []
     const colleagues = this.product.listPersonas(event.projectId)
       .filter(row => row.id !== speaker.id)
       .map((row) => {
         const fn = row.systemRoles.includes('coordination')
           ? 'coordenação'
           : row.systemRoles.includes('watchdog') ? 'vigia' : undefined
+        const held = accessLabelOf(access, row.id)
+        const roleText = [fn, held === '' ? undefined : `acesso: ${held}`].filter(part => part !== undefined).join(', ')
         return {
           name: row.name,
           title: row.title,
-          ...(fn === undefined ? {} : { role: fn }),
+          ...(roleText === '' ? {} : { role: roleText }),
         }
       })
       .sort((left, right) => left.name.localeCompare(right.name) || left.title.localeCompare(right.title))
@@ -2737,7 +3175,7 @@ export class Orchestration {
         functionLabel: role,
         vault: '',
         colleagues,
-        capabilities: 'resposta de conversa; sem ferramentas; sem shell; sem arquivos; nunca ecoe a mensagem da pessoa; sem placeholders (Recebido, Vou encaminhar, digitando); pedido simples responde direto; trabalho: o que entendeu, quem faz, quando volta',
+        capabilities: `resposta de conversa; sem ferramentas; sem shell; sem arquivos; nunca ecoe a mensagem da pessoa; sem placeholders (Recebido, Vou encaminhar, digitando); pedido simples responde direto; trabalho: o que entendeu, quem faz, quando volta; ${this.speechLayerFor(event)}`,
       },
       surface: 'talk',
       userText: citeAttachments(event.body, this.attachmentNamesOf?.(event.id) ?? []),
@@ -2825,7 +3263,7 @@ export class Orchestration {
     // Started before the runner resolves and awaited later: if it ever rejected while nobody awaited it, the process would die. The context is
     // an extra, so a failure here means "no extra context" and one line for the diagnostics, never a stopped turn.
     try {
-      return await this.compileUsedNow(event, speaker)
+      return [...await this.compileUsedNow(event, speaker), ...(this.threadContextOf?.(event) ?? [])] // item 18: + the brief of the Task a thread's message is about
     } catch (error: unknown) {
       this.softFailure('compile-context', error)
       return []
@@ -2859,7 +3297,7 @@ export class Orchestration {
         authorize: authorizeContext(actor),
       }
       const topicId = event.topicId
-      if (topicId !== undefined && topicId !== '') {
+      if (topicId !== undefined && topicId !== '' && ticketIdOfThread(topicId) === undefined) { // (a Task's thread is not a colored subject: it reads the company's context as any conversation)
         await compileSubjectVault(records, event.projectId, topicId, compileInput)
       } else {
         await compileVaultContext({
@@ -3122,6 +3560,45 @@ export class Orchestration {
     return lastRunnerText(runner)
   }
 
+  /** Item 3: the tools of the turn that just ended (a rig sets `liveTools`; a live runner reports them through the OAR tap). */
+  private takeTools(runner: Runner): readonly string[] {
+    const hooked = this.liveTools
+    this.liveTools = undefined
+    return hooked ?? lastRunnerTools(runner)
+  }
+
+  /** Colheita §6: the steps of the conversation turn that just ended (a rig sets `liveToolSteps`; a live runner reports them through the OAR tap). */
+  private takeToolSteps(runner: Runner): readonly TalkStep[] {
+    const hooked = this.liveToolSteps
+    this.liveToolSteps = undefined
+    return hooked ?? lastRunnerToolSteps(runner)
+  }
+
+  /** Item 3: what is already known and could answer a question she is about to ask the owner (the request, what the owner said since, the company's records, the draft's inputs). */
+  private knownFor(event: StoredEvent, ticket: Ticket, heard: readonly string[]): KnownFacts {
+    return {
+      ownerTexts: [event.body, ticket.title, ...heard],
+      companyTexts: (this.usedContext.get(event.id) ?? []).filter(row => !row.restricted).map(row => row.body),
+      files: draftInputFiles(ticket.execution?.directory),
+    }
+  }
+
+  /** Item 3: the same facts for a question she asks through the `persona_ask` tool, outside a turn's end (the request's words, what the person said since, the records, the draft). */
+  knownFactsOfTicket(ticket: Ticket): KnownFacts {
+    const asked = ticket.origin.triggerIds.map(id => this.events.get(id)?.body ?? '')
+    const said = ticket.inputs.flatMap(input => (input.kind === 'text' ? [input.text] : []))
+    return {
+      ownerTexts: [...asked, ticket.title, ...said].filter(text => text !== ''),
+      companyTexts: (this.usedContext.get(ticket.id) ?? this.usedContext.get(ticket.origin.triggerId) ?? []).filter(row => !row.restricted).map(row => row.body),
+      files: draftInputFiles(ticket.execution?.directory),
+    }
+  }
+
+  private noteTurnClose(ticketId: string, entry: TurnCloseLogEntry): void {
+    this.turnCloseLog.push({ ...entry, ticketId })
+    if (this.turnCloseLog.length > 200) this.turnCloseLog.shift()
+  }
+
   private scriptedHello(live: string): string | undefined {
     if (live !== '') return live
     return this.scripted ? SCRIPTED_HELLO : undefined
@@ -3282,6 +3759,9 @@ export class Orchestration {
     author?: string,
   ): void {
     if (this.events.has(id)) return
+    // Item 4: the pass token never becomes a line, whichever path wrote it (a silent run says nothing; a token beside words is dropped).
+    const heard = readPass(body)
+    if (heard.passed) return
     const topicId = event.topicId ?? this.events.get(event.id)?.topicId
     if (looksLikeOarLogin(body)) {
       this.failReply(event, speaker, new RunnerResolveError('not_logged_in', cliOfPersona(speaker)))
@@ -3295,7 +3775,7 @@ export class Orchestration {
         streamKind: event.streamId.startsWith('dm:') ? 'dm' : 'channel',
         ownerId: event.streamId.slice(event.streamId.indexOf(':') + 1),
         type,
-        body,
+        body: heard.text,
         // A line always has an author a person can name: the speaker, else the Coordination persona of the project (never a bare id).
         actorId: author ?? speaker?.id ?? this.coordinationOf(event.projectId)?.id ?? 'coordination',
         subjectId: this.capturedSubject(event) ?? event.subjectId,
@@ -3419,11 +3899,29 @@ export class Orchestration {
     }
     const first = event.body.split(/\r?\n/, 1)[0] ?? event.body
     const files = this.attachmentNamesOf?.(event.id) ?? [] // the photo/files the person attached: every part reads them (its turn carries the image)
+    // D-100: the art is made FROM the text and the posts FROM the art, so those parts are chained: the Tasks are all opened now (the plan card, the sisters and the closing line
+    // stay as they were) but the consumer waits, born `waiting`, until the producer delivers; what she wrote reaches it whole (`Handoffs.keepDeliveries`).
+    const chain = this.screens === undefined ? [] : chainOf(parts.map(part => ({ personaId: part.persona.id, cues: part.cues, paused: part.persona.paused })))
+    const partIdOf = (personaId: string): string => `split:${event.id}:${personaId}`
+    const partOf = (personaId: string): FunctionPart | undefined => live.find(item => item.persona.id === personaId)
+    for (const link of chain) {
+      const producer = partOf(link.afterPersonaId)
+      if (producer === undefined) continue
+      this.screens?.put(event.projectId, SPLIT_HOLD, partIdOf(link.personaId), {
+        afterId: partIdOf(producer.persona.id), afterPersonaId: producer.persona.id, afterName: producer.persona.name, afterLabel: joinNames(producer.cues),
+      } satisfies SplitHold)
+      this.screens?.put(event.projectId, SPLIT_NEXT, partIdOf(producer.persona.id), { nextId: partIdOf(link.personaId), nextPersonaId: link.personaId } satisfies SplitNext)
+    }
     for (const part of live) {
-      const childId = `split:${event.id}:${part.persona.id}`
+      const childId = partIdOf(part.persona.id)
       if (this.events.has(childId)) continue
       const label = joinNames(part.cues)
-      const others = live.filter(item => item !== part)
+      const after = chain.find(link => link.personaId === part.persona.id)
+      const before = after === undefined ? undefined : partOf(after.afterPersonaId)
+      const follower = chain.find(link => link.afterPersonaId === part.persona.id)
+      const next = follower === undefined ? undefined : partOf(follower.personaId)
+      // The rest of the request goes to others: the part before this one is told in its own sentence (it is not "the rest", it is the source of this work).
+      const others = live.filter(item => item !== part && item !== before)
       const stored = this.events.append({
         id: childId, workspaceId: event.workspaceId, projectId: event.projectId, streamKind, ownerId, type: 'message',
         body: `Parte de ${part.persona.name}: ${label}`,
@@ -3442,10 +3940,35 @@ export class Orchestration {
           // The REAL path in the part's draft (draft-inbox.ts copies the original attachments to `inputs/<name>`), never just the bare name.
           ...(files.length === 0 ? [] : [`Anexos do pedido: ${files.map(name => `inputs/${sanitizeUploadName(name)}`).join(', ')}.`]),
           `Sua parte: ${label}.${others.length === 0 ? '' : ` O resto do pedido foi para ${joinNames(others.map(item => `${item.persona.name} (${joinNames(item.cues)})`))}: não faça a parte deles.`}`,
+          ...(before === undefined ? [] : [chainSentence(before.persona.name, joinNames(before.cues), label)]),
+          ...(next === undefined ? [] : [`${next.persona.name} (${joinNames(next.cues)}) começa quando você entregar e recebe o seu resultado inteiro sozinho, pelo app: entregue a sua parte completa na sua resposta e não use pass_forward para ele.`]),
           'Faça a sua parte e entregue o resultado em texto (e os arquivos no projeto, se for o caso).',
         ].join('\n'),
       })
     }
+  }
+
+  /**
+   * D-100: the OTHER parts of the plan a Task is one of (a request split by function). The team tools read it so a model is never told to pass the work on to a colleague who
+   * already has her part in the host's plan (that made a second art), and so a `pass_forward` to one of them is refused.
+   * @param projectId - Tenant.
+   * @param ticketId - The Task.
+   * @returns The sister parts (persona, what she does, whether she already delivered); empty when the Task is not a part of a split.
+   */
+  plannedPartsOf(projectId: string, ticketId: string): { readonly personaId: string; readonly name: string; readonly label: string; readonly delivered: boolean }[] {
+    const rt = this.runtime(projectId)
+    const ticket = rt.repo.tickets.get(ticketId)
+    const request = ticket === undefined ? undefined : /^split:([^:]+):/u.exec(ticket.origin.triggerId)?.[1]
+    if (ticket === undefined || request === undefined) return []
+    const personas = this.product.listPersonas(projectId)
+    return rt.repo.tickets.list()
+      .filter(row => row.id !== ticketId && row.origin.triggerId.startsWith(`split:${request}:`))
+      .flatMap((row) => {
+        const persona = personas.find(item => item.name === row.execution?.name)
+        if (persona === undefined) return []
+        const label = /^Parte de [^:]+: (.+)$/u.exec(this.events.get(row.origin.triggerId)?.body ?? '')?.[1] ?? row.title
+        return [{ personaId: persona.id, name: persona.name, label, delivered: this.partDelivered(row) }]
+      })
   }
 
   private executorOf(projectId: string): StoredPersona | undefined {
@@ -3624,7 +4147,7 @@ function asidePrompt(persona: StoredPersona, question: string): string {
 }
 
 /** Suffixes of the lines (`coord-<message id>-<suffix>`) that already ANSWER a message of the person (see `hasFinalLine`). */
-const FINAL_LINE_SUFFIXES = ['reply', 'absorbed', 'paused', 'ignored', 'held', 'pause', 'split'] as const
+const FINAL_LINE_SUFFIXES = ['reply', 'absorbed', 'paused', 'ignored', 'held', 'pause', 'split', 'status'] as const
 
 function clip(value: string, max: number): string {
   return value.length <= max ? value : value.slice(0, max)
@@ -3642,6 +4165,11 @@ function splitParentOf(triggerId: string): string[] {
 }
 
 function clipWords(value: string): string {
+  // A reply may carry ONE `<details>` fold (simple speech): the visible part keeps the 100-word cap, the fold its own (speech.ts).
+  return clipSpeech(value, clipPlainWords)
+}
+
+function clipPlainWords(value: string): string {
   const words = value.trim().split(/\s+/u).filter(part => part.length > 0)
   if (wordCount(value) <= 100) return value.trim()
   return words.slice(0, 100).join(' ')

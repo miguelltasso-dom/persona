@@ -62,6 +62,25 @@ describe('deriveTwoDayFromLive', () => {
     expect(view?.rows.filter(row => row.label === 'Vigia (Luna)')).toHaveLength(1)
   })
 
+  it('the same persona is one row even when the host id and the character id of the "Agora" strip have nothing in common (onb-5 × luna)', () => {
+    const view = deriveTwoDayFromLive(governanceDict, 'ws', liveStub({
+      nowRows: [{
+        member: { id: 'luna', name: 'Luna', role: 'Vigia', state: 'working', systemRoles: ['watchdog'] },
+        queueCount: 0,
+      }],
+      team: {
+        members: [],
+        personas: [
+          { id: 'onb-5', workspaceId: 'w', projectId: 'p', name: 'Luna', title: 'Vigia', description: '', avatarKind: 'gallery', avatarRef: 'luna', systemRoles: ['watchdog'], canRecruit: false },
+          { id: 'onb-4', workspaceId: 'w', projectId: 'p', name: 'Sol', title: 'Relacionamento', description: '', avatarKind: 'gallery', avatarRef: 'sol', systemRoles: [], canRecruit: false },
+        ],
+      },
+    }))
+    expect(view?.rows.filter(row => row.label === 'Vigia (Luna)')).toHaveLength(1)
+    // a persona the strip does not show is still added
+    expect(view?.rows.filter(row => row.label === 'Relacionamento (Sol)')).toHaveLength(1)
+  })
+
   it('adds one row per team persona when host two-day is empty', () => {
     const personaRow = (id: string, name: string, title: string, systemRoles: readonly string[] = []) => ({
       id,

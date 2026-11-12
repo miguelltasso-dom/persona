@@ -4,7 +4,7 @@ import { useMemo, useState, type ReactNode } from 'react'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import { Button, EmptyState, Screen, ScreenHeader, Skeleton, Tabs, UiIcon } from '../primitives/index.ts'
+import { Button, EmptyState, FilterChips, Screen, ScreenHeader, Skeleton, UiIcon } from '../primitives/index.ts'
 import { ProjectBoardCard } from './ProjectBoardCard.tsx'
 import styles from './Boards.module.css'
 import type { BoardsFilterTab, BoardsSurfaceState, ProjectBoardSummary } from './types.ts'
@@ -92,11 +92,11 @@ export function BoardsHome({
     <Screen width="full" className={styles.shell} data-persona-boards data-persona-surface="boards">
       {header}
       <div className={styles.toolbar}>
-        <Tabs
-          label={t('title.boards')}
-          idPrefix="boards-filter"
+        {/* One rail of filters (the place's tabs); this one is light chips, not the same sunken rail (Muse cena 04+05). */}
+        <FilterChips<BoardsFilterTab>
+          label={t('boards.filterLabel')}
           value={tab}
-          onChange={(value) => { setTab(value as BoardsFilterTab) }}
+          onChange={setTab}
           items={[
             { id: 'all', label: t('boards.filter.all') },
             { id: 'active_sprint', label: t('boards.filter.activeSprint') },
@@ -104,7 +104,7 @@ export function BoardsHome({
           ]}
         />
         {onGlobalView !== undefined && (
-          <Button variant="ghost" onClick={onGlobalView}>{t('boards.globalView')}</Button>
+          <Button variant="ghost" size="s" onClick={onGlobalView}>{t('boards.globalView')}</Button>
         )}
       </div>
       {visible.length === 0 && (

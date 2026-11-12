@@ -93,3 +93,46 @@
     align-items: flex-start;
   }
 }
+
+/* #15: equal diagnoses are one problem: faces together, the sentence once, ONE button. */
+.twoDayGroup {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-3);
+  margin: 0 0 var(--persona-space-3);
+  padding: var(--persona-space-3) var(--persona-space-4);
+  background: var(--persona-wash);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-l);
+}
+
+.groupFaces {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.groupFace {
+  display: inline-flex;
+  border-radius: 30%;
+  box-shadow: 0 0 0 2px var(--persona-wash);
+}
+
+.groupFace + .groupFace {
+  margin-left: -8px;
+}
+
+.groupText {
+  display: flex;
+  flex: 1 1 220px;
+  flex-direction: column;
+  gap: 2px;
+  align-items: flex-start;
+  min-width: 0;
+}
+
+.groupReason {
+  margin: 0;
+  font: 600 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+}

@@ -5,8 +5,8 @@
 
 import type { BrandIconName } from '../primitives/index.ts'
 import type { ShellKey } from '../locale/shell/locales.ts'
-import { isStickersEnabled } from '../figurinhas/figurinhas-flag.ts'
 import { isSettingsPersonasEnabled } from '../settings-personas/personas-flag.ts'
+import { isRemoteTeamTabEnabled } from '../members/members-flag.ts'
 import type { MainPanelId } from './create-shell-store.ts'
 
 export type PlaceId = 'overview' | 'projects' | 'approvals' | 'team' | 'memory' | 'settings'
@@ -14,6 +14,11 @@ export type PlaceId = 'overview' | 'projects' | 'approvals' | 'team' | 'memory' 
 export interface NavTab {
   readonly panel: MainPanelId
   readonly labelKey: ShellKey
+  /**
+   * A tela pertence ao lugar (o Ctrl K e os atalhos a alcançam) mas não é aba da barra: a grade "Ver todos os projetos" não é de um projeto,
+   * então não tem as abas Quadro · Arquivos · Canvas (que são do projeto da vez). Nunca é a entrada do lugar nem a "última aba".
+   */
+  readonly hidden?: true
 }
 
 export interface NavPlace {
@@ -36,13 +41,13 @@ export const NAV_PLACES: readonly NavPlace[] = [
     id: 'projects',
     labelKey: 'sidebar.projects',
     icon: 'projetos',
-    // Ponte até a fase 2 (Projetos × Quadros numa tela só): nenhuma tela some, todas seguem a 1 clique.
+    // DESIGN-01 #10 (Muse §5.1): UM lugar que abre no QUADRO do projeto da vez. As abas são desse projeto; a grade de cartões ("Ver todos os
+    // projetos") é o painel `projects`, alcançável mas escondido da barra; as rotinas da equipe toda moram em Equipe.
     tabs: [
-      { panel: 'projects', labelKey: 'sidebar.projects' },
-      { panel: 'kanban', labelKey: 'sidebar.kanban' },
-      { panel: 'routines', labelKey: 'sidebar.routines' },
+      { panel: 'kanban', labelKey: 'tab.projects.board' },
       { panel: 'files', labelKey: 'sidebar.files' },
       { panel: 'canvas', labelKey: 'sidebar.canvas' },
+      { panel: 'projects', labelKey: 'sidebar.projects', hidden: true },
     ],
   },
   {
@@ -59,6 +64,8 @@ export const NAV_PLACES: readonly NavPlace[] = [
       { panel: 'team', labelKey: 'tab.team' },
       { panel: 'orgChart', labelKey: 'sidebar.orgChart' },
       { panel: 'teamHealth', labelKey: 'sidebar.teamHealth' },
+      // As rotinas são da equipe toda (o giro da manhã, o Bom dia): uma aba com o nome de um projeto mostrando isso enganaria (Muse §5.1 #3).
+      { panel: 'routines', labelKey: 'sidebar.routines' },
     ],
   },
   {
@@ -77,15 +84,17 @@ export const NAV_PLACES: readonly NavPlace[] = [
     icon: 'configuracoes',
     tabs: [
       { panel: 'connections', labelKey: 'sidebar.connections' },
+      // Cofre (item 15, Muse 12/11): ao lado de Conexões; senha não é memória, então não vai na Memória da empresa.
+      { panel: 'cofre', labelKey: 'sidebar.cofre' },
       // Personas (HT-13/EFF-1, D-090): entre Conexões e Uso, só com `persona.flag.settingsPersonas` ligada.
       ...(isSettingsPersonasEnabled() ? [{ panel: 'personas', labelKey: 'tab.settings.personas' } as const] : []),
       { panel: 'usage', labelKey: 'sidebar.usage' },
-      { panel: 'members', labelKey: 'tab.settings.members' },
+      // Membros (cena 20): aba só com a equipe remota ligada (flag remoteTeamTab, padrão desligada na v1.1); sem ela, o cartão fica em Conexões.
+      ...(isRemoteTeamTabEnabled() ? [{ panel: 'members', labelKey: 'tab.settings.members' } as const] : []),
+      // Importadores fica até a aba Importar existir na Memória da empresa (onda 3, Lumen): nenhuma função some antes.
       { panel: 'importers', labelKey: 'sidebar.importers' },
-      // Aparência (TH-1): Tema Sistema/Claro/Escuro + Dicas de atalho; entre Importadores e Sobre (APARENCIA-SPEC).
+      // Aparência (TH-1 + cena 22): tema, figurinhas (antes a aba Personalidade) e dicas de atalho (APARENCIA-SPEC).
       { panel: 'appearance', labelKey: 'tab.settings.appearance' },
-      // Figurinhas (D-089): a aba só existe com `persona.flag.figurinhas` ligada, até a Muse aceitar.
-      ...(isStickersEnabled() ? [{ panel: 'personality', labelKey: 'tab.settings.personality' } as const] : []),
       { panel: 'about', labelKey: 'tab.settings.about' },
     ],
   },
@@ -93,6 +102,11 @@ export const NAV_PLACES: readonly NavPlace[] = [
 
 /** Os lugares que ficam no topo do rail ("Configurações" vai para o rodapé). */
 export const RAIL_PLACES: readonly NavPlace[] = NAV_PLACES.filter(place => place.id !== 'settings')
+
+/** As abas que a barra desenha (as escondidas, como a grade de projetos, ficam de fora). */
+export function visibleTabs(place: NavPlace): readonly NavTab[] {
+  return place.tabs.filter(tab => tab.hidden !== true)
+}
 
 /** O lugar a que uma tela pertence (ajuda, busca e perfil não são lugares). */
 export function placeOfPanel(panel: MainPanelId): NavPlace | undefined {
@@ -113,16 +127,17 @@ export const PLACE_ALIASES: readonly { readonly alias: string; readonly panel: M
   { alias: 'quadro', panel: 'kanban' },
   { alias: 'kanban', panel: 'kanban' },
   { alias: 'tarefas', panel: 'kanban' },
+  { alias: 'todos os projetos', panel: 'projects' },
   { alias: 'canvas', panel: 'canvas' },
   { alias: 'mapa', panel: 'canvas' },
   { alias: 'saude', panel: 'teamHealth' },
   { alias: 'saude da equipe', panel: 'teamHealth' },
   { alias: 'quem cuida de quem', panel: 'orgChart' },
   { alias: 'organograma', panel: 'orgChart' },
-  { alias: 'cofre', panel: 'connections' },
+  { alias: 'cofre', panel: 'cofre' },
   { alias: 'conexoes', panel: 'connections' },
-  { alias: 'membros', panel: 'members' },
-  { alias: 'equipe remota', panel: 'members' },
+  { alias: 'membros', panel: isRemoteTeamTabEnabled() ? 'members' : 'connections' },
+  { alias: 'equipe remota', panel: isRemoteTeamTabEnabled() ? 'members' : 'connections' },
   { alias: 'uso', panel: 'usage' },
   { alias: 'limites', panel: 'usage' },
   { alias: 'uso e limites', panel: 'usage' },
@@ -162,12 +177,13 @@ function defaultStorage(): TabStorage | undefined {
   }
 }
 
-/** A última aba aberta neste lugar (só abas que ainda existem); sem lembrança ou com storage bloqueado, a primeira. */
+/** A última aba aberta neste lugar (só abas visíveis que ainda existem); sem lembrança ou com storage bloqueado, a primeira. */
 export function placeEntryPanel(place: NavPlace, storage: TabStorage | undefined = defaultStorage()): MainPanelId {
-  const first = place.tabs[0]?.panel ?? 'overview'
+  const tabs = visibleTabs(place)
+  const first = tabs[0]?.panel ?? 'overview'
   try {
     const saved = storage?.getItem(`${LAST_TAB_PREFIX}${place.id}`)
-    if (saved !== null && saved !== undefined && place.tabs.some(tab => tab.panel === saved)) return saved as MainPanelId
+    if (saved !== null && saved !== undefined && tabs.some(tab => tab.panel === saved)) return saved as MainPanelId
   } catch {
     /* storage bloqueado: segue com a primeira aba */
   }
@@ -175,7 +191,7 @@ export function placeEntryPanel(place: NavPlace, storage: TabStorage | undefined
 }
 
 export function rememberPlaceTab(place: NavPlace, panel: MainPanelId, storage: TabStorage | undefined = defaultStorage()): void {
-  if (!place.tabs.some(tab => tab.panel === panel)) return
+  if (!visibleTabs(place).some(tab => tab.panel === panel)) return
   try {
     storage?.setItem(`${LAST_TAB_PREFIX}${place.id}`, panel)
   } catch {

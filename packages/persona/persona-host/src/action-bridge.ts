@@ -28,6 +28,7 @@ import type { StoredPersona } from '@deepseek-ai/dsh-persona-store'
 import { unflattenPreview } from './action-input.ts'
 import type { ConnectorPorts } from './connector-grants-host.ts'
 import type { ActionRequestInput, ExternalActionDoc, ExternalActions } from './external-actions.ts'
+import { KIND_VERB, type HouseRules } from './house-rules.ts'
 import type { HostConnectorGrant } from './runner.ts'
 import type { ActionClass, ConnectorRef } from './types.ts'
 
@@ -40,6 +41,23 @@ export interface ActionBridgeDeps {
   readonly start?: (options: PermissionGateOptions) => Promise<PermissionGate>
   /** A pending action was recorded: the host writes its card into the thread (idempotent on the action id). */
   readonly announce?: (doc: ExternalActionDoc) => void
+  /**
+   * HONEST-1: the house rules that are LOCKS (`never-spend`, `never-send`, `never-publish`, `never-delete`). Read at every `arm`: a locked class is never pre-allowed and a locked
+   * verb always asks, whatever the persona's autonomy or any permission; what the gate refused because of a rule is written in that rule's book at `settle`. Absent = no rules.
+   */
+  readonly rules?: Pick<HouseRules, 'gateLocks' | 'matching' | 'record' | 'now'>
+  /**
+   * COLHEITA 17: the browser interactions this turn let through (tool word and site only, never what was typed), for the
+   * activity book (Keel, 12/11). Absent = nothing is written.
+   */
+  readonly onInteractions?: (who: { readonly projectId: string; readonly personaId: string; readonly ticketId: string }, items: readonly BrowserInteraction[]) => void
+}
+
+/** One browser interaction the gate allowed: the tool word and the site, never a value. */
+export interface BrowserInteraction {
+  readonly tool: string
+  readonly verb: string
+  readonly site?: string
 }
 
 /** What the host knows about one runner's gate. */
@@ -110,13 +128,17 @@ export class ActionBridge {
    * The Task's turn is about to start: let through what the policy allows, plus what the person approved for THIS Task (once each).
    * @param runner - The Task's runner.
    * @param ticketId - The Task.
+   * @param draftRoot - The Task's draft folder, when it has one.
+   * @param origin - What started the run: a Task started by a received e-mail never pre-allows `send`.
    */
-  arm(runner: Runner, ticketId: string, draftRoot?: string): void {
+  arm(runner: Runner, ticketId: string, draftRoot?: string, origin: { readonly viaEmail?: boolean } = {}): void {
     const held = this.held.get(runner)
     if (held === undefined) return
     // The gate has classes, not servers: with two connectors on one Task it lets through only what BOTH allow (the stricter wins).
     const lists = held.connectors.map(item => item.preAllow)
-    const preAllow = lists.length === 0 ? [] : (lists[0] ?? []).filter(cls => lists.every(list => list.includes(cls)))
+    // HONEST-1: a saved house rule takes its class out of what the persona may do ALONE (the person's own approval, below, still lets a call through).
+    const locks = this.deps.rules?.gateLocks(held.projectId)
+    const preAllow = (lists.length === 0 ? [] : (lists[0] ?? []).filter(cls => lists.every(list => list.includes(cls)))).filter(cls => locks?.classes.includes(cls) !== true)
     const approved = this.deps.actions.approvedFor(held.projectId, ticketId)
     // D-081/D-083, "a persona never has more access than the person granted": a native task loads EVERY connector of the account, and the class alone cannot
     // say which ones this persona may touch. The mandate is the servers of the connectors THIS Task was given; any other connector tool is denied outright
@@ -127,7 +149,7 @@ export class ActionBridge {
       .map(name => name.replace(/[^a-zA-Z0-9_-]/gu, '_'))
     // P0-1: a file write is allowed only INSIDE the Task draft folder; its directory is the placeholder dot when it has none (then the gate uses the turn cwd).
     const draft = draftRoot !== undefined && draftRoot !== '' && draftRoot !== '.' ? { draftRoot } : {}
-    held.gate.arm({ preAllow, approved, allowedServers, ...draft })
+    held.gate.arm({ preAllow, approved, allowedServers, ...(locks === undefined || locks.verbs.length === 0 ? {} : { askVerbs: locks.verbs }), ...draft, ...(origin.viaEmail === true ? { viaEmail: true } : {}) })
     for (const doc of this.deps.actions.approvedDocs(held.projectId, ticketId)) this.deps.actions.markSending(held.projectId, doc.id)
   }
 
@@ -142,6 +164,7 @@ export class ActionBridge {
     const asked = held.gate.takeRequests()
     held.gate.takeOutOfMandate() // names only: drained so the next turn starts clean (the gate already refused them; there is nobody to ask)
     const released = held.gate.takeReleased() // the approved calls the gate REALLY let through (tool + hash matched), never a guess
+    const interactions = held.gate.takeInteractions() // COLHEITA 17: what the browser let through (tool + site, never a value)
     held.gate.disarm()
     const { actions } = this.deps
     // The calls that were approved and went into this turn: sent when the gate let them through, failed otherwise (never "sent" on a hope).
@@ -158,6 +181,13 @@ export class ActionBridge {
     for (const item of turn.stopped === true ? [] : asked) {
       const connector = this.connectorOf(held, item.server)
       const basis = held.connectors.find(row => row.id === connector.id)?.basis
+      // HONEST-1: what a saved house rule held back is written in that rule's book, once per call (the screen says "Barrou 2 envios esta semana").
+      const rules = this.deps.rules
+      if (rules !== undefined) {
+        for (const rule of rules.matching(held.projectId, { actionClass: item.actionClass, verb: item.verb, tool: item.tool })) {
+          if (rule.kind !== undefined) rules.record(held.projectId, rule.id, rules.now(), `${KIND_VERB[rule.kind]} pelo ${connector.name}`, `${turn.ticketId}:${item.argsHash}`)
+        }
+      }
       const doc = actions.record({
         projectId: held.projectId, personaId: held.personaId, ticketId: turn.ticketId, connector, tool: item.tool,
         actionClass: classOf(item.actionClass), verb: item.verb, requestedInput: unflattenPreview(item.requestedInput),
@@ -168,6 +198,7 @@ export class ActionBridge {
       cards += 1
       first ??= doc
     }
+    if (interactions.length > 0) this.deps.onInteractions?.({ projectId: held.projectId, personaId: held.personaId, ticketId: turn.ticketId }, interactions)
     if (cards === 0) return { waiting: false, cards: 0 }
     const verb = first?.actionClass === 'pay' ? 'pagar' : first?.actionClass === 'delete' ? 'apagar' : 'enviar'
     return { waiting: true, cards, summary: `Esperando você aprovar: ${verb} pelo ${first?.connector.name ?? 'conector'}` }

@@ -40,7 +40,7 @@ it('accepts a signed payload, refuses bad HMAC and replay', async () => {
   h.createMember({ id: 'ana', workspaceId: 'ws', projectId: 'pp', displayName: 'Ana', handle: 'ana', role: 'owner' })
   const body = Buffer.from(JSON.stringify(issue))
   const handler = githubWebhookHandler({
-    secretOf: () => secret,
+    secretOf: () => Promise.resolve(secret),
     ingest: (projectId, event, action, repository, deliveryId, payload) => h.ingestGithubWebhook({
       workspaceId: 'ws', projectId, deliveryId, event, action, repository,
       payloadJson: JSON.stringify(payload), agentLogin: 'persona-bot',

@@ -14,6 +14,7 @@ export type MainPanelId =
   | 'files'
   | 'usage'
   | 'connections'
+  | 'cofre'
   | 'channels'
   | 'directMessages'
   | 'approvals'
@@ -70,10 +71,18 @@ export interface ShellState {
   /** Ajuda: deep-link guide (e.g. #geral ? → canais); cleared when leaving the panel. */
   readonly helpDocId: string | null
   readonly helpTab: HelpShellTab | null
+  /**
+   * Ctrl K palette (DESIGN-01-MUSE §5.2 #11): a modal over the current screen, which stays mounted. Opening it never changes `activePanel`;
+   * going anywhere (any other panel) closes it.
+   */
+  readonly searchOpen?: boolean | undefined
 }
 
 export interface ShellActions {
+  /** Opens a panel. `'search'` is not a screen any more: it opens the Ctrl K palette over the current one (`searchOpen`). */
   selectPanel(id: MainPanelId): void
+  openSearch(): void
+  closeSearch(): void
   setHostPing(online: boolean, protocol: number | null): void
   setOnboardingOpen(open: boolean): void
   lockOnboardingForFirstDelivery(): void
@@ -136,11 +145,25 @@ export function createShellStore(): {
   const actions: ShellActions = {
     selectPanel: (activePanel) => {
       const prev = store.getSnapshot()
+      if (activePanel === 'search') {
+        // The palette floats over whatever is open; the screen underneath is not touched.
+        if (prev.searchOpen !== true) store.set({ ...prev, searchOpen: true })
+        return
+      }
       store.set({
         ...prev,
         activePanel,
+        searchOpen: false,
         ...(activePanel !== 'help' ? { helpDocId: null, helpTab: null } : {}),
       })
+    },
+    openSearch: () => {
+      const prev = store.getSnapshot()
+      if (prev.searchOpen !== true) store.set({ ...prev, searchOpen: true })
+    },
+    closeSearch: () => {
+      const prev = store.getSnapshot()
+      if (prev.searchOpen === true) store.set({ ...prev, searchOpen: false })
     },
     setHostPing: (online, protocol) => {
       store.set({

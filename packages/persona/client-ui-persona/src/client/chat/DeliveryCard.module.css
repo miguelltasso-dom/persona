@@ -2,6 +2,8 @@
 .row {
   margin: var(--persona-space-4) 0;
   list-style: none;
+  /* a largura do CARTÃO decide as 2 colunas (container query), não a da janela. */
+  container-type: inline-size;
 }
 
 .card {
@@ -21,6 +23,42 @@
   .spot {
     display: block;
   }
+}
+
+/* DESIGN-01 (Fio real d): a miniatura de 240 px da arte final, acima das partes. */
+.art {
+  margin: 0;
+}
+
+/* Carbon (fio-d103 #4): com arte, a miniatura (240 px) e o lado (partes + rodapé) em 2 colunas a partir de 600 px; empilhados no estreito. */
+.withArt {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--persona-space-4);
+}
+
+.noArt {
+  display: contents;
+}
+
+.side {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+@container (min-width: 600px) {
+  .withArt {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: var(--persona-space-5);
+    align-items: center;
+  }
+}
+
+/* Os retratos das partes ganham contorno no escuro. */
+:global(body[data-ds-dark-theme='true']) .partFace {
+  border-color: var(--persona-outline-control);
 }
 
 .parts {

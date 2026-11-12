@@ -11,7 +11,7 @@ const t = (key: string) => shellPt[key as keyof typeof shellPt] ?? key
 
 describe('OverviewView suggested task (C8 / PRO-4)', () => {
   afterEach(() => { cleanup() })
-  it('shows live task title when host suggests one and team has no active task', () => {
+  it('shows the live task title when the board has one and nobody is working on it', () => {
     render(
       <OverviewView
         t={t}
@@ -19,6 +19,7 @@ describe('OverviewView suggested task (C8 / PRO-4)', () => {
         nowRows={[{ member: { id: 'atlas', name: 'Coord', role: 'Coordenação', state: 'resting' }, queueCount: 0 }]}
         awayEvents={[]}
         suggestedTask={{ id: 't1', title: 'Revisar contrato de rescisão' }}
+        onOpenAwayTask={() => undefined}
       />,
     )
     expect(screen.getByRole('heading', { level: 2, name: 'Revisar contrato de rescisão' })).toBeTruthy()

@@ -13,7 +13,8 @@ import { MenuButton, type MenuItem } from './MenuButton.tsx'
 import { QuotaMeter } from './PersonaCard.tsx'
 import styles from './Accounts.module.css'
 
-export type AccountState = 'ready' | 'login' | 'limit' | 'checking'
+/** Item 13: `unconfirmed` = a checagem passou do tempo 2 vezes ("não consegui conferir"): tinta apagada, nunca o aviso de logout. */
+export type AccountState = 'ready' | 'login' | 'limit' | 'checking' | 'unconfirmed'
 
 export interface AccountUser {
   readonly name: string
@@ -54,6 +55,7 @@ const STATE_ICON: Readonly<Record<AccountState, ReactNode>> = {
   login: <UiIcon name="arrowRight" size={14} strokeWidth={2.4} />,
   limit: <UiIcon name="clock" size={14} strokeWidth={2.4} />,
   checking: <UiIcon name="sparkle" size={14} strokeWidth={2.2} />,
+  unconfirmed: <UiIcon name="help" size={14} strokeWidth={2.2} />,
 }
 
 export function AccountRow({ label, providerName, state, stateText, action, quota, labels, usedBy = [], inUse = false, menu = [] }: AccountRowProps): ReactNode {
@@ -115,9 +117,6 @@ export interface AccountPolicyPickerProps {
   readonly value: AccountPolicy | undefined
   readonly onChange: (policy: AccountPolicy) => void
   readonly copy: Readonly<Record<AccountPolicy, { readonly title: string; readonly body: string }>>
-  readonly recommended?: AccountPolicy | undefined
-  /** "Recomendado" */
-  readonly recommendedLabel?: string | undefined
   /** Which cards to offer, in this order (default: all four). The screen decides; D-078 offers ask · next_on_limit · fixed. */
   readonly policies?: readonly AccountPolicy[] | undefined
   /** Radio group name (unique per scope). */
@@ -133,7 +132,7 @@ const POLICY_ICON: Readonly<Record<AccountPolicy, ReactNode>> = {
 }
 
 /** The swap policy as 4 radio cards — an explicit choice, never silent (WAVE2 §3). */
-export function AccountPolicyPicker({ legend, value, onChange, copy, recommended = 'next_on_limit', recommendedLabel, policies = ACCOUNT_POLICIES, name, disabled = false }: AccountPolicyPickerProps): ReactNode {
+export function AccountPolicyPicker({ legend, value, onChange, copy, policies = ACCOUNT_POLICIES, name, disabled = false }: AccountPolicyPickerProps): ReactNode {
   return (
     <ChoiceCards
       legend={legend}
@@ -146,7 +145,6 @@ export function AccountPolicyPicker({ legend, value, onChange, copy, recommended
         title: copy[policy].title,
         body: copy[policy].body,
         icon: POLICY_ICON[policy],
-        badge: recommended === policy ? recommendedLabel : undefined,
       }))}
     />
   )

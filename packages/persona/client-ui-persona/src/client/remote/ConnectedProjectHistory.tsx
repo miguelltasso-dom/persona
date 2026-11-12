@@ -1,4 +1,4 @@
-/** Projeto › Histórico, loaded from the host (SW-8). Same project chrome as the board: back link and tabs. */
+/** Projeto › Histórico, loaded from the host (SW-8). A view of the project the place shows: one link takes the person back to the board. */
 
 import { useCallback, useMemo, useState, type ReactNode } from 'react'
 import type { ProjectScopeRequest } from '@deepseek-ai/dsh-persona-host/types'
@@ -9,18 +9,17 @@ import { pt as reviewDict } from '../locale/review/locales.ts'
 import type { PersonaRemoteClient } from '../data/lumen-inject.ts'
 import { personaHistoryRemote, restorePointsToEntries, type HistoryTaskInfo } from '../data/history-remote.ts'
 import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
-import { ProjectWorkspaceTabs, type ProjectWorkspaceTab } from '../shell/ProjectWorkspaceTabs.tsx'
 import { ProjectHistoryView } from '../review/simple/ProjectHistoryView.tsx'
 
 export interface ConnectedProjectHistoryProps {
   readonly persona: PersonaRemoteClient
   readonly scope: ProjectScopeRequest
-  /** Kanban dictionary: the tabs and the back link speak its words. */
+  /** Kanban dictionary: the back link speaks its words. */
   readonly kanbanDict: LocaleDict
   /** Board cards: the host names a restore point only by its Tarefa id. */
   readonly tasks?: readonly { readonly id: string; readonly title: string; readonly assignee?: { readonly name?: string | undefined } | undefined }[]
+  /** "Voltar ao quadro": the history is a view of the project board, not a place of its own. */
   readonly onBack: () => void
-  readonly onWorkspaceTabChange: (tab: ProjectWorkspaceTab) => void
 }
 
 export function ConnectedProjectHistory({
@@ -29,7 +28,6 @@ export function ConnectedProjectHistory({
   kanbanDict,
   tasks = [],
   onBack,
-  onWorkspaceTabChange,
 }: ConnectedProjectHistoryProps): ReactNode {
   const history = useMemo(() => personaHistoryRemote(persona), [persona])
   const [undoingId, setUndoingId] = useState<string | null>(null)
@@ -60,9 +58,8 @@ export function ConnectedProjectHistory({
   return (
     <Screen width="full" data-persona-kanban="project-history">
       <Button variant="ghost" icon={<UiIcon name="chevronRight" size={18} />} onClick={onBack}>
-        {bindLocale(kanbanDict, 'boards.backToGrid')}
+        {bindLocale(kanbanDict, 'projects.history.back')}
       </Button>
-      <ProjectWorkspaceTabs dict={kanbanDict} value="history" onChange={onWorkspaceTabChange} />
       <ProjectHistoryView
         state={state.status === 'ready' ? 'ready' : state.status === 'error' ? 'error' : 'loading'}
         entries={listed === null ? [] : restorePointsToEntries(listed.points, undefined, taskInfo)}

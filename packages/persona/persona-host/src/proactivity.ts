@@ -23,6 +23,7 @@ import {
   type StoredPersona,
 } from '@deepseek-ai/dsh-persona-store'
 import type { RoutineRepos } from '@deepseek-ai/dsh-persona-store'
+import type { HouseRules } from './house-rules.ts'
 import type { Orchestration } from './orchestration.ts'
 import type { ProductRepos } from '@deepseek-ai/dsh-persona-store'
 import type {
@@ -46,6 +47,8 @@ export interface PersonaNowView {
   readonly proposalsAcceptedToday: number
   /** Files the persona already changed in the draft of its current task. Absent (or 0) = no draft (SW-7). */
   readonly draftFiles?: number
+  /** Item 7: the step her open turn is on, in plain words ("lendo os arquivos"); absent = the line stays "Trabalhando". Same field as `types.ts#PersonaNowView.sentence`. */
+  readonly sentence?: string
 }
 
 /** Visão geral — agora. */
@@ -89,8 +92,14 @@ export class ProactivityHost {
   readonly now: () => string
   /** Draft size of a running ticket (the scheduler keeps it fresh). Unset = no draft information. */
   draftFilesOf: ((projectId: string, ticketId: string) => number | undefined) | undefined = undefined
+  /** Item 7: the step the open turn of a Task is on, in plain words (`PersonaNowView.sentence`); undefined when unknown. */
+  stepSentenceOf: ((projectId: string, ticketId: string) => string | undefined) | undefined = undefined
   /** The proposals and questions waiting in Aprovações (the same list the screen shows). Unset = none are listed. */
   approvalsOf: ((projectId: string) => readonly ApprovalView[]) | undefined = undefined
+  /** HONEST-1: the team's quiet window. Unset = no window (the team starts initiatives as before). */
+  houseRules: Pick<HouseRules, 'hold' | 'quietNow'> | undefined = undefined
+  /** Whether the whole team is paused ("Pausar equipe"). Unset = never. */
+  teamPaused: ((projectId: string) => boolean) | undefined = undefined
 
   /**
    * @param product - Personas.
@@ -204,6 +213,8 @@ export class ProactivityHost {
     if (autonomy.mode === 'asked') return false
     const at = this.now()
     if (inSilence(at, autonomy.silenceStart, autonomy.silenceEnd)) return false
+    // HONEST-1: inside the team's quiet window nothing is started by itself (the hold is written in the window's book, once per persona and occurrence).
+    if (this.houseRules?.hold(projectId, 'initiative', personaId, `iniciativa de ${this.product.getPersona(personaId)?.name ?? 'alguém da equipe'}`, at) !== undefined) return false
     const day = at.slice(0, 10)
     if (this.repos.proposalsToday(projectId, personaId, day) >= autonomy.proposalBudget) return false
     const scored = scoreInitiativeProposal(this.orchestration, projectId, personaId, source, title, at, this.repos.proposalsToday(projectId, personaId, day), autonomy.proposalBudget)
@@ -274,6 +285,24 @@ export class ProactivityHost {
       })
     }
     return warnings
+  }
+
+  /**
+   * The two facts Muse's state words need, per persona, from the truths the host already obeys. Present only when true (absent = awake):
+   * `paused` — she was paused on purpose; `quiet` — the team's Janela de silêncio is on, the whole team is paused, or her own silence window is on.
+   * @param projectId - Tenant.
+   * @param personaId - Persona.
+   */
+  restFacts(projectId: string, personaId: string): { readonly quiet?: true; readonly paused?: true } {
+    const at = this.now()
+    const autonomy = this.repos.getAutonomy(projectId, personaId)
+    const quiet = this.teamPaused?.(projectId) === true
+      || this.houseRules?.quietNow(projectId, at) !== undefined
+      || inSilence(at, autonomy.silenceStart, autonomy.silenceEnd)
+    return {
+      ...(quiet ? { quiet: true as const } : {}),
+      ...(this.orchestration.isPersonaPaused(projectId, personaId) ? { paused: true as const } : {}),
+    }
   }
 
   /**
@@ -506,6 +535,7 @@ export class ProactivityHost {
     const proposalsAcceptedToday = fires.filter(item => item.personaId === persona.id && item.ticketId !== undefined).length
     const changed = state === 'working' && current !== undefined ? this.draftFilesOf?.(projectId, current.id) : undefined
     const draftFiles = changed !== undefined && changed > 0 ? changed : undefined
+    const sentence = state === 'working' && current !== undefined ? this.stepSentenceOf?.(projectId, current.id) : undefined
     return {
       personaId: persona.id,
       name: persona.name,
@@ -518,6 +548,8 @@ export class ProactivityHost {
       deliveriesToday,
       proposalsAcceptedToday,
       ...(draftFiles === undefined ? {} : { draftFiles }),
+      ...(sentence === undefined ? {} : { sentence }),
+      ...this.restFacts(projectId, persona.id),
     }
   }
 

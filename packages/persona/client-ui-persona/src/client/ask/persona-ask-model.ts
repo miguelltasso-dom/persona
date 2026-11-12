@@ -1,5 +1,5 @@
 /**
- * IV-10 · a pergunta estruturada da persona no fio (contracts/structured-question.md; forma: UX-BEYOND §Colheita Lodi A(1)).
+ * IV-10 · a pergunta estruturada da persona no fio (contracts/structured-question.md; forma: UX-BEYOND §Colheita A(1)).
  *
  * O host manda DADOS (`MessageView.personaAsk` = o cartão; `listPersonaAsks` = o estado vivo); as palavras são daqui. Este módulo é puro:
  * o mapa do host para a tela e a regra da escolha (única × múltipla).
@@ -12,6 +12,11 @@ export interface AskOptionUi {
 
 /** O cartão, como o fio o desenha. `options` vazio = só palavras (o composer responde; sem chips). */
 export interface PersonaAskUi {
+  /**
+   * `fimDoTurno` = o cartão de escolha do fim da vez (colheita item 11): opções A a F, ninguém espera por ele e o toque vira uma
+   * mensagem curta da pessoa. Ausente = a pergunta de uma Tarefa que espera.
+   */
+  readonly kind?: 'fimDoTurno'
   /** O id da pergunta aberta (o `Attention`): estável. */
   readonly askId: string
   readonly ticketId: string
@@ -33,10 +38,13 @@ export interface PersonaAskLiveUi {
   readonly status: PersonaAskStatus
   readonly optionIds: readonly string[]
   readonly text: string
+  /** Quando foi respondida (ISO), para o rodapé "Você escolheu B · 14:32". */
+  readonly answeredAt?: string
 }
 
 /** O formato do cartão que o host manda (um subconjunto estrutural de `PersonaAskCardView`, para este módulo não importar o host). */
 export interface PersonaAskCardInput {
+  readonly kind?: 'fimDoTurno' | undefined
   readonly askId: string
   readonly ticketId: string
   readonly personaId: string
@@ -50,7 +58,7 @@ export interface PersonaAskCardInput {
 /** O estado vivo que o host manda (um subconjunto estrutural de `PersonaAskView`). */
 export interface PersonaAskLiveInput {
   readonly status: PersonaAskStatus
-  readonly answer?: { readonly optionIds: readonly string[]; readonly text: string } | undefined
+  readonly answer?: { readonly optionIds: readonly string[]; readonly text: string; readonly answeredAt?: string | undefined } | undefined
 }
 
 /**
@@ -60,7 +68,9 @@ export interface PersonaAskLiveInput {
 export function mapPersonaAsk(input: PersonaAskCardInput | undefined): PersonaAskUi | undefined {
   if (input === undefined) return undefined
   const question = input.question.trim()
-  if (input.askId === '' || input.ticketId === '' || question === '') return undefined
+  const endOfTurn = input.kind === 'fimDoTurno'
+  // The card of a Task that waits is tied to its Task; the end-of-turn card is tied to the message that carries it (no Task waits).
+  if (input.askId === '' || (input.ticketId === '' && !endOfTurn) || question === '') return undefined
   const seen = new Set<string>()
   const options: AskOptionUi[] = []
   for (const option of input.options ?? []) {
@@ -73,20 +83,26 @@ export function mapPersonaAsk(input: PersonaAskCardInput | undefined): PersonaAs
     ? { index: input.step.index, total: input.step.total }
     : undefined
   return {
+    ...(endOfTurn ? { kind: 'fimDoTurno' as const } : {}),
     askId: input.askId,
     ticketId: input.ticketId,
     personaId: input.personaId,
     personaName: input.personaName,
     question,
     options,
-    multiple: input.multiple && options.length > 1,
-    ...(step === undefined ? {} : { step }),
+    multiple: !endOfTurn && input.multiple && options.length > 1,
+    ...(step === undefined || endOfTurn ? {} : { step }),
   }
 }
 
 export function mapPersonaAskLive(input: PersonaAskLiveInput | undefined): PersonaAskLiveUi | undefined {
   if (input === undefined) return undefined
-  return { status: input.status, optionIds: input.answer?.optionIds ?? [], text: input.answer?.text ?? '' }
+  return {
+    status: input.status,
+    optionIds: input.answer?.optionIds ?? [],
+    text: input.answer?.text ?? '',
+    ...(input.answer?.answeredAt === undefined ? {} : { answeredAt: input.answer.answeredAt }),
+  }
 }
 
 /** Marca ou desmarca uma opção: única = só ela (tocar de novo na escolhida a mantém); múltipla = liga/desliga, na ordem das opções. */

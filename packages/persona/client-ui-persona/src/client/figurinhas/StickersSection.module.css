@@ -1,0 +1,64 @@
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-4);
+}
+
+.text {
+  min-width: 0;
+}
+
+.label {
+  margin: 0;
+  font: 700 15px/22px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.hint {
+  margin: var(--persona-space-1) 0 0;
+  font: 500 14px/20px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.fan {
+  display: flex;
+  gap: var(--persona-space-3);
+  margin: var(--persona-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.fanItem {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+}
+
+.fanItem:nth-child(1) {
+  transform: rotate(-4deg);
+}
+
+.fanItem:nth-child(2) {
+  transform: rotate(2deg);
+}
+
+.fanItem:nth-child(3) {
+  transform: rotate(6deg);
+}
+
+.fanImg {
+  display: block;
+  width: 48px;
+  height: 48px;
+  object-fit: contain;
+}
+
+/* Desligado: o fundo vem do token de papel, que muda no escuro (sem disco lilás fixo). */
+.fan[data-enabled='false'] .fanItem {
+  background: var(--persona-wash);
+}
+
+.fan[data-enabled='false'] .fanImg {
+  opacity: 0.5;
+}

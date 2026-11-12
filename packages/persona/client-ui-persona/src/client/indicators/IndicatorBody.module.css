@@ -1,0 +1,175 @@
+/*
+ * "Seus números" · o corpo de um indicador (design/COLHEITA-MUSE.md §19a). Só tokens `--persona-*`. Sem animação de desenho, sem contador correndo:
+ * é dado, não festa. A seta de tendência SEMPRE vem com o texto; subir em verde, cair em vermelho só quando o indicador diz que cair é ruim.
+ */
+.number {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+}
+
+.value {
+  margin: 0;
+  color: var(--persona-ink);
+  font: 800 28px/34px var(--persona-font-display);
+  overflow-wrap: anywhere;
+}
+
+.trend {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  margin: 0;
+  font: 700 13px/18px var(--persona-font-text);
+}
+
+.arrow {
+  flex: 0 0 16px;
+}
+
+.good {
+  color: var(--persona-success);
+}
+
+.bad {
+  color: var(--persona-danger);
+}
+
+.neutral {
+  color: var(--persona-ink-soft);
+}
+
+.goal {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+}
+
+.goal .value {
+  font-size: 20px;
+  line-height: 26px;
+}
+
+.track {
+  height: 10px;
+  overflow: hidden;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: 999px;
+  background: var(--persona-surface-alt);
+}
+
+/* O enchimento é informação (progresso), não enfeite: sem transição. */
+.fill {
+  height: 100%;
+  background: var(--persona-accent);
+}
+
+.small {
+  margin: 0;
+  color: var(--persona-ink-soft);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.bars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--persona-space-2);
+  height: 72px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.bar {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  height: 100%;
+  min-width: 0;
+}
+
+.barFill {
+  display: block;
+  width: 100%;
+  max-width: 28px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: 6px 6px 2px 2px;
+  background: var(--persona-accent);
+}
+
+.barLabel {
+  margin-top: 2px;
+  color: var(--persona-ink-soft);
+  font: 600 13px/16px var(--persona-font-text);
+  white-space: nowrap;
+}
+
+.line {
+  color: var(--persona-brand);
+}
+
+.lineEnds {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--persona-space-2);
+  margin: 2px 0 0;
+  color: var(--persona-ink-soft);
+  font: 600 13px/16px var(--persona-font-text);
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-2);
+  color: var(--persona-ink);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.mark {
+  display: inline-flex;
+  flex: 0 0 20px;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  font: 800 13px/1 var(--persona-font-text);
+}
+
+.markOk {
+  background: var(--persona-success-tint);
+  color: var(--persona-success);
+}
+
+.markWarn {
+  background: var(--persona-warning-tint);
+  color: var(--persona-warning);
+}
+
+.more {
+  color: var(--persona-ink-soft);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.summary {
+  max-height: 84px;
+  overflow-y: auto;
+  color: var(--persona-ink);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.summary p {
+  margin: 0 0 2px;
+}

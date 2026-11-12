@@ -1,4 +1,5 @@
-export type ConnectionStatus = 'ready' | 'missing' | 'expired'
+/** Item 13: `checking` = ainda conferindo; `unconfirmed` = a checagem passou do tempo 2 vezes ("não consegui conferir"). Nenhum dos dois é "não conectada": isso só vale para `expired` (logout confirmado). */
+export type ConnectionStatus = 'ready' | 'missing' | 'expired' | 'checking' | 'unconfirmed'
 
 export type ConnectionResolveErrorCode = 'cli_not_found' | 'not_logged_in' | 'quota_exhausted'
 

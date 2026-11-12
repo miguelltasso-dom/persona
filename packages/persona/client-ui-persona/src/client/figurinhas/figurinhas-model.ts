@@ -1,5 +1,5 @@
 /**
- * Figurinhas das personas — modelo PURO (Muse, UX-BEYOND-T3 §Colheita Lodi, item D).
+ * Figurinhas das personas — modelo PURO (Muse, UX-BEYOND-T3 §Colheita, item D).
  * Uso com parcimônia: comemorar uma entrega, "bom dia" e fim de expediente; no MÁXIMO 1 por persona por dia (o host também mede o
  * orçamento de atenção; isto é a guarda do cliente); desligável pela pessoa. A legenda é TEXTO VIVO (nunca vai na arte).
  */

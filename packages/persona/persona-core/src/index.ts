@@ -435,6 +435,7 @@ export {
 
 export type {
   PayloadCipher,
+  ChannelSealedPayload,
   SealedPayload,
   SyncAck,
   SyncClassification,

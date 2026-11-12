@@ -76,6 +76,14 @@ export interface Runner {
    */
   deliver(sessionId: string, requestId: string, text: string, mode: DeliverMode, options?: DeliverOptions): Promise<void>
   /**
+   * Put text into the turn that is open right now, without waiting for it to end.
+   * @param sessionId - Session from {@link ensureSession}.
+   * @param requestId - Delivery id (the runtime echoes it when it reads the text).
+   * @param text - What the person wants to change.
+   * @returns `true` when the open turn took it; `false` when no turn is open (the caller sends normally).
+   */
+  steer?(sessionId: string, requestId: string, text: string): Promise<boolean>
+  /**
    * Cancel the current turn.
    * @param sessionId - Session to cancel.
    * @param options - `keepInbox` preserves queued undelivered text.

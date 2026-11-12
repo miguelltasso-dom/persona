@@ -252,4 +252,41 @@ describe('OAR CLI runners', () => {
     expect(events.some(item => item.type === 'delta' && item.text === 'OK')).toBe(true)
     expect(events.some(item => item.type === 'ended' && item.report.state === 'ready')).toBe(true)
   })
+
+  it('carrega os MCP servers extras do turno e não reusa a sessão quente aberta sem eles', async () => {
+    const seen: (readonly string[] | undefined)[] = []
+    const inner = sayingRuntime('ok')
+    const runtime = {
+      ...inner,
+      session: async (installation: AvailableInstallation, options: SessionOptions) => {
+        seen.push(options.mcpServers?.map(server => server.name))
+        return inner.session(installation, options)
+      },
+    }
+    const runner = createClaudeRunner({ runtime })
+    const browser = [{ name: 'browser', command: 'node', args: ['chrome-devtools-mcp.js', '--browserUrl', 'http://127.0.0.1:9222'] }] as const
+    const first = await runner.start({ ...input, extraMcpServers: browser })
+    await collect(runner.stream(first))
+    const second = await runner.start({ ...input })
+    await collect(runner.stream(second))
+    expect(seen).toEqual([['browser'], undefined])
+    expect(second.sessionId).not.toBe(first.sessionId)
+    await runner.dispose?.()
+  })
+
+  it('um CLI sem MCP não recebe os servers extras', async () => {
+    const seen: (readonly string[] | undefined)[] = []
+    const inner = sayingRuntime('ok')
+    const runtime = {
+      ...inner,
+      session: async (installation: AvailableInstallation, options: SessionOptions) => {
+        seen.push(options.mcpServers?.map(server => server.name))
+        return inner.session(installation, options)
+      },
+    }
+    const runner = createCursorRunner({ runtime })
+    await collect(runner.stream(await runner.start({ ...input, extraMcpServers: [{ name: 'browser', command: 'node', args: [] }] })))
+    expect(seen).toEqual([undefined])
+    await runner.dispose?.()
+  })
 })

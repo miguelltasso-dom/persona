@@ -58,8 +58,21 @@
   align-items: flex-start;
   gap: var(--persona-space-4);
   overflow-x: auto;
-  padding: 2px 2px var(--persona-space-4);
+  padding: 2px var(--persona-space-6) var(--persona-space-4) 2px;
   scroll-snap-type: x proximity;
+}
+
+/* Columns still out of sight on an edge: that edge fades out (a column is never cut like a mistake). */
+.columns[data-fade='end'] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+}
+
+.columns[data-fade='start'] {
+  mask-image: linear-gradient(to left, #000 calc(100% - 40px), transparent);
+}
+
+.columns[data-fade='both'] {
+  mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
 }
 
 .column {

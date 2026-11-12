@@ -1,0 +1,34 @@
+/* COLHEITA §6: a linha do passo. Uma linha, 13 px, tinta suave; a troca sobe 4 px em --motion-fast. Só tokens. */
+.line {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: var(--persona-space-1) 0 var(--persona-space-2);
+  color: var(--persona-ink-muted);
+}
+
+.text {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  font: 600 13px/18px var(--persona-font-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  animation: workStepIn var(--motion-fast) var(--ease-standard) both;
+}
+
+@keyframes workStepIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .text {
+    animation: workStepFade var(--motion-reduced-fade) var(--ease-standard) both;
+  }
+}
+
+@keyframes workStepFade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}

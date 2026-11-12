@@ -8,13 +8,7 @@
   place-items: center;
   padding: var(--persona-modal-gutter);
   background: var(--persona-scrim);
-  backdrop-filter: blur(3px);
   animation: persona-fade-in var(--motion-base) var(--ease-enter);
-}
-
-/* D-101: an unfocused window keeps no continuous backdrop blur; the scrim stays a static surface (Prism/Muse own the look). */
-body[data-persona-unfocused] .scrim {
-  backdrop-filter: none;
 }
 
 .modal {
@@ -122,6 +116,21 @@ body[data-persona-unfocused] .scrim {
   .modalTitle {
     font-size: 21px;
     line-height: 26px;
+  }
+
+  /* Carbon (fio-d103-r2 #2): a 200% o cabeçalho e o rodapé comiam a altura e sobrava só o rótulo sob o degradê; menos margem, menos respiro no rodapé e a faixa do degradê de 20 px. */
+  .modalBody,
+  .modalFooter {
+    margin-top: var(--persona-space-2);
+  }
+
+  .modalFooter {
+    padding-top: var(--persona-space-3);
+  }
+
+  .modalBody[data-more] {
+    mask-image: linear-gradient(to bottom, black calc(100% - 20px), transparent);
+    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 20px), transparent);
   }
 }
 

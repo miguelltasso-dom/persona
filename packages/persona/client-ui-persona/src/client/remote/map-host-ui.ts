@@ -1,4 +1,5 @@
 import { usableTaskTitle } from './task-title.ts'
+import { personaTintIndex } from '../primitives/persona-tint.ts'
 import type { PersonaCharacterId } from '../assets/asset-url.ts'
 import { poseUrl } from '../assets/asset-url.ts'
 import { resolveProjectDisplayName } from '../kanban/resolve-project-name.ts'
@@ -14,6 +15,7 @@ import { uiStateToPose } from '../team/persona-work-state.ts'
 import type { AwayEventView, MessageView, PersonaNowView, PersonaView, TaskView, TeamPartStatusWire, TeamView, WhileAwayView } from './persona-remote-types.ts'
 import { sortPersonasForUi } from '../team/sort-personas.ts'
 import { mapPersonaAsk, type PersonaAskUi } from '../ask/persona-ask-model.ts'
+import type { IndicatorOfferUi } from '../indicators/indicators-model.ts'
 import { mapHandoffLine, mapReviewedBy, mapReviewLine, type HandoffLineUi, type ReviewedByInput, type ReviewLineUi, type StateLineUi, type TeamPersonaUi } from '../teamwork/team-lines-model.ts'
 import { mapTaskProposal, type TaskProposalUi } from '../proposal/task-proposal-model.ts'
 import { mapOpinion, type OpinionUi } from '../chat/opinion/opinion-model.ts'
@@ -168,6 +170,18 @@ export function resolveHostPersonaId(team: TeamView | null, ref: string): string
   return ref
 }
 
+/**
+ * Muse state vocabulary (Bolt, host contract house-rules): the host sends `paused` ("Pausada") and `quiet` ("Descansando") ONLY when
+ * true; absent = awake. The client copies exactly that and never invents `false`. `PersonaNowView` and `PersonaView` carry the same
+ * facts, so either source may be given and a `true` from any of them counts. Both can be true (paused inside the window):
+ * `derivePersonaState` decides which word wins (Pausada).
+ */
+function stateFlagsOf(...sources: readonly ({ readonly paused?: true; readonly quiet?: true } | undefined)[]): { readonly paused?: true; readonly quiet?: true } {
+  const paused = sources.some(source => source?.paused === true)
+  const quiet = sources.some(source => source?.quiet === true)
+  return { ...(paused ? { paused: true as const } : {}), ...(quiet ? { quiet: true as const } : {}) }
+}
+
 function stripMember(
   persona: PersonaView,
   state: PersonaWorkUiState,
@@ -182,6 +196,7 @@ function stripMember(
     role: persona.title,
     state,
     systemRoles: [...cardSystemRoles(persona.systemRoles)],
+    ...stateFlagsOf(persona),
     ...(arriving === true ? { arriving: true as const } : {}),
     ...(hasPose ? {} : { silhouette: true as const }),
   }
@@ -240,8 +255,8 @@ export function mapSortedMessageStream(
 
 export function mapPersonaNowRow(row: PersonaNowView, team: TeamView): PersonaNowSnapshot {
   const persona = team.personas.find(p => p.id === row.personaId)
-  const member = persona !== undefined
-    ? stripMember(persona, row.state)
+  const member: ChannelPersonaMember = persona !== undefined
+    ? { ...stripMember(persona, row.state), ...stateFlagsOf(persona, row) }
     : (() => {
       const id = resolveCharacterId(undefined, row.personaId)
       const pose = uiStateToPose(row.state)
@@ -251,6 +266,7 @@ export function mapPersonaNowRow(row: PersonaNowView, team: TeamView): PersonaNo
         name: row.name,
         role: row.title,
         state: row.state,
+        ...stateFlagsOf(row),
         ...(hasPose ? {} : { silhouette: true as const }),
       }
     })()
@@ -258,8 +274,11 @@ export function mapPersonaNowRow(row: PersonaNowView, team: TeamView): PersonaNo
   const draftFiles = row.state === 'working' && typeof row.draftFiles === 'number' && Number.isFinite(row.draftFiles) && row.draftFiles >= 1
     ? Math.trunc(row.draftFiles)
     : undefined
+  // COLHEITA §6 (Quill): a frase do passo só vem com `working` e quando o host sabe o passo; o cliente nunca a inventa.
+  const step = row.state === 'working' && typeof row.sentence === 'string' && row.sentence.trim() !== '' ? row.sentence.trim() : undefined
+  const withStep: ChannelPersonaMember = step === undefined ? member : { ...member, step }
   const snap: PersonaNowSnapshot = {
-    member: draftFiles === undefined ? member : { ...member, draftFiles },
+    member: draftFiles === undefined ? withStep : { ...withStep, draftFiles },
     queueCount: row.queueCount,
   }
   if (row.currentTask.length > 0) {
@@ -464,6 +483,12 @@ export interface ActionPreviewUi {
   readonly status: 'pending' | 'sending' | 'sent' | 'cancelled' | 'failed' | 'adjusted'
   readonly sentAt?: string
   readonly failureReason?: string
+  /** COLHEITA 5: até quando o cartão vale (o selo de prazo); sem ele não há selo. */
+  readonly expiresAt?: string
+  /** COLHEITA 5: o cartão fechou sem resposta: só leitura, com "Pedir de novo". */
+  readonly expired?: true
+  /** COLHEITA 5: a pessoa já pediu de novo; a persona manda outro cartão. */
+  readonly retried?: true
 }
 
 /** PERSONA-POWERS §3: o pedido de iniciativa ("A Nina quer usar o Drive para buscar o contrato"). */
@@ -548,6 +573,8 @@ export interface ActionEventUi {
   readonly target: string
   readonly subject?: string
   readonly activityId: string
+  /** COLHEITA 5: a pessoa já desfez: a linha vira texto simples com "Desfeito" (sem Desfazer). */
+  readonly undone?: true
   /** O Desfazer: só existe com `undoable` E um prazo (`undoUntil`) válido; `undoUntilMs` é o instante em que ele acaba. */
   readonly undoUntilMs?: number
   /** O verbo que o host mandou (HT-1: `board_card_move`, `sprint_start`…) quando não é email/post/pagamento/apagar. */
@@ -668,6 +695,8 @@ export interface ChannelMessageUi {
   readonly stateLine?: StateLineUi
   /** IV-10: a pergunta estruturada da persona (chips); só vira cartão com a flag `persona.flag.personaAsk` (sem ela, o corpo simples do host segue). */
   readonly personaAsk?: PersonaAskUi
+  /** Colheita item 19a: o número que a persona trouxe na conversa ("Fixar na Visão geral"); o host manda os dados, as palavras são do cliente. */
+  readonly indicatorOffer?: IndicatorOfferUi
   /** TEAM-8: uma passagem de trabalho entre duas personas ("{A} pediu ajuda para {B}", "{B} entregou para {A}"); só vira linha com `persona.flag.teamwork`. */
   readonly teamHandoff?: HandoffLineUi
   /** TEAM-8: o resultado de uma revisão entre colegas ("{R} aprovou", "{R} pediu ajustes"); só vira linha com `persona.flag.teamwork`. */
@@ -715,6 +744,7 @@ export function mapActionPreview(event: MessageView, team: TeamView): ActionPrev
   const reference = clean(preview.reference)
   const failureReason = clean(preview.failureReason)
   const sentAt = clean(preview.sentAt)
+  const expiresAt = clean(preview.expiresAt)
   return {
     approvalId: preview.approvalId,
     actionClass: preview.actionClass,
@@ -738,6 +768,9 @@ export function mapActionPreview(event: MessageView, team: TeamView): ActionPrev
     ...(sentAt === undefined ? {} : { sentAt }),
     ...(failureReason === undefined ? {} : { failureReason }),
     ...(clean(preview.sentTo) === undefined ? {} : { sentTo: clean(preview.sentTo)! }),
+    ...(expiresAt === undefined ? {} : { expiresAt }),
+    ...(preview.expired === true ? { expired: true as const } : {}),
+    ...(preview.retried === true ? { retried: true as const } : {}),
   }
 }
 
@@ -882,8 +915,9 @@ export function mapActionEvent(event: MessageView): ActionEventUi | undefined {
   const after = (action.after ?? '').trim()
   const content = mapActionContent(verb, action.content)
   // Email, post e pagamento não voltam (PERSONA-POWERS §2): mesmo que o host marque `undoable` por engano, a UI não promete.
-  const canUndo = action.undoable === true && !Number.isNaN(until) && verb !== 'email' && verb !== 'post' && verb !== 'pay'
+  const canUndo = action.undoable === true && !Number.isNaN(until) && verb !== 'email' && verb !== 'post' && verb !== 'pay' && action.undone !== true
   return {
+    ...(action.undone === true ? { undone: true as const } : {}),
     verb,
     connectorName: action.connectorName.trim(),
     target: action.target.trim(),
@@ -981,7 +1015,9 @@ function teamPersonaLookup(team: TeamView): (personaId: string) => TeamPersonaUi
   return (personaId) => {
     const row = team.personas.find(p => p.id === personaId)
     if (row === undefined || row.name.trim() === '') return undefined
-    return { id: row.id, name: row.name.trim(), characterId: resolveCharacterId(row, row.id) }
+    // O anel do rosto é o tom da ORDEM DE CONTRATAÇÃO (a ordem em que o host lista a equipe), a mesma fonte do tom da moldura do Avatar.
+    const tint = personaTintIndex(row.id, team.personas.map(persona => persona.id))
+    return { id: row.id, name: row.name.trim(), characterId: resolveCharacterId(row, row.id), ...(tint === undefined ? {} : { tint }) }
   }
 }
 
@@ -1083,6 +1119,7 @@ export function mapMessage(
     ...(savedFiles.length === 0 ? {} : { filesSaved: { files: savedFiles } }),
     ...(stateLine === undefined ? {} : { stateLine }),
     ...(personaAsk === undefined ? {} : { personaAsk }),
+    ...(event.indicatorOffer === undefined ? {} : { indicatorOffer: event.indicatorOffer }),
     ...(teamHandoff === undefined ? {} : { teamHandoff }),
     ...(teamReview === undefined ? {} : { teamReview }),
     ...(taskProposal === undefined ? {} : { taskProposal }),

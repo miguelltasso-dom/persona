@@ -143,6 +143,17 @@ function renderBlock(block: MarkdownBlock, key: string, t: ChatT): ReactNode {
       return renderList(block, key)
     case 'table':
       return renderTable(block, key, t)
+    case 'details':
+      // Detalhe técnico recolhido (fala simples): <details> nativo, então teclado (Enter/Espaço) e leitor de tela vêm de graça.
+      return (
+        <details key={key} className={styles.details} data-persona-details="">
+          <summary className={styles.summary}>
+            <UiIcon name="chevronRight" size={14} strokeWidth={2.4} className={styles.summaryIcon} />
+            <span>{block.summary}</span>
+          </summary>
+          <div className={styles.detailsBody}>{block.blocks.map((inner, index) => renderBlock(inner, `${key}.${index}`, t))}</div>
+        </details>
+      )
   }
 }
 

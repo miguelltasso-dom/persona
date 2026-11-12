@@ -1,12 +1,13 @@
 /** JSON-safe inputs and results of the Persona Remote namespace. */
 import type {} from '@deepseek-ai/dsh-typert-protocol'
+import type { ComponentFailure } from '@deepseek-ai/dsh-persona-components'
 import type {
   LedgerOrigin,
   TurnKind,
   TurnLayerSizes,
 } from '@deepseek-ai/dsh-persona-core'
 import type { UsageFold, UsageOrigin } from '@deepseek-ai/dsh-persona-usage'
-import type { Opt8MeasuredEvidence } from '@deepseek-ai/dsh-persona-engine'
+import type { IndicatorData, Opt8MeasuredEvidence } from '@deepseek-ai/dsh-persona-engine'
 
 export type { OfficialQuota, UsageFold, UsageOrigin, UsageRecord, UsageWindow } from '@deepseek-ai/dsh-persona-usage'
 export type { LedgerOrigin, TurnKind, TurnLayerSizes, TurnLedgerEntry } from '@deepseek-ai/dsh-persona-core'
@@ -69,6 +70,13 @@ export interface PersonaView {
   readonly canSaveFiles?: boolean
   /** D-099: whether that can take effect now: the persona's project has a folder. Without one she answers in text only. The host always sends it. */
   readonly canSaveFilesAvailable?: boolean
+  /** Muse state vocabulary: paused ON PURPOSE ("Pausada"). Present only when `true`; absent = not paused. */
+  readonly paused?: true
+  /**
+   * Muse state vocabulary: resting by silence ("Descansando"): inside the team's Janela de silêncio, the whole team is paused, or her own silence window is on.
+   * Present only when `true`; absent = awake.
+   */
+  readonly quiet?: true
 }
 
 /** HT-6: the answer of `retirePersona`. */
@@ -664,6 +672,8 @@ export interface MessageView {
   readonly taskProposal?: TaskProposalCardView
   /** A persona's structured question (chips, “Pergunta n de m”); the live state is `listPersonaAsks`. */
   readonly personaAsk?: PersonaAskCardView
+  /** Colheita item 19a: a number or small chart the persona reported (`[[indicador: …]]` read from her message); "Fixar na Visão geral" pins it. */
+  readonly indicatorOffer?: IndicatorOfferView
   /** EQUIPE-REAL: a request one persona made to a colleague (“Bia pediu ajuda ao Teo”, “Teo entregou para Bia”); the bilhete is in the Task, never here. */
   readonly handoff?: HandoffCardView
   /** EQUIPE-REAL: a colleague reviewed the work before it reached the person (“Revisado pelo Atlas”, “Atlas pediu ajustes”). */
@@ -678,6 +688,8 @@ export interface MessageView {
   readonly dailyBrief?: DailyBriefView
   /** HT-9: the preview of an external action, when this message IS its card (`action-card:<id>`): the real content, updated in place as the person decides. */
   readonly actionPreview?: ActionPreviewWire
+  /** COLHEITA 5: a persona acted inside the product on its own (`activity-line:<id>`): the line "A Bia criou a rotina … · Desfazer" (the Desfazer lasts 5 min). */
+  readonly actionEvent?: ActionEventView
   /** TEAM-4: this line is part of a round of OPINION a persona asked of the team (the question, one colleague's answer, or the consolidation). */
   readonly opinion?: OpinionView
   /** EQUIPE-REAL §0: the PLAN of a request done in parts, once; its chips change in place (the stream re-sends the same message). */
@@ -712,8 +724,10 @@ export interface DraftFileView {
   readonly personaId: string
   readonly size?: number
   /**
-   * A small PNG (`data:image/png;base64,…`, at most 24 KB of text, 192 px falling to 96 px; `DRAFT_THUMB_MAX_CHARS` in `draft-turn-files.ts`) the host made when the line was written, so the thread keeps the picture after
-   * Aplicar or Descartar. Absent when the file is not an image or the host could not make it (the screen then shows the icon of the type).
+   * The picture, as a data URL the host made when the line was written, so the thread keeps it after Aplicar or Descartar (`thumbOf` in `draft-turn-files.ts`; at most `DRAFT_THUMB_MAX_CHARS` = 128 KB
+   * of text, and about 384 KB for all the thumbnails of one line). For a SVG file: the SVG ITSELF (`data:image/svg+xml;base64,…`, checked: no script, nothing external, `xmlns` ensured) — vector, the screen scales
+   * it with no loss; a SVG too big for the budget falls back to a PNG (one that does not parse, or is not safe, gets no thumbnail). For a raster: a PNG up to 640 px wide (png, gif, webp) or a JPEG
+   * (`data:image/jpeg;base64,…`, for a jpg: a photo as a PNG would not fit), never enlarged, narrower/lighter only when needed to fit (down to 96 px). Absent when the file is not an image or the host could not make it (the screen then shows the icon of the type).
    */
   readonly thumb?: string
   /** For an SVG: the PNG sibling the team SAW (models only read raster). */
@@ -964,6 +978,40 @@ export interface HarnessActionView {
   readonly ticketId: string
   readonly title: string
   readonly persona?: CollaboratorView
+}
+
+/**
+ * COLHEITA 5: what a persona did inside the product by itself, as the thread line carries it. The UI writes the words from the fields; the
+ * Desfazer exists only with `undoable` and a valid `undoUntil` (5 min after the action), and never for e-mail, posts or payments.
+ */
+export interface ActionEventView {
+  /** The harness verb (`board_card_move`, `routine_create`…). */
+  readonly verb: string
+  /** Always the product itself ("Persona"): these actions never leave it. */
+  readonly connectorName: string
+  /** The card, sprint or routine the action was about (its human title). */
+  readonly target: string
+  readonly subject?: string
+  readonly undoable?: boolean
+  /** ISO instant at which the Desfazer ends. */
+  readonly undoUntil?: string
+  /** What `undoPersonaAction` takes. */
+  readonly activityId: string
+  /** Where it went ("Fazendo"), when the host knows. */
+  readonly after?: string
+  /** The person took it back. */
+  readonly undone?: boolean
+}
+
+/** COLHEITA 5: take back one thing a persona did inside the product. */
+export interface UndoPersonaActionRequest extends ProjectScopeRequest {
+  readonly activityId: string
+}
+
+export interface UndoPersonaActionView {
+  readonly undone: boolean
+  /** The same answer a second time: nothing was run again. */
+  readonly alreadyUndone?: boolean
 }
 
 /** A persona that works WITH the lead of a Task (CV-5, contracts/mentions-fanout.md). */
@@ -1390,6 +1438,28 @@ export interface DraftTeamRequest {
   readonly description: string
 }
 
+/** Item 18: open the conversation of a Task (the card of the board). */
+export interface OpenTaskConversationRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly ticketId: string
+}
+
+/** Item 18: where the conversation of a Task is. It is a thread of the Task's own stream: list and write with `listMessages`/`postMessage`/`followMessages` using `streamKind`, `ownerId` and `topicId`. */
+export interface TaskConversationView {
+  readonly streamKind: 'channel' | 'dm'
+  readonly ownerId: string
+  readonly topicId: string
+  readonly title: string
+  /** Who takes care of the Task (the first one answers a message that names nobody). */
+  readonly caring: readonly { readonly personaId: string; readonly name: string }[]
+}
+
+/** Item 18: the person read the thread of a Task up to `seq`. */
+export interface MarkTaskThreadReadRequest extends OpenTaskConversationRequest {
+  readonly seq: number
+}
+
 /** Ticket command from the board. */
 export interface TicketCommandRequest {
   readonly workspaceId: string
@@ -1464,7 +1534,12 @@ export interface ReviewCardView {
  * choice, and where it sits in a sequence asked one at a time (“Pergunta 2 de 3”). Free text and files always answer too.
  */
 export interface PersonaAskCardView {
-  /** The Attention id: stable for this question. */
+  /**
+   * `fimDoTurno` = the end-of-turn choice card (colheita item 11): 2..6 options A..F, no Ticket waits for it, and a tap is a new
+   * short message from the person. Absent = the question of a Task that waits (the card above).
+   */
+  readonly kind?: 'fimDoTurno'
+  /** The Attention id: stable for this question (for an end-of-turn card, `choice:` plus the message id). */
   readonly askId: string
   readonly ticketId: string
   readonly personaId: string
@@ -1488,6 +1563,78 @@ export interface PersonaAskView extends PersonaAskCardView {
     readonly attachmentIds: readonly string[]
     readonly answeredAt: string
   }
+}
+
+/** When a pinned number is refreshed: every hour, or every day at 08:00 (colheita item 19a). */
+export type IndicatorSchedule = 'hourly' | 'daily'
+
+/** A number or a small chart a persona reported in a message (`MessageView.indicatorOffer`): what "Fixar na Visão geral" would pin. */
+export interface IndicatorOfferView {
+  /** The persona's message that carries it. */
+  readonly messageId: string
+  readonly name: string
+  readonly data: IndicatorData
+}
+
+/** The result of "Testar agora": the real number, good to pin for a few minutes. */
+export interface IndicatorTestView {
+  readonly testId: string
+  readonly name: string
+  readonly data: IndicatorData
+}
+
+/** A pinned indicator as the Visão geral draws it ("Seus números"). */
+export interface IndicatorView {
+  readonly id: string
+  readonly name: string
+  readonly kind: IndicatorData['kind']
+  readonly data: IndicatorData
+  readonly schedule: IndicatorSchedule
+  /** `updating`: the old value stays. `failed`: the old value stays and `failure` says why. */
+  readonly status: 'ok' | 'updating' | 'failed'
+  readonly failure?: string
+  readonly updatedAt: string
+  readonly alertDropPct?: number
+  /** The last refresh fell past the alert rule. */
+  readonly alert?: { readonly pct: number; readonly text: string; readonly at: string }
+  readonly personaId: string
+  readonly personaName: string
+  readonly sourceMessageId: string
+}
+
+/** Test the number of a persona's message with real data (quiet turn). */
+export interface TestIndicatorRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly messageId: string
+}
+
+/** Pin what a test showed. */
+export interface PinIndicatorRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly testId: string
+  readonly name: string
+  readonly schedule: IndicatorSchedule
+  /** "Avisar quando cair mais de N%" (numbers only). */
+  readonly alertDropPct?: number
+}
+
+/** One pinned indicator. */
+export interface IndicatorRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+}
+
+/** A tap on an option of an end-of-turn choice card (`PersonaAskCardView.kind === 'fimDoTurno'`). */
+export interface AnswerChoiceRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  /** The persona's message that carries the card (`PersonaAskView.cardId`). */
+  readonly messageId: string
+  /** `a`..`f`: the option of the card. */
+  readonly optionId: string
 }
 
 /** The structured questions of a project (optionally of one Ticket), oldest first. */
@@ -1514,6 +1661,101 @@ export interface VaultRecordView {
   readonly kind: 'brief' | 'constraint' | 'decision' | 'memory'
   readonly body: string
   readonly status: 'active' | 'revoked'
+}
+
+/** Cofre v2: one Login, Chave or the company Ficha (never a secret; `hasSecret` says whether one is kept). */
+export type { CofreEntryKind, CofreEntryView } from './cofre-entries.ts'
+
+/** Cofre v2: what a CSV import would do, and what it did (no password in either). */
+export type {
+  CofreImportDuplicate,
+  CofreImportFormat,
+  CofreImportIgnored,
+  CofreImportPreview,
+  CofreImportResult,
+  CofreImportRow,
+} from './cofre-import.ts'
+
+/** Cofre v2: the six-digit request the owner fills (never the digits). */
+export type { CofreCodeRequestView, CofreCodeState } from './cofre-2fa.ts'
+
+/** Item 13 "Ligar a IA para a equipe toda": what `getTeamAi`, `connectTeam`, `getTeamConnect` and `retryTeamPersona` take and return (contract: persona-spec/contracts/team-connect.md). */
+export type {
+  AccountChoice,
+  ConnectTeamRequest,
+  CliName as TeamEngineName,
+  RetryTeamPersonaRequest,
+  Room as AccountRoom,
+  RowStatus as TeamRowStatus,
+  StartResult as ConnectTeamResultView,
+  TeamAiView,
+  TeamConnectRow,
+  TeamConnectView,
+  WakeFailure as TeamRowReason,
+  WithoutAiPerson,
+} from './team-connect.ts'
+
+/** Save a Cofre Login; the password goes to the sealed store, never to the record. */
+export interface SaveCofreLoginRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly site: string
+  readonly username: string
+  readonly password: string
+  readonly title?: string
+  /** Existing entry to replace; absent creates one. */
+  readonly id?: string
+}
+
+/** Save a Cofre Chave (API key, token); the secret goes to the sealed store. */
+export interface SaveCofreKeyRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly service: string
+  readonly secret: string
+  readonly title?: string
+  readonly id?: string
+}
+
+/** Save the company Ficha: the only kind with no secret at all. */
+export interface SaveCofreCompanyRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly legalName: string
+  readonly document: string
+  readonly email?: string
+  readonly phone?: string
+  readonly address?: string
+  readonly id?: string
+}
+
+/** Remove a Cofre entry and its sealed secret. */
+export interface RemoveCofreEntryRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+}
+
+/** Read a Chrome/Bitwarden CSV: preview first, then commit the same text. */
+export interface CofreImportRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly csv: string
+}
+
+/** The owner fills the six digits of a request. */
+export interface FillCofreCodeRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
+  readonly code: string
+}
+
+/** Cancel a pending code request. */
+export interface CancelCofreCodeRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly id: string
 }
 
 /** First-use / Pessoal onboarding. */
@@ -1606,6 +1848,8 @@ export interface ConnectionView {
   readonly version?: string
   /** `checking` = still probing; UI must not show "desconectado". */
   readonly phase: 'checking' | 'ready'
+  /** Item 13: the check ran out of time twice in a row (`phase` stays `checking`). Say "não consegui conferir" with a way to try again, never "sem login": that is only a confirmed logout. */
+  readonly unconfirmed?: true
   readonly error?: ConnectionProbeError
   /** EFF-1: the models this ENGINE accepts and the levels of each (absent until the engine said). No "recommended" field exists. */
   readonly models?: readonly EngineModelView[]
@@ -1642,6 +1886,8 @@ export interface ConnectionAccountView {
   readonly loggedIn: boolean
   readonly loginHint: string
   readonly phase: 'checking' | 'ready'
+  /** Item 13: same as `ConnectionView.unconfirmed`. */
+  readonly unconfirmed?: true
   readonly error?: ConnectionProbeError
   readonly inUseCount?: number
   readonly loginCommand?: string
@@ -1860,6 +2106,82 @@ export interface AckAttentionRequest {
   readonly eventIds: readonly string[]
 }
 
+/** COLHEITA 17: who drives a browser profile right now. */
+export interface BrowserHolderView {
+  readonly kind: 'persona' | 'person'
+  readonly id: string
+}
+
+/** COLHEITA 17: one browser profile as the screen shows it. */
+export interface BrowserProfileView {
+  readonly id: string
+  readonly name: string
+  /** Absent = free. */
+  readonly holder?: BrowserHolderView
+  /** Its Chrome is up. */
+  readonly running: boolean
+  /** Persona ids allowed to drive it. */
+  readonly personas: readonly string[]
+  /** Persona ids that use it when they do not name one. */
+  readonly defaultsFor: readonly string[]
+}
+
+/** COLHEITA 17: the browser screen; an absent `chrome` means Chrome is not installed on this machine. */
+export interface BrowserScreenView {
+  readonly profiles: readonly BrowserProfileView[]
+  readonly chrome?: { readonly path: string; readonly version?: string }
+  /** Persona ids whose engine cannot carry the browser (Cursor): the screen says so instead of promising it. */
+  readonly withoutBrowser?: readonly string[]
+}
+
+/** COLHEITA 17: a new profile name. */
+export interface BrowserProfileNameRequest extends ProjectScopeRequest {
+  readonly name: string
+}
+
+/** COLHEITA 17: rename one profile. */
+export interface BrowserProfileRenameRequest extends ProjectScopeRequest {
+  readonly profileId: string
+  readonly name: string
+}
+
+/** COLHEITA 17: grant or revoke one profile for a persona. */
+export interface BrowserProfileGrantRequest extends ProjectScopeRequest {
+  readonly profileId: string
+  readonly personaId: string
+}
+
+/** COLHEITA 17: act on one profile (take, release, close). */
+export interface BrowserProfileRequest extends ProjectScopeRequest {
+  readonly profileId: string
+}
+
+/** COLHEITA 24: the one-time code that pairs a dedicated station. */
+export interface StationPairingCode {
+  readonly code: string
+  readonly expiresAt: string
+}
+
+/** COLHEITA 24: what the screen shows about the dedicated station of this machine. */
+export interface StationView {
+  readonly paired: boolean
+  readonly power: 'segurando' | 'livre'
+  readonly running: boolean
+  readonly ram: { readonly freeBytes: number; readonly floorBytes: number; readonly perCliBytes: number }
+  readonly queue: number
+  readonly clis: number
+  readonly tailscale: { readonly state: 'ativo' | 'parado' | 'ausente'; readonly address?: string; readonly line: string }
+}
+
+/** COLHEITA 24: the code typed on the station. */
+export interface StationPairRequest extends ProjectScopeRequest {
+  readonly code: string
+}
+
+/** COLHEITA 24: turn the station on or off. */
+export interface StationRunningRequest extends ProjectScopeRequest {
+  readonly running: boolean
+}
 /** Retention policy (archive-only by default). */
 export interface RetentionPolicyView {
   readonly archiveOnly: boolean
@@ -1992,6 +2314,15 @@ export interface PersonaNowView {
   readonly proposalsAcceptedToday: number
   /** Files the persona already changed in the draft of its current task (SW-7). Absent or 0 = no draft: the task stays just “Trabalhando”. */
   readonly draftFiles?: number
+  /**
+   * Item 7: the step her open turn is on, in plain words ("lendo os arquivos"): never a tool name or a path. Present only while she works and the
+   * host knows the step (the last tool the turn called); absent = the line stays just “Trabalhando”. Same vocabulary as the host's status answer.
+   */
+  readonly sentence?: string
+  /** Muse state vocabulary: paused ON PURPOSE ("Pausada"). Present only when `true`; absent = not paused. Same fact as `PersonaView.paused`. */
+  readonly paused?: true
+  /** Muse state vocabulary: resting by silence ("Descansando"): the team's Janela de silêncio, the whole team paused, or her own silence window. Present only when `true`. Same fact as `PersonaView.quiet`. */
+  readonly quiet?: true
 }
 
 /** Visão geral — agora. */
@@ -2183,16 +2514,56 @@ export interface ImportBatchView {
   readonly rolledBack: boolean
 }
 
-/** One triage rule. */
+/**
+ * HONEST-1: the kinds of house rule the host OBEYS (a closed list; `getRuleKinds` is the contract). Each one is a hard lock for the whole team:
+ * the permission gate / the hire tool ask the person, whatever the persona's autonomy or any permanent permission.
+ */
+export type HouseRuleKind = 'never-spend' | 'never-send' | 'never-publish' | 'never-delete' | 'never-hire'
+
+/** One kind the host obeys. `gate`: the permission gate asks the person before the call runs. `harness`: the product's own tool takes the shortcut away. */
+export interface HouseRuleKindView {
+  readonly kind: HouseRuleKind
+  readonly enforcedBy: 'gate' | 'harness'
+}
+
+/** What the team's quiet window holds back (each one is enforced by the host). */
+export type QuietHold = 'initiative' | 'routine' | 'plan' | 'proposal' | 'brief'
+
+/** `getRuleKinds`: everything the host obeys. The screens show ONLY these. */
+export interface RuleKindsView {
+  readonly kinds: readonly HouseRuleKindView[]
+  /** The team's quiet window: what it holds, and that a DIRECT request of the person is still answered. */
+  readonly quietWindow: { readonly enforced: true; readonly holds: readonly QuietHold[]; readonly directRequestsAnswered: true }
+}
+
+/** How many times a rule or a window really applied ("Barrou 2 gastos esta semana"). */
+export interface RuleAppliedView {
+  /** Since the rule / window was saved. */
+  readonly total: number
+  /** In the last 7 days (at most the newest 200 are kept). */
+  readonly thisWeek: number
+  /** ISO instant of the last application, when there was one. */
+  readonly lastAt?: string
+  /** A few words about the last one ("pagar pelo Gmail"). */
+  readonly lastWhat?: string
+}
+
+/**
+ * One triage rule. The host always sends `enforced` and `applied`; `kind` is present only on a rule the host obeys. A rule that is only text
+ * (`kind` absent) is `enforced: false`: it is noted, not obeyed, and the screen must not promise anything about it.
+ */
 export interface TriageRuleView {
   readonly id: string
   readonly gateText: string
   readonly assessmentText: string
   readonly logOnly: boolean
   readonly speculativeEnabled: boolean
+  readonly kind?: HouseRuleKind
+  readonly enforced?: boolean
+  readonly applied?: RuleAppliedView
 }
 
-/** Put a triage rule. */
+/** Put a triage rule. `kind` (a kind of {@link HouseRuleKind}; anything else is refused) is what makes the host obey it. */
 export interface PutTriageRuleRequest {
   readonly workspaceId: string
   readonly projectId: string
@@ -2201,14 +2572,17 @@ export interface PutTriageRuleRequest {
   readonly assessmentText: string
   readonly logOnly: boolean
   readonly speculativeEnabled: boolean
+  readonly kind?: HouseRuleKind
 }
 
-/** Quiet window. */
+/** Quiet window: the whole team's silence. The host always sends `enforced: true` and `applied` (how many things it held back). */
 export interface QuietWindowView {
   readonly id: string
   readonly label: string
   readonly start: string
   readonly end: string
+  readonly enforced?: true
+  readonly applied?: RuleAppliedView
 }
 
 /** Put a quiet window. */
@@ -2358,7 +2732,8 @@ export interface DecideApprovalRequest {
   readonly accept?: boolean
   /**
    * Required for `kind: 'connector'`: `once` (only that Task), `always` (permanent read permission), `not-now` (stays blocked, with the reason).
-   * Required for `kind: 'action'`: `send` (Enviar · Pagar · Apagar: ONE call with exactly what the card shows), `edit` (with `edited`), `cancel`.
+   * Required for `kind: 'action'`: `send` (Enviar · Pagar · Apagar: ONE call with exactly what the card shows), `edit` (with `edited`), `cancel`,
+   * `retry` (only for a card that expired unanswered: the persona is told to ask again).
    */
   readonly choice?: ConnectorAskChoice | ActionChoice
   /** `kind: 'action'`, `choice: 'edit'`: what the person wants changed (data for the persona's next request). */
@@ -2367,8 +2742,8 @@ export interface DecideApprovalRequest {
   readonly remember?: boolean
 }
 
-/** HT-9: the answers to the preview of an external action. */
-export type ActionChoice = 'send' | 'edit' | 'cancel'
+/** HT-9: the answers to the preview of an external action. `retry` (COLHEITA 5): ask again for a card that expired unanswered. */
+export type ActionChoice = 'send' | 'edit' | 'cancel' | 'retry'
 
 /** HT-9: what kind of external action it is. Payment and delete ALWAYS ask. */
 export type ActionClass = 'send' | 'pay' | 'delete' | 'post'
@@ -2405,6 +2780,12 @@ export interface ActionPreviewView {
   readonly sentTo?: string
   readonly sentAt?: string
   readonly failureReason?: string
+  /** COLHEITA 5: ISO instant after which an unanswered card is closed (the deadline the card shows). */
+  readonly expiresAt?: string
+  /** COLHEITA 5: the card was closed because nobody answered in time; it is read-only and may be asked again (`retry`). */
+  readonly expired?: boolean
+  /** COLHEITA 5: the person already asked again for this expired card (the persona was told once). */
+  readonly retried?: boolean
 }
 
 /** The answers to "a persona needs a connector". */
@@ -2465,6 +2846,36 @@ export interface ProposeSkillRequest {
   readonly skillId: string
   readonly title: string
   readonly creatorPersonaId: string
+  /** The question the card asks; "Ativar {title}?" when omitted. A skill a persona learned by herself asks "… Virar skill?". */
+  readonly question?: string
+}
+
+/** The notes of how a persona works (tab "Como ela trabalha"), or of the whole team. */
+export interface ListPlaybookRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly personaId?: string
+}
+
+/** One kind of work a persona did and the owner applied, and how far it is from being a skill. */
+export interface PlaybookNoteView {
+  readonly id: string
+  readonly personaId: string
+  /** The kind of work, as the Task was titled. */
+  readonly title: string
+  /** Accepted deliveries that counted. */
+  readonly uses: number
+  /** When the last one was accepted (ISO); the note's creation when there is none yet. */
+  readonly lastAt: string
+  /** `learning`: still gathering proof; `ready`: enough uses, waiting for another day or conversation; `offered`: the card "Virar skill?" is in Aprovações; `skill`: it is a skill now. */
+  readonly stage: 'learning' | 'ready' | 'offered' | 'skill'
+  /** Uses counted toward the next offer (starts again after "Agora não"), and what it takes: "Aprendendo · 1 de 3". */
+  readonly progress: number
+  readonly goal: number
+  /** What the owner asked to change on this kind of work (the last five). */
+  readonly adjustments: readonly string[]
+  /** The offer in Aprovações, once made. */
+  readonly approvalId?: string
 }
 
 /** Memory row. */
@@ -2473,6 +2884,30 @@ export interface MemoryView {
   readonly body: string
   readonly status: 'pending' | 'active' | 'revoked'
   readonly origin: 'conversation' | 'vault' | 'import'
+  /** Harvest item 16: present when the OWNER asked the team to remember it — the proof, word for word. */
+  readonly source?: MemorySourceView
+  /** Who reads it: the whole team, or only the persona it was said to in a DM. Set with `source`. */
+  readonly scope?: 'team' | 'persona'
+  /** A rule (mandatory context in every turn) rather than a fact. Set with `source`. */
+  readonly rule?: boolean
+  /** The persona a DM memory was said to (`scope: 'persona'`). Her name only: the product keeps no gender for a persona, so no copy takes an article for her. */
+  readonly to?: { readonly name: string }
+}
+
+/** Where a memory came from: the owner's own words. */
+export interface MemorySourceView {
+  /** The owner's message, word for word. */
+  readonly quote: string
+  /** Who said it (display name). */
+  readonly by: string
+  /** It was the person looking at the list who said it ("Você disse…"), not another member. */
+  readonly mine: boolean
+  /** When (ISO). */
+  readonly at: string
+  /** Said in a channel or in a DM. */
+  readonly where: 'channel' | 'dm'
+  /** The channel's name ("geral") when said in a channel; empty in a DM. */
+  readonly place: string
 }
 
 /** Propose or edit memory. */
@@ -2800,13 +3235,28 @@ export interface OfficialQuotaView {
   }[]
 }
 
-/** One official window. `usedPercent` omitted when the vendor did not publish it. */
+/** One official window. `usedPercent` omitted when the vendor did not publish a figure. */
 export interface UsageWindowView {
   readonly id: string
   readonly origin: UsageOrigin
   readonly usedPercent?: number
   readonly windowMinutes?: number
   readonly resetsAt?: string
+}
+
+/**
+ * Harvest 10 — the last 5% of a subscription window. `reserve` = the team's own work is paused and short answers to the
+ * owner still run; `exhausted` = nothing runs until the window renews. `queued` counts the conversations waiting.
+ */
+export interface WindowReserveView {
+  readonly state: 'ok' | 'reserve' | 'exhausted'
+  readonly provider?: string
+  readonly windowId?: string
+  readonly usedPercent?: number
+  readonly resetsAt?: string
+  readonly queued: number
+  /** The person chose “Continuar agora” for this window cycle. */
+  readonly overridden: boolean
 }
 
 /** Global search that applies stream ACL. */
@@ -2874,6 +3324,11 @@ export interface BoardCardView {
    * Lets the screen say "entregas em revisão há mais de 2 dias" without guessing from `updatedAt`.
    */
   readonly inReviewSince?: string
+  /** Item 18: the conversation of this card is a thread of the Task's stream (`listMessages` with this `topicId`); how many messages it has, how many the person has not read, and the last seq (what `markTaskThreadRead` takes). */
+  readonly threadTopicId?: string
+  readonly threadCount?: number
+  readonly threadUnread?: number
+  readonly threadLastSeq?: number
 }
 
 /** Counts by category for Quadros. */
@@ -3422,6 +3877,35 @@ export interface ReplyExternalRequest {
 /** Whether the outbound send succeeded. */
 export interface ReplyExternalView {
   readonly ok: boolean
+}
+
+/**
+ * Harvest 19b — what the person asked to hear about in the inbox. Empty list = any; `skipBulk` drops newsletters.
+ * The filter runs at the origin, before a Trigger exists, so an irrelevant message never wakes a model.
+ */
+export interface EmailFilterView {
+  readonly to: readonly string[]
+  readonly from: readonly string[]
+  readonly subject: readonly string[]
+  readonly skipBulk: boolean
+  /** Mailbox preset id (locaweb, hostinger…), when the person picked one. */
+  readonly preset?: string
+}
+
+/** Save the inbox rule of one project. */
+export interface PutEmailFilterRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly filter: EmailFilterView
+}
+
+/** One mailbox preset the connection screen offers (host/port/TLS already filled in). */
+export interface EmailPresetView {
+  readonly id: string
+  readonly label: string
+  readonly host: string
+  readonly port: number
+  readonly secure: boolean
 }
 
 /** One on-disk `VACUUM INTO` copy. */
@@ -4329,3 +4813,19 @@ export interface StopTurnView {
   readonly ticketId: string
   readonly line: string
 }
+
+/**
+ * Item 20: the voice model archive the renderer's worker loads. The Host owns the download (official zip, pinned sha256) and the
+ * `model.tar.gz`; the renderer only asks for the bytes after the person consents.
+ */
+export type VoiceModelBytesView =
+  | { readonly state: 'ready'; readonly version: string; readonly base64: string; readonly bytes: number }
+  | { readonly state: 'unavailable' }
+  | { readonly state: 'failed'; readonly reason: ComponentFailure }
+
+/** Item 20: what the Host has installed for the voice model, without touching the network. */
+export type VoiceModelStateView =
+  | { readonly state: 'installed'; readonly version: string }
+  | { readonly state: 'absent' }
+  | { readonly state: 'unavailable' }
+  | { readonly state: 'failed'; readonly reason: ComponentFailure }

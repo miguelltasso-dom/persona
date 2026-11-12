@@ -128,6 +128,8 @@ export interface ActionEventWire {
   readonly undoUntil?: string
   /** O id da atividade (`undoPersonaAction({ activityId })`). */
   readonly activityId: string
+  /** COLHEITA 5: a pessoa já desfez (o host guarda); a linha vira texto simples com "Desfeito". */
+  readonly undone?: boolean
   /** Para onde (o "para Fazendo" do mover cartão), curto, quando o host sabe (contracts/harness-tools.md §4: `after`). */
   readonly after?: string
   /** O que saiu (o mesmo conteúdo da prévia), quando o host o guarda: é o que o "Ver" mostra. Sem ele, não há "Ver". */
@@ -183,6 +185,10 @@ export interface ActionPreviewWire {
   readonly sentAt?: string
   readonly failureReason?: string
   readonly expiresAt?: string
+  /** COLHEITA 5: fechou sem resposta (só leitura; "Pedir de novo"). */
+  readonly expired?: boolean
+  /** COLHEITA 5: a pessoa já pediu de novo. */
+  readonly retried?: boolean
 }
 
 /** Uma linha do resumo da manhã: quem e o quê (o título é o da tarefa). */

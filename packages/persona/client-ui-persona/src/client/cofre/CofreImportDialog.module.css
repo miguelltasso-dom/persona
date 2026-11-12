@@ -1,0 +1,81 @@
+/* Item 15 — importar logins (Muse 12/11): aviso fixo, escolher arquivo, prévia sem senha. */
+.warn {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: 0 0 var(--persona-space-3);
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-space-2);
+}
+
+.pick {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+}
+
+.help {
+  margin: 0;
+  color: var(--persona-ink-soft);
+}
+
+.preview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-3);
+}
+
+.summaryLine {
+  margin: 0;
+  font-weight: 700;
+}
+
+.sectionTitle {
+  margin: 0 0 var(--persona-space-2);
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--persona-ink-soft);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-1) var(--persona-space-3);
+  padding: var(--persona-space-2) var(--persona-space-3);
+  background: var(--persona-wash);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-space-2);
+}
+
+.rowMain {
+  font-weight: 700;
+}
+
+.rowSub {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: var(--persona-ink-soft);
+}
+
+.error {
+  margin: var(--persona-space-3) 0 0;
+  color: var(--persona-danger, var(--persona-ink));
+}

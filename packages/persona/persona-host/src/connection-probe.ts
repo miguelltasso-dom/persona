@@ -10,6 +10,7 @@ import {
 } from '@deepseek-ai/dsh-persona-runners'
 import { readClaudeMenu, STATIC_CLAUDE_MENU, type EngineMenu, type MenuSource } from './claude-menu.ts'
 import { engineModelsOf } from './engine-menu.ts'
+import { CheckTracker } from './check-unconfirmed.ts'
 import type { ConnectionView } from './types.ts'
 
 /** Per-CLI auth on this machine takes ~5 s; 400 ms was a false negative. */
@@ -63,6 +64,8 @@ export class ConnectionProbe {
   private cache: { at: number; cards: ConnectionView[] } | undefined
   private inflight: Promise<void> | undefined
   private lastSnaps: readonly ConnectionSnapshot[] = []
+  /** Item 13: how many checks in a row ran out of time, per engine (two = "não consegui conferir"). */
+  private readonly tracker = new CheckTracker()
 
   /** Last finished `detectConnections` cards (may carry `officialQuota`). */
   snaps(): readonly ConnectionSnapshot[] {
@@ -90,7 +93,7 @@ export class ConnectionProbe {
     if (cached !== undefined && this.now() - cached.at < this.cacheMs) return cached.cards
     this.warm()
     if (cached !== undefined) return cached.cards
-    return checkingPlaceholders()
+    return checkingPlaceholders(this.tracker.passesFailing())
   }
 
   /**
@@ -100,6 +103,12 @@ export class ConnectionProbe {
   async ready(): Promise<ConnectionView[]> {
     await this.ensure()
     return this.list()
+  }
+
+  /** Item 13, "Tentar de novo": forget the checks that ran out of time and ask once more (a forced pass). */
+  async retry(): Promise<ConnectionView[]> {
+    this.tracker.reset()
+    return this.ready()
   }
 
   private ensure(): Promise<void> {
@@ -143,12 +152,14 @@ export class ConnectionProbe {
       const detected = await this.detect({ timeoutMs: this.timeoutMs, force: true })
       const snaps = await Promise.all(detected.map(snap => this.withMenu(snap)))
       this.lastSnaps = snaps
-      this.cache = { at: this.now(), cards: snaps.map(snap => toCard(snap, this.sources.get(snap.id))) }
+      for (const snap of snaps) this.tracker.note(snap.id, snap.authUnknown === true)
+      this.cache = { at: this.now(), cards: snaps.map(snap => toCard(snap, this.sources.get(snap.id), this.tracker.isUnconfirmed(snap.id))) }
       this.persistQuota?.(snaps)
       this.onReady?.(this.cache.cards)
     } catch (error) {
-      // Timeout/throw is not a definitive logout — keep checking / last ready cache.
+      // Timeout/throw is not a definitive logout — keep checking / last ready cache. Twice in a row it is "não consegui conferir" (item 13).
       void error
+      this.tracker.failPass()
     }
   }
 }
@@ -158,7 +169,7 @@ function defaultDetect(options: { timeoutMs: number; force?: boolean }): Promise
   return detectConnections({ timeoutMs: options.timeoutMs, force: options.force === true })
 }
 
-function toCard(snap: ConnectionSnapshot, menuSource?: MenuSource): ConnectionView {
+function toCard(snap: ConnectionSnapshot, menuSource?: MenuSource, unconfirmed = false): ConnectionView {
   const row = toUiConnection(snap)
   const kind = row.id === 'claude' || row.id === 'codex' || row.id === 'cursor' || row.id === 'opencode'
     ? row.id
@@ -173,6 +184,7 @@ function toCard(snap: ConnectionSnapshot, menuSource?: MenuSource): ConnectionVi
     loginHint: row.loginHint,
     ...(snap.version === undefined || snap.version === '' ? {} : { version: snap.version }),
     phase: snap.authUnknown === true ? 'checking' : 'ready',
+    ...(unconfirmed && snap.authUnknown === true ? { unconfirmed: true as const } : {}),
     ...(menu.models.length === 0 ? {} : { models: menu.models }),
     ...(menu.defaultEffortLevels.length === 0 ? {} : { defaultEffortLevels: menu.defaultEffortLevels }),
     // Where the menu came from: the engine said it (`cli`, also for Codex whose detection carries one) or it is our table (`static`).
@@ -186,7 +198,7 @@ function toCard(snap: ConnectionSnapshot, menuSource?: MenuSource): ConnectionVi
   return card
 }
 
-function checkingPlaceholders(): ConnectionView[] {
+function checkingPlaceholders(unconfirmed = false): ConnectionView[] {
   return KINDS.map(id => ({
     id,
     kind: id,
@@ -194,5 +206,6 @@ function checkingPlaceholders(): ConnectionView[] {
     loggedIn: false,
     loginHint: '',
     phase: 'checking' as const,
+    ...(unconfirmed ? { unconfirmed: true as const } : {}),
   }))
 }

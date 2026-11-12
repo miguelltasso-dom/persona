@@ -12,6 +12,8 @@ Donos: **Anvil** (Remote + filtro) · **Rivet** (notificações nativas do deskt
 
 `putAttentionPolicy` persiste. Em janela de silêncio, `delivery: ping` não emite.
 
+> **HONEST-1 (11/11):** `quietStart`/`quietEnd` daqui **só gravam, nada os lê**. O silêncio que vale (equipe e toast do desktop) é a `quiet_window` — ver `house-rules.md`. A tela não deve oferecer estes dois campos.
+
 ## `attentionEvents(scope) → AsyncIterable<AttentionStreamFrame>`
 
 Baseline depois upserts. Itens já agrupados:

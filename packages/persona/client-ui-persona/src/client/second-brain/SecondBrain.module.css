@@ -381,3 +381,87 @@
   font-weight: 700;
   color: var(--persona-danger-ink, var(--persona-ink));
 }
+
+/* #16: "Comece aqui" = the first real lines of the company profile; types with no page are chips, not rows of zeros. */
+.companyLines {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font: 600 16px/24px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+.newOfType {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin-top: var(--persona-space-3);
+}
+
+.typeChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
+.typeChip {
+  min-height: 32px;
+  padding: 0 var(--persona-space-3);
+  background: var(--persona-wash);
+  border: var(--persona-border-width) dashed var(--persona-outline);
+  border-radius: var(--persona-radius-pill);
+  font: 700 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+  cursor: pointer;
+}
+
+.typeChip:hover,
+.typeChip:focus-visible {
+  background: var(--persona-wash-strong);
+  color: var(--persona-ink);
+}
+
+/* #16 Páginas: one chip per type that has pages (pressed = the filter), and the documents below the list. */
+.filterChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--persona-space-2);
+}
+
+.filterChip {
+  min-height: 32px;
+  padding: 0 var(--persona-space-3);
+  background: var(--persona-paper);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-pill);
+  font: 700 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+  cursor: pointer;
+}
+
+.filterChip:hover,
+.filterChip:focus-visible {
+  background: var(--persona-wash-strong);
+  color: var(--persona-ink);
+}
+
+.filterChip[aria-pressed="true"] {
+  background: var(--persona-wash-strong);
+  border-color: var(--persona-outline);
+  color: var(--persona-ink);
+}
+
+.filterCount {
+  font-weight: 600;
+  color: var(--persona-ink-soft);
+}
+
+.docsSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}

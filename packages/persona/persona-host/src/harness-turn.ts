@@ -9,6 +9,7 @@
 
 import { allowsTool, HARNESS_TOOLS, openTurnTools, type HarnessToolName, type McpGateway, type ToolLevel, type TurnToolSet } from '@deepseek-ai/dsh-persona-runners'
 import { ASK_TOOL } from './persona-ask-tool.ts'
+import type { StableTools } from './tool-stability.ts'
 
 /** The tools that coordinate (they do not touch the person's files or the world): offered to every persona, whatever her file/shell grant (D-097). */
 const COORDINATION: ReadonlySet<string> = new Set([ASK_TOOL, 'ask_colleague', 'pass_forward', 'ask_team_opinion', 'review_verdict'])
@@ -51,6 +52,13 @@ export interface ProductToolsRules {
   readonly taskTextOf: (ticketId: string) => string
   /** The team tools this turn is offered (`ask_colleague`, `pass_forward`, `ask_team_opinion`, or `review_verdict` for a review Task): the host's rule, never the request's words (D-097). */
   readonly teamToolsOf?: (turn: Pick<ProductToolsTurn, 'personaId' | 'ticketId'>) => readonly string[]
+  /**
+   * COLHEITA 15b: whether this turn may ask the Cofre to type a login — it is driving a browser of a profile the persona was
+   * granted, and the Cofre has at least one login. Absent = the tool is never offered.
+   */
+  readonly browserLoginOf?: (turn: Pick<ProductToolsTurn, 'personaId' | 'ticketId'>) => boolean
+  /** Item 9a: the memory that keeps a persona's list from flipping between turns (her warm session is reused). Absent = the list follows each turn's words, as before. */
+  readonly stable?: { readonly memory: StableTools; readonly key: string }
 }
 
 /**
@@ -61,7 +69,10 @@ export interface ProductToolsRules {
  * @param turn - Whose turn.
  */
 export function neededToolNames(rules: ProductToolsRules, turn: Pick<ProductToolsTurn, 'personaId' | 'ticketId'>): string[] {
-  return [...harnessToolsNeeded(rules.taskTextOf(turn.ticketId)), ...(rules.teamToolsOf?.(turn) ?? []), ASK_TOOL]
+  const own = [...harnessToolsNeeded(rules.taskTextOf(turn.ticketId)), ...(rules.teamToolsOf?.(turn) ?? []), ASK_TOOL]
+  // COLHEITA 15b: the Cofre login is offered only where it can act: the turn has the browser and the Cofre has a login.
+  if (rules.browserLoginOf?.(turn) === true) own.push('browser_login')
+  return rules.stable === undefined ? own : rules.stable.memory.offer(rules.stable.key, own)
 }
 
 /**

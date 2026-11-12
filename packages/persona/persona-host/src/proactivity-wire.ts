@@ -9,6 +9,7 @@ import type { BoardsHost } from './boards.ts'
 import type { DraftFilesBook } from './draft-files.ts'
 import type { WorkingControl } from './working-control.ts'
 import type { GovernanceHost } from './governance.ts'
+import type { HouseRules } from './house-rules.ts'
 import type { MorningBriefHost } from './morning-brief-host.ts'
 import type { Orchestration, ProjectRuntime } from './orchestration.ts'
 import type { ProactivityHost } from './proactivity.ts'
@@ -33,6 +34,8 @@ export interface ProactivityWireHost {
   readonly taskProposals?: TaskProposalPort
   /** TEAM-7: the morning card; absent ⇒ none. */
   readonly morningBrief?: Pick<MorningBriefHost, 'check'>
+  /** HONEST-1: the team's quiet window; absent ⇒ no window. */
+  readonly houseRules?: Pick<HouseRules, 'hold' | 'quietNow'>
 }
 
 /**
@@ -46,9 +49,15 @@ const CHANNEL = 'geral'
  * @param request - Routine / plan / initiative request.
  * @returns The Ticket it became, or why the pre-router did not make one.
  */
-export function postTeamRequest(host: Pick<ProactivityWireHost, 'product' | 'events' | 'orchestration'>, request: TeamRequest): PostResult {
+export function postTeamRequest(host: Pick<ProactivityWireHost, 'product' | 'events' | 'orchestration' | 'houseRules'>, request: TeamRequest): PostResult {
   const project = host.product.getProject(request.projectId)
   if (project === undefined) return { ok: false, reason: 'o projeto não existe mais' }
+  // HONEST-1, the last wall: a request the TEAM starts by itself (an initiative, a plan) never enters the pipeline inside the team's quiet window. A routine is held
+  // before it is claimed, and a proposal the person accepted is HER request: neither is judged here.
+  if (request.kind === 'initiative' || request.kind === 'plan') {
+    const quiet = host.houseRules?.hold(request.projectId, request.kind, request.personaId, request.kind === 'plan' ? 'plano da Coordenação' : 'iniciativa da equipe', host.orchestration.now())
+    if (quiet !== undefined) return { ok: false, reason: `a equipe está na janela de silêncio «${quiet.label}» até ${quiet.end}` }
+  }
   const stored = host.events.append({
     id: request.id,
     workspaceId: request.workspaceId,
@@ -96,6 +105,7 @@ export function createProactivityScheduler(host: ProactivityWireHost, options: S
     },
     engineReady: () => (host.orchestration.engineReadinessOf?.().state ?? 'ready') === 'ready',
     releaseHeld: projectId => host.orchestration.releaseHeld(projectId),
+    releaseWindowQueue: projectId => host.orchestration.releaseWindowQueue(projectId),
     flushQueues: projectId => host.workingControl.autoFlush(projectId),
     refreshDraft: async (projectId, ticketId) => {
       const summary = await host.orchestration.reviewSummary(projectId, ticketId)
@@ -107,6 +117,7 @@ export function createProactivityScheduler(host: ProactivityWireHost, options: S
       projectId, personaId, from: fromIso, to: host.orchestration.now(),
     }) ?? 0,
     ...(host.taskProposals === undefined ? {} : { proposals: host.taskProposals }),
+    ...(host.houseRules === undefined ? {} : { houseRules: host.houseRules }),
     ...(host.morningBrief === undefined ? {} : { morningBrief: (projectId) => { host.morningBrief?.check(projectId, 'tick') } }),
   }, options)
 }

@@ -9,8 +9,10 @@ import { resolvePersonaFace } from '../approvals/approvals-ui-helpers.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import type { PersonaWorkUiState } from '../team/persona-work-state.ts'
+import { PERSONA_STATE_CHIP_TONE } from '../team/persona-state.ts'
 import { SubjectDot } from '../chat/SubjectBar.tsx'
 import { KanbanCardMenu, type FlowMoveTarget } from './KanbanCardMenu.tsx'
+import { cardOpenHandlers, TaskThreadBadge } from './TaskThreadBadge.tsx'
 import styles from './Kanban.module.css'
 import type { KanbanCardModel, KanbanColumnId } from './types.ts'
 
@@ -29,19 +31,14 @@ export interface KanbanCardProps {
   readonly onOpenReview?: (cardId: string) => void
   readonly onRequestStatus?: (cardId: string) => void
   readonly onTeach?: ((cardId: string, personaId: string) => void) | undefined
+  /** COLHEITA 18: a click on the card (or Enter/Space on it) opens the conversation of the task in the side panel; without it the card is as it was. */
+  readonly onOpenConversation?: ((cardId: string) => void) | undefined
   /** True only on the beat after the human accepts Revisar (peak-end stamp animation). */
   readonly approvalStampFresh?: boolean
   readonly assigneeCardTrigger?: ((personaId: string) => {
     readonly onClick: (event: MouseEvent<HTMLElement>) => void
     readonly onPointerEnter: (event: MouseEvent<HTMLElement>) => void
   }) | undefined
-}
-
-function stateChipTone(state: PersonaWorkUiState): 'brand' | 'accent' | 'danger' | 'neutral' {
-  if (state === 'working') return 'brand'
-  if (state === 'waiting') return 'accent'
-  if (state === 'stuck') return 'danger'
-  return 'neutral'
 }
 
 function resolveWorkState(card: KanbanCardModel): PersonaWorkUiState {
@@ -77,6 +74,7 @@ export function KanbanCard({
   onOpenReview,
   onRequestStatus,
   onTeach,
+  onOpenConversation,
   approvalStampFresh = false,
   assigneeCardTrigger,
 }: KanbanCardProps): ReactNode {
@@ -113,6 +111,7 @@ export function KanbanCard({
       aria-grabbed={dragging}
       tabIndex={0}
       aria-label={card.title}
+      {...cardOpenHandlers(onOpenConversation, card.id)}
     >
       {card.carry !== undefined && (
         <div className={styles.carryLayer} aria-live="polite">
@@ -203,7 +202,8 @@ export function KanbanCard({
             {...(card.assignee === undefined ? { icon: <BrandIcon name="equipe" size={13} />, className: styles.unassignedAvatar } : {})}
           />
         )}
-        <Chip tone={stateChipTone(workState)} size="s">{stateLabel}</Chip>
+        <Chip tone={PERSONA_STATE_CHIP_TONE[workState]} size="s">{stateLabel}</Chip>
+        <TaskThreadBadge dict={dict} thread={card.thread} />
         {showApprovalStamp && <Chip tone="success" size="s" data-card-approved="">{t('stamp.approved')}</Chip>}
         {(onMoveCard !== undefined || onMoveFlowColumn !== undefined) && (
           <KanbanCardMenu

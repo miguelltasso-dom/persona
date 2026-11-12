@@ -172,9 +172,9 @@ describe('ConnectedGlobalKanban with real observables', () => {
     render(
       <PreviewFrame brandLabel="Persona">
         <ConnectedGlobalKanban
+          view="grid"
           persona={{} as never}
           refreshKanban={async () => {}}
-          navigateProjectTab={() => {}}
           clearBoardsFocusProject={() => { shellActions.clearBoardsFocusProject() }}
           clearKanbanFocusTicket={() => { shellActions.clearKanbanFocusTicket() }}
           setProjectWorkspaceProjectId={(id) => { shellActions.setProjectWorkspaceProjectId(id) }}
@@ -222,9 +222,9 @@ describe('ConnectedGlobalKanban with real observables', () => {
     render(
       <PreviewFrame brandLabel="Persona">
         <ConnectedGlobalKanban
+          view="grid"
           persona={{} as never}
           refreshKanban={async () => {}}
-          navigateProjectTab={() => {}}
           clearBoardsFocusProject={() => { shellActions.clearBoardsFocusProject() }}
           clearKanbanFocusTicket={() => { shellActions.clearKanbanFocusTicket() }}
           setProjectWorkspaceProjectId={(id) => { shellActions.setProjectWorkspaceProjectId(id) }}

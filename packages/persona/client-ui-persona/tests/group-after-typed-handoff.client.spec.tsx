@@ -77,7 +77,7 @@ describe('a linha de equipe TIPADA "retomou" (o evento do host) no meio de um gr
     const heads = metaLines(container).map(node => node.textContent)
     expect(heads).toHaveLength(2) // g-1 e g-3; g-4 continua o grupo de g-3
     for (const head of heads) expect(head).toMatch(/^Nina · Pesquisa · \d{2}:\d{2}$/u)
-    expect(container.querySelectorAll('[data-persona-sprig]')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-persona-sprig]')).toHaveLength(0) // DESIGN-01 #04: a folhinha saiu dos balões comuns
   })
 })
 

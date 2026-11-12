@@ -3,6 +3,7 @@ import type { InviteView, RemoteTeamAvailability, RemoteTeamState } from '@deeps
 import { isRemoteResult } from '../remote/persona-remote-unwrap.ts'
 import { RemoteTeamPanel, type IssuedInviteView, type RemoteTeamBusy } from './RemoteTeamPanel.tsx'
 import {
+  deriveRemoteTeamStatus,
   inviteRows,
   memberRows,
   remoteTeamErrorKind,
@@ -10,6 +11,7 @@ import {
   type RemoteTeamErrorKind,
   type SharableChannel,
 } from './remote-team-model.ts'
+import { publishRemoteTeamStatus } from './remote-team-status.ts'
 
 type Translate = (key: string, params?: Readonly<Record<string, string | number>>) => string
 
@@ -41,6 +43,10 @@ export interface ConnectedRemoteTeamPanelProps {
   readonly pollMs?: number
   /** "Abrir Ajuda" quando o Cofre não está disponível (o guia de solução de problemas). */
   readonly onOpenHelp?: (() => void) | undefined
+  /** Título do cartão (o padrão é "Equipe remota"). */
+  readonly title?: string | undefined
+  /** Estado calmo enquanto a equipe não está ligada neste computador (sem alerta de cofre). */
+  readonly calm?: boolean | undefined
 }
 
 /** Desembrulha o RemoteResult preservando o `code` tipado do host (a tela decide o texto; o código não é a mensagem). */
@@ -73,10 +79,12 @@ function toChannels(value: unknown): readonly SharableChannel[] {
  * Equipe remota ligada ao host. O código do convite só vive em `issued` (estado de tela): nunca vai a localStorage,
  * log ou cache, e some ao tocar "Já enviei" ou ao sair da tela.
  */
-export function ConnectedRemoteTeamPanel({ t, remote, scope, pollMs = 5_000, onOpenHelp }: ConnectedRemoteTeamPanelProps): ReactNode {
+export function ConnectedRemoteTeamPanel({ t, remote, scope, pollMs = 5_000, onOpenHelp, title, calm }: ConnectedRemoteTeamPanelProps): ReactNode {
   const [loaded, setLoaded] = useState(false)
   const [vault, setVault] = useState<RemoteTeamAvailability['vault'] | undefined>(undefined)
   const [state, setState] = useState<RemoteTeamState | null>(null)
+  // Publica o estado para a aba Membros (convite e seção remota só com a equipe ligada).
+  useEffect(() => { publishRemoteTeamStatus(deriveRemoteTeamStatus(state, vault)) }, [state, vault])
   const [channels, setChannels] = useState<readonly SharableChannel[]>([])
   const [invites, setInvites] = useState<readonly InviteView[]>([])
   const [members, setMembers] = useState<readonly MemberRow[] | undefined>(undefined)
@@ -171,6 +179,8 @@ export function ConnectedRemoteTeamPanel({ t, remote, scope, pollMs = 5_000, onO
       error={error}
       lastExchangeAt={lastExchangeAt}
       onOpenHelp={onOpenHelp}
+      title={title}
+      calm={calm}
       onConnect={(edgeUrl, channelIds) => {
         void run('connect', async () => {
           await settle(remote.connectRemoteTeam?.({ ...request, edgeUrl, channelIds }))

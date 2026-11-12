@@ -1,0 +1,140 @@
+/*
+ * "Seus números" · o cartão de um número (design/COLHEITA-MUSE.md §19a): 280 px de largura mínima, 148 px de altura. Só tokens `--persona-*`;
+ * sem fundo translúcido e sem backdrop-filter. O valor que muda faz um crossfade curto (`--motion-message`); nada de contador correndo.
+ */
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  min-width: 280px;
+  height: 148px;
+  padding: var(--persona-space-3) var(--persona-space-4);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  background: var(--persona-card);
+  box-shadow: var(--persona-shadow-sticker);
+  list-style: none;
+  overflow: hidden;
+}
+
+/* Alerta: borda esquerda âmbar de 3 px (a cor nunca é a única pista: o rodapé diz "Caiu 24% desde ontem"). */
+.alert {
+  border-left: 3px solid var(--persona-accent);
+}
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  min-height: 28px;
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--persona-ink-soft);
+  font: 700 14px/20px var(--persona-font-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stale {
+  flex: none;
+  padding: 0 var(--persona-space-2);
+  border-radius: 999px;
+  background: var(--persona-warning-tint);
+  color: var(--persona-warning);
+  font: 700 13px/20px var(--persona-font-text);
+}
+
+.menu {
+  flex: none;
+}
+
+.body {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  animation: indicator-value var(--motion-message) var(--ease-standard) both;
+}
+
+.foot {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  min-height: 20px;
+  margin-top: var(--persona-space-1);
+  color: var(--persona-ink-soft);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+.foot[data-tone='failed'],
+.foot[data-tone='alert'] {
+  color: var(--persona-warning);
+}
+
+.why {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.reason {
+  position: absolute;
+  right: var(--persona-space-3);
+  bottom: 30px;
+  left: var(--persona-space-3);
+  margin: 0;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  font: 600 13px/18px var(--persona-font-text);
+}
+
+/* "Atualizando…": um anel parado de 16 px (sem animação contínua: o texto ao lado já diz que está atualizando; o valor antigo continua). */
+.spinner {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border: 2px solid var(--persona-outline-soft);
+  border-top-color: var(--persona-brand);
+  border-radius: 50%;
+}
+
+@keyframes indicator-value {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Reduced motion: o valor só faz fade (`--motion-reduced-fade`). */
+@media (prefers-reduced-motion: reduce) {
+  .body {
+    animation: indicator-fade var(--motion-reduced-fade) linear both;
+  }
+}
+
+@keyframes indicator-fade {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}

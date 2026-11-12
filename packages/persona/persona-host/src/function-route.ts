@@ -113,6 +113,15 @@ function familyOfAsk(folded: string): string | undefined {
   return undefined
 }
 
+/**
+ * The work area a word of a request asks for ("texto", "arte", "midia"…), whatever its accents or case.
+ * @param word - One word of the request.
+ * @returns The family id, or undefined when the word names no function of the vocabulary.
+ */
+export function familyOfCue(word: string | undefined): string | undefined {
+  return word === undefined ? undefined : familyOfAsk(fold(word))
+}
+
 /** The persona that owns a word of the request: the first persona (roster order) whose function is the word's. */
 function ownerOfWord(word: Word, candidates: readonly { persona: RoutablePersona; families: Set<string> }[]): RoutablePersona | undefined {
   const family = familyOfAsk(word.folded)

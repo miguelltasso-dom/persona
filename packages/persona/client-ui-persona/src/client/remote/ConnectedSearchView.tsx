@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import type { HostObservable, InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import type { MainPanelId } from '../shell/create-shell-store.ts'
 import { requestComposerFocus } from '../chat/composer-focus.ts'
+import { requestMessageFocus } from '../chat/message-focus.ts'
 import { SearchPlaceholderView, type SearchAction, type SearchContentResult } from '../shell/SearchPlaceholderView.tsx'
 import type { PersonaLiveSnapshot, PersonaLiveStore } from './persona-live-store.ts'
 import type { RailPersona } from '../shell/RailTeam.tsx'
@@ -53,7 +54,8 @@ export function ConnectedSearchView({
           id: row.id,
           meta: row.meta,
           text: row.text,
-          onOpen: () => { goPanel('channels') },
+          // The found message is scrolled to and highlighted for 900 ms once (chat/message-focus.ts; the highlight is in GeneralChannelView.module.css).
+          onOpen: () => { goPanel('channels'); requestMessageFocus(row.id) },
         })))
       })
     }, 200)

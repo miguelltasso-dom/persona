@@ -3,6 +3,7 @@
 import type { SubjectColorIndex } from '../chat/conversation-subjects.ts'
 import type { PersonaWorkUiState } from '../team/persona-work-state.ts'
 import type { CardHandoffUi, HandoffNoteUi, PathStepUi, ReviewingUi } from '../teamwork/teamwork-wire.ts'
+import type { TaskThreadUi } from './task-conversation.ts'
 
 export type KanbanColumnId = 'todo' | 'in_progress' | 'in_review' | 'blocked' | 'done'
 
@@ -65,6 +66,8 @@ export interface KanbanCardModel {
   /** IV-10: the open question of the task in one line (≤ 120 characters) and the thread it was asked in (`channel:geral`, `dm:<id>`); gone once answered. */
   readonly question?: string | undefined
   readonly questionStreamId?: string | undefined
+  /** COLHEITA 18 (host `BoardCardView.thread*`): the conversation of the task — the unread badge on the card; absent when the host sends none. */
+  readonly thread?: TaskThreadUi | undefined
   /** Capture-only example card (`teamwork-dev-sample.ts`): it carries the "Exemplo" chip and never reaches the host. */
   readonly sample?: true | undefined
 }

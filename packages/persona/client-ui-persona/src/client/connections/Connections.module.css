@@ -34,6 +34,21 @@
   gap: 0.75rem;
 }
 
+/* Com uma conta só, a política de troca fica recolhida abaixo das contas (Muse §5.2 #12). */
+.policyDetails {
+  margin-top: 0.75rem;
+}
+
+.emailRuleDetails {
+  margin-top: 0.75rem;
+}
+
+.policySummary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: 0.5rem 0;
+}
+
 .providerCard {
   display: flex;
   flex-direction: column;

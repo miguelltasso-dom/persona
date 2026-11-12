@@ -1,3 +1,7 @@
+.host {
+  container: persona-strip / inline-size;
+}
+
 .strip {
   position: relative;
   isolation: isolate;
@@ -99,7 +103,7 @@
   cursor: pointer;
 }
 
-/* Contact shadow on the ground under each character. */
+/* Contact shadow on the ground under each character: a soft radial gradient inside the box, with no blur filter (DESIGN-01-MUSE §2.7 rule 2). */
 .member::before {
   content: '';
   position: absolute;
@@ -108,8 +112,7 @@
   bottom: 38px;
   height: 14px;
   border-radius: 50%;
-  background: var(--persona-scene-shadow);
-  filter: blur(2px);
+  background: radial-gradient(50% 50% at 50% 50%, var(--persona-scene-shadow) 0%, transparent 100%);
   z-index: -1;
 }
 
@@ -175,8 +178,15 @@
  * a da janela: a faixa estreita por causa do canal, do zoom ou de muitos membros cai no mesmo caso.
  */
 @container persona-member (max-width: 144px) {
+  /* Nome + ponto numa LINHA só, o ponto à esquerda: a bolinha nunca fica órfã numa 2ª linha (Carbon, 2ª leitura). */
   .tag {
-    padding-inline: 6px;
+    flex-direction: row;
+    gap: 6px;
+    padding: 4px 8px;
+  }
+
+  .tagStatus {
+    order: -1;
   }
 
   .tagStatusText {
@@ -201,7 +211,7 @@
  */
 @container persona-member (max-width: 100px) {
   .tag {
-    padding-inline: 4px;
+    padding-inline: 6px;
   }
 
   .gestorIcon {
@@ -221,11 +231,33 @@
   box-shadow: 0 0 0 1.5px var(--persona-outline);
 }
 
-.statusDot[data-state='working'] { background: var(--persona-success); }
-.statusDot[data-state='waiting'] { background: var(--persona-accent); }
-.statusDot[data-state='stuck'] { background: var(--persona-danger); }
-.statusDot[data-state='resting'] { background: var(--persona-lilac-300); }
-.statusDot[data-state='draft'] { background: var(--persona-brand); }
+/* The state dot (DESIGN-01-MUSE §0.2): active states are a filled dot, idle states a ring in the state color, "Sem motor" a dashed ring. */
+.statusDot[data-persona-state='working'] { background: var(--persona-state-working); }
+.statusDot[data-persona-state='reviewing'] { background: var(--persona-state-reviewing); }
+.statusDot[data-persona-state='waiting'] { background: var(--persona-state-waiting); }
+.statusDot[data-persona-state='draft'] { background: var(--persona-state-draft); }
+.statusDot[data-persona-state='stuck'] { background: var(--persona-state-stuck); }
+
+.statusDot[data-persona-state='available'],
+.statusDot[data-persona-state='resting'],
+.statusDot[data-persona-state='paused'] {
+  background: var(--persona-card);
+  box-shadow: inset 0 0 0 2px var(--persona-dot-ring), 0 0 0 1.5px var(--persona-outline);
+}
+
+.statusDot[data-persona-state='available'] { --persona-dot-ring: var(--persona-state-available); }
+.statusDot[data-persona-state='paused'] { --persona-dot-ring: var(--persona-state-paused); }
+
+.statusDot[data-persona-state='resting'] {
+  --persona-dot-ring: var(--persona-state-resting);
+  background: radial-gradient(circle at 72% 38%, var(--persona-card) 0 46%, var(--persona-state-resting) 50%);
+}
+
+.statusDot[data-persona-state='offline'] {
+  background: transparent;
+  box-shadow: none;
+  border: 1.5px dashed var(--persona-state-offline);
+}
 
 .member[data-state='waiting'] .tag {
   background: var(--persona-accent);
@@ -235,8 +267,10 @@
   color: var(--persona-accent-ink);
 }
 
-.member[data-state='waiting'] .statusDot {
-  background: var(--persona-card);
+/* Sobre o âmbar da etiqueta o ponto de "Esperando você" usa a tinta escura (o âmbar sobre âmbar sumia). */
+.member[data-persona-state='waiting'] .statusDot {
+  background: var(--persona-accent-ink);
+  box-shadow: none;
 }
 
 /* O nome e o ⋯ também usam a tinta do âmbar: no escuro, --persona-ink é creme e sobre o âmbar dava 1,7:1. */
@@ -286,7 +320,9 @@
   50% { transform: translateY(-4px); }
 }
 
-:global([data-ambient-paused]) .seat {
+/* Both the strip's own flag and the single body attribute of the triple pause (Cobalt, DESIGN-01-MUSE §2.7 rule 3). */
+:global([data-ambient-paused]) .seat,
+:global([data-persona-ambient-paused]) .seat {
   animation-play-state: paused;
 }
 
@@ -296,7 +332,8 @@
   }
 }
 
-@media (max-width: 1180px) {
+/* The strip is a container: it folds into one column when the CHANNEL gives it less than 980 px, whatever the window is (Carbon, 2ª leitura: a 900 px strip kept 220 px for the title). */
+@container persona-strip (max-width: 980px) {
   .strip {
     grid-template-columns: 1fr;
     padding: var(--persona-space-5) var(--persona-space-5) var(--persona-space-4);

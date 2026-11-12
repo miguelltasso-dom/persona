@@ -28,6 +28,7 @@ export type FlagName =
   | 'settingsPersonas'
   | 'engineEffort'
   | 'approvalsInboxV2'
+  | 'remoteTeamTab'
 
 export interface FlagSpec {
   /** A chave do `localStorage` (e do `window.__PERSONA_FLAGS__`, que também aceita o nome curto). */
@@ -58,6 +59,8 @@ export const FLAGS: Readonly<Record<FlagName, FlagSpec>> = {
   engineEffort: { key: 'persona.flag.engineEffort', defaultOn: true },
   // Aprovações em 2 painéis (Ember): a única com a chave FORA do prefixo `persona.flag.` (nasceu antes da convenção); entra aqui para a faixa de testes a cobrir.
   approvalsInboxV2: { key: 'persona.approvalsInbox.v2', defaultOn: true },
+  // Cena 20 (Muse) + decisão do Keel: a aba Membros só existe com a equipe remota ligada. Padrão DESLIGADA na v1.1 (deploy externo E11 pendente).
+  remoteTeamTab: { key: 'persona.flag.remoteTeamTab', defaultOn: false },
 }
 
 export const FLAG_NAMES = Object.keys(FLAGS) as readonly FlagName[]

@@ -1,0 +1,24 @@
+/* COLHEITA 18 — o selo de não lidas da conversa da tarefa no cartão: só leitura (não é controle), 22 px. */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  flex-shrink: 0;
+  min-width: 22px;
+  height: 22px;
+  box-sizing: border-box;
+  padding: 0 var(--persona-space-2);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+  font: 800 13px/1 var(--persona-font-text);
+}
+
+.balloon {
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linejoin: round;
+}

@@ -29,7 +29,7 @@ describe('faixa da equipe: 2º degrau (≤ 100 px por membro)', () => {
   it('o ícone do Gestor (decorativo) cede o lugar ao nome; o ⋯ encosta mais e a etiqueta perde 2 px de cada lado', () => {
     expect(tier2).toMatch(/\.gestorIcon\s*\{[^}]*display:\s*none\s*;/u)
     expect(tier2).toMatch(/\.tagMore\s*\{[^}]*margin-left:\s*2px\s*;/u)
-    expect(tier2).toMatch(/\.tag\s*\{[^}]*padding-inline:\s*4px\s*;/u)
+    expect(tier2).toMatch(/\.tag\s*\{[^}]*padding-inline:\s*6px\s*;/u)
   })
 
   it('o ⋯ NUNCA some nem encolhe (é o jeito de abrir o cartão com o mouse; segue com 24 px) e o texto do estado segue só para o leitor de tela (degrau de 144 px)', () => {

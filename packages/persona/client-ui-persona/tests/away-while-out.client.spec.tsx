@@ -98,34 +98,44 @@ describe('AwayWhileOutPanel com dados do host', () => {
     expect(handlers.onOpenApproval).toHaveBeenCalledWith('hire-1')
   })
 
-  it('quem já está em "Precisa de você" não se repete: a contagem com "Ver em Precisa de você" (o link foca o cartão); os outros seguem na lista', () => {
-    const onOpenAttention = vi.fn()
-    const handlers = panel({ onScreenAttention: [{ id: 'att-1', title: 'Qual tom usar?' }], onOpenAttention })
+  it('quem já está em "Precisa de você" não se repete (nem contado, nem com link): só os outros seguem em "Espera você"', () => {
+    const handlers = panel({ onScreenAttention: [{ id: 'att-1', title: 'Qual tom usar?' }] })
     const waiting = screen.getByRole('heading', { name: 'Espera você' }).parentElement!
     expect(within(waiting).queryByText('Qual tom usar?')).toBeNull()
     expect(within(waiting).getAllByRole('listitem')).toHaveLength(2)
-    expect(waiting.textContent).toContain('1 coisa espera você')
-    expect(waiting.textContent).toContain('Ver em Precisa de você')
-    fireEvent.click(within(waiting).getByRole('button', { name: 'Ver em Precisa de você' }))
-    expect(onOpenAttention).toHaveBeenCalledTimes(1)
+    expect(waiting.textContent).not.toContain('Ver em Precisa de você')
+    expect(screen.queryByRole('button', { name: 'Ver em Precisa de você' })).toBeNull()
+    // the top summary counts only what this card lists (2 waiting + 3 deliveries), never the one the other card shows
+    expect(screen.getByText('2 coisas esperam você · 3 entregas')).toBeTruthy()
     expect(handlers.onOpenApproval).not.toHaveBeenCalled()
   })
 
-  it('com todos os itens em espera já em "Precisa de você", a linha-resumo do topo some; o grupo e "Ficou pronto" ficam', () => {
-    const onOpenAttention = vi.fn()
+  it('com todos os itens em espera já em "Precisa de você", o grupo "Espera você" nem aparece (sem buraco apontando para o cartão ao lado); "Ficou pronto" fica', () => {
     panel({
       away: { ...live(), waiting: live().waiting.slice(0, 1) },
       onScreenAttention: [{ id: 't-logo', title: 'Logo da padaria' }],
-      onOpenAttention,
     })
-    expect(screen.queryByText('1 coisa espera você')).toBeNull()
-    const waiting = screen.getByRole('heading', { name: 'Espera você' }).parentElement!
-    expect(waiting.textContent).toContain('1 coisa espera você')
-    expect(waiting.textContent).toContain('Ver em Precisa de você')
-    expect(within(waiting).queryAllByRole('listitem')).toHaveLength(0)
+    expect(screen.queryByRole('heading', { name: 'Espera você' })).toBeNull()
+    expect(screen.queryByText(/espera você/u)).toBeNull()
     expect(screen.getByRole('heading', { name: 'Ficou pronto' })).toBeTruthy()
-    fireEvent.click(within(waiting).getByRole('button', { name: 'Ver em Precisa de você' }))
-    expect(onOpenAttention).toHaveBeenCalledTimes(1)
+  })
+
+  it('a entrega que o cartão "Sua equipe entregou o primeiro trabalho!" já destaca não se repete em "Ficou pronto"', () => {
+    panel({ omitDelivery: { taskId: 't-capa', title: 'Capa do cardápio' } })
+    const done = screen.getByRole('heading', { name: 'Ficou pronto' }).parentElement!
+    expect(within(done).queryByText('Nina entregou “Capa do cardápio”')).toBeNull()
+    expect(within(done).getAllByRole('listitem')).toHaveLength(2)
+    expect(screen.getByText('3 coisas esperam você · 2 entregas')).toBeTruthy()
+  })
+
+  it('se sobrar 0 itens inéditos (tudo já aparece nos outros cartões) não há cartão "Enquanto você estava fora"', () => {
+    panel({
+      away: { ...live(), waiting: live().waiting.slice(0, 1), done: live().done.slice(1, 2) },
+      onScreenAttention: [{ id: 't-logo', title: 'Logo da padaria' }],
+      omitDelivery: { taskId: 't-capa', title: 'Capa do cardápio' },
+    })
+    expect(screen.queryByRole('heading', { name: 'Enquanto você estava fora' })).toBeNull()
+    expect(document.querySelector('[data-persona-away]')).toBeNull()
   })
 
   it('"Ficou pronto": o texto do host; sem título real da tarefa o botão é neutro e o id nunca aparece', () => {

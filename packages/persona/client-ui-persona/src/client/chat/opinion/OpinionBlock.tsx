@@ -7,7 +7,7 @@
 import { useState, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96 } from '../../assets/generated-imports.ts'
-import { Avatar, Button, Card, Chip, Modal, Tooltip } from '../../primitives/index.ts'
+import { Avatar, Button, Card, Chip, Modal, Tooltip, UiIcon } from '../../primitives/index.ts'
 import type { ChannelMessageUi } from '../../remote/map-host-ui.ts'
 import type { TeamView } from '../../remote/persona-remote-types.ts'
 import { fanoutText } from '../fanout/fanout-rules.ts'
@@ -79,12 +79,14 @@ const MARK_KEY: Readonly<Record<Exclude<OpinionMark, 'nothing'>, { readonly key:
 }
 
 /** Uma imagem do rascunho: miniatura de até 480 px (160 px no cartão recolhido, Muse 03:29); o clique abre em tamanho real. Sem a imagem, o `alt` no lugar (nunca um quadro quebrado). */
-function DraftImage({ t, id, alt, resolveImage, small = false }: {
+function DraftImage({ t, id, alt, resolveImage, small = false, reference = false }: {
   readonly t: ChatT
   readonly id: string
   readonly alt: string
   readonly resolveImage: OpinionActions['resolveImage']
   readonly small?: boolean
+  /** A foto que a pessoa anexou quando há arte da persona: 96 px (DESIGN-01, Fio real b). */
+  readonly reference?: boolean
 }): ReactNode {
   const url = useAttachmentImage(resolveImage, id)
   const [open, setOpen] = useState(false)
@@ -93,7 +95,7 @@ function DraftImage({ t, id, alt, resolveImage, small = false }: {
   return (
     <>
       <button type="button" className={styles.imageButton} onClick={() => { setOpen(true) }} aria-label={alt}>
-        <img className={small ? `${styles.thumb ?? ''} ${styles.thumbSmall ?? ''}` : styles.thumb} src={url} alt={alt} />
+        <img className={reference ? `${styles.thumb ?? ''} ${styles.thumbReference ?? ''}` : small ? `${styles.thumb ?? ''} ${styles.thumbSmall ?? ''}` : styles.thumb} src={url} alt={alt} />
       </button>
       {open && (
         <Modal open title={alt} closeLabel={t('composer.pastedClose')} onClose={() => { setOpen(false) }} size="l">
@@ -129,6 +131,7 @@ export function OpinionBlock({ t, block, team, rowTag, resolveImage, onOpenDraft
   const [expanded, setExpanded] = useState(consolidated === undefined)
   const [beforeAfter, setBeforeAfter] = useState<'before' | 'after'>('after')
   const [blindOpen, setBlindOpen] = useState(false)
+  const [refOpen, setRefOpen] = useState(false)
   // "Incluir só pelo texto": quem a pessoa acabou de incluir sai do recolhido já (o host confirma a seguir com `textOnlyPersonaIds` e a resposta); o erro é a frase do host.
   const [included, setIncluded] = useState<ReadonlySet<string>>(new Set())
   const [including, setIncluding] = useState<ReadonlySet<string>>(new Set())
@@ -172,6 +175,25 @@ export function OpinionBlock({ t, block, team, rowTag, resolveImage, onOpenDraft
     .map(mark => ({ mark, count: said.filter(reply => reply.opinion?.mark === mark).length, ...MARK_KEY[mark] }))
     .filter(row => row.count > 0)
   const hasReplies = said.length > 0 || nothing.length > 0
+  // DESIGN-01 (Fio real a): a pílula recolhida diz "{quem consolidou} ouviu {A} e {B} · {n} ajustes". Os nomes são de quem OPINOU (as respostas "sem nada a acrescentar" não
+  // entram) e "ajustes" são as respostas que pediram uma mudança (Sugestão ou Ponto de atenção): o que o host marca, nunca um número inventado. Sem opinião, só "juntou as opiniões".
+  const heard = [...new Set(said.map(reply => reply.authorName))]
+  const adjustments = said.filter(reply => reply.opinion?.mark === 'suggestion' || reply.opinion?.mark === 'attention').length
+  const heardText = heard.length === 0
+    ? undefined
+    : heard.length === 1
+      ? heard[0]
+      : heard.length === 2
+        ? t('opinion.pill.two', { a: heard[0] ?? '', b: heard[1] ?? '' })
+        : t('opinion.pill.more', { a: heard[0] ?? '', b: heard[1] ?? '', count: heard.length - 2 })
+  const pillLabel = consolidated === undefined
+    ? ''
+    : [
+      heardText === undefined ? t('opinion.pill.none', { name: consolidated.authorName }) : t('opinion.pill.heard', { name: consolidated.authorName, who: heardText }),
+      adjustments === 0 ? undefined : t(adjustments === 1 ? 'opinion.pill.adjust.one' : 'opinion.pill.adjust', { count: adjustments }),
+    ].filter((part): part is string => part !== undefined).join(' · ')
+  // Recolhida (consolidado e fechado) o cartão é só a pílula: sem cabeçalho e sem o respiro do cartão.
+  const showHead = expanded || merged === undefined
   /** A consolidação ("{A} juntou as opiniões", a versão com Antes · Depois): vale no cartão recolhido (imagens de 160 px) e no aberto (480 px). */
   const mergedBlock = (small: boolean): ReactNode => {
     if (merged === undefined) return null
@@ -209,54 +231,65 @@ export function OpinionBlock({ t, block, team, rowTag, resolveImage, onOpenDraft
 
   return (
     <RowTag className={styles.row} data-message-id={request.id}>
-      <Card as="article" padding="s" className={styles.card} data-persona-opinion={block.requestId} data-collapsed={expanded ? undefined : ''}>
-        <header className={styles.head}>
-          <Avatar name={requesterName} src={avatarOf(request.authorId)} shape="portrait" size={24} decorative />
-          <span className={styles.eyebrow}>{t('opinion.eyebrow', { name: requesterName })}</span>
-          {ask.maxRounds > 1 && <span className={styles.round}>{t('opinion.round', { i: ask.round, n: ask.maxRounds })}</span>}
-        </header>
+      <Card as="article" padding={showHead ? 's' : 'none'} className={styles.card} data-persona-opinion={block.requestId} data-collapsed={expanded ? undefined : ''}>
+        {showHead && (
+          <header className={styles.head}>
+            <Avatar name={requesterName} src={avatarOf(request.authorId)} shape="portrait" size={24} className={styles.face} decorative />
+            <span className={styles.eyebrow}>{t('opinion.eyebrow', { name: requesterName })}</span>
+            {ask.maxRounds > 1 && <span className={styles.round}>{t('opinion.round', { i: ask.round, n: ask.maxRounds })}</span>}
+          </header>
+        )}
 
         {!expanded && merged !== undefined ? (
           <>
-            <div className={styles.summary}>
-              {ask.imageIds[0] !== undefined && <DraftImage t={t} id={ask.imageIds[0]} alt={imageAlt} resolveImage={resolveImage} small />}
-              {ask.imageIds[0] === undefined && arts[0] !== undefined && <DraftFileThumb t={t} file={arts[0]} variant="art" small onOpen={openArt} />}
-              <div className={styles.summaryText}>
-                <p className={styles.questionLine}>{request.body}</p>
+            <div className={styles.pillBox}>
+              <button type="button" className={arts[0] === undefined ? styles.pill : `${styles.pill} ${styles.pillWithThumb}`} data-persona-opinion-pill="" aria-expanded={false} onClick={() => { setExpanded(true) }}>
+                {arts[0] !== undefined && <span className={styles.pillThumb}><DraftFileThumb t={t} file={arts[0]} variant="pill" /></span>}
+                <span className={styles.pillText}>{pillLabel}</span>
                 {marks.length > 0 && (
-                  <ul className={styles.markSummary}>
-                    {marks.map(row => <li key={row.mark}><Chip size="s" tone={row.tone}>{`${String(row.count)} ${t(row.key)}`}</Chip></li>)}
-                  </ul>
+                  <span className={styles.pillMarks}>
+                    {marks.map(row => <Chip key={row.mark} size="s" tone={row.tone}>{`${String(row.count)} ${t(row.key)}`}</Chip>)}
+                  </span>
                 )}
-              </div>
+                <UiIcon name="chevronDown" size={16} strokeWidth={2.2} className={styles.pillChevron} />
+              </button>
             </div>
-            {mergedBlock(true)}
             {cap && (
               <p className={styles.cap}>{capLine}</p>
-            )}
-            {hasReplies && (
-              <button type="button" className={styles.link} aria-expanded={false} onClick={() => { setExpanded(true) }}>
-                {t('opinion.showReplies')}
-              </button>
             )}
           </>
         ) : (
           <>
             <p className={styles.question}>{request.body}</p>
 
-            {ask.imageIds.length > 0 && (
-              <div className={styles.draftImages}>
-                {ask.imageIds.map(id => <DraftImage key={id} t={t} id={id} alt={imageAlt} resolveImage={resolveImage} />)}
-              </div>
-            )}
             {arts.length > 0 && (
               <div className={styles.draftImages} data-persona-opinion-art="">
                 {arts.map(file => (
                   <figure key={file.path} className={styles.artFigure}>
-                    <DraftFileThumb t={t} file={file} variant="art" onOpen={openArt} />
+                    <DraftFileThumb t={t} file={file} variant="hero" onOpen={openArt} />
                     <figcaption className={styles.artName}>{file.name}</figcaption>
                   </figure>
                 ))}
+              </div>
+            )}
+            {/* DESIGN-01 (Fio real b): com a arte da persona à vista, o que a pessoa anexou vira REFERÊNCIA: um chip com o ícone attach, e 96 px quando abre. Sem arte, o anexo é o assunto e segue inline. */}
+            {ask.imageIds.length > 0 && arts.length === 0 && (
+              <div className={styles.draftImages}>
+                {ask.imageIds.map(id => <DraftImage key={id} t={t} id={id} alt={imageAlt} resolveImage={resolveImage} />)}
+              </div>
+            )}
+            {ask.imageIds.length > 0 && arts.length > 0 && (
+              <div className={styles.reference} data-persona-opinion-reference="">
+                <button type="button" className={styles.referenceChip} aria-expanded={refOpen} onClick={() => { setRefOpen(open => !open) }}>
+                  <UiIcon name="attach" size={14} strokeWidth={2.2} />
+                  {t('opinion.reference')}
+                  <UiIcon name="chevronDown" size={12} strokeWidth={2.2} className={styles.referenceChevron} />
+                </button>
+                {refOpen && (
+                  <div className={styles.referenceImages}>
+                    {ask.imageIds.map(id => <DraftImage key={id} t={t} id={id} alt={imageAlt} resolveImage={resolveImage} reference />)}
+                  </div>
+                )}
               </div>
             )}
             {ask.draftText !== undefined && <ClampedText t={t} value={ask.draftText} lines={6} className={styles.draftText} />}
@@ -310,9 +343,9 @@ export function OpinionBlock({ t, block, team, rowTag, resolveImage, onOpenDraft
                 </Button>
               </div>
             )}
-            {consolidated !== undefined && hasReplies && (
+            {consolidated !== undefined && (
               <button type="button" className={styles.link} aria-expanded onClick={() => { setExpanded(false) }}>
-                {t('opinion.hideReplies')}
+                {hasReplies ? t('opinion.hideReplies') : t('opinion.collapse')}
               </button>
             )}
           </>
@@ -327,7 +360,7 @@ function ReplyRow({ t, reply }: { readonly t: ChatT; readonly reply: ChannelMess
   const chip = mark === undefined || mark === 'nothing' ? undefined : MARK_KEY[mark]
   return (
     <li className={styles.reply} data-author={reply.authorId === 'user' ? 'user' : 'persona'}>
-      <Avatar name={reply.authorName} src={avatarOf(reply.authorId)} shape={reply.authorId === 'user' ? 'person' : 'portrait'} size={24} decorative />
+      <Avatar name={reply.authorName} src={avatarOf(reply.authorId)} shape={reply.authorId === 'user' ? 'person' : 'portrait'} size={24} className={styles.face} decorative />
       <div className={styles.replyBody}>
         <div className={styles.replyHead}>
           <span className={styles.replyName}>{reply.authorName}</span>

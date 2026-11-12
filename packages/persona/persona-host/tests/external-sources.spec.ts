@@ -40,7 +40,7 @@ function seed(h: PersonaHost): void {
 
 function vaultOf(entries: Record<string, string>): SecretVault {
   return {
-    get: async (personId, provider) => entries[`${personId}:${provider}`],
+    get: async (_projectId, personId, provider) => entries[`${personId}:${provider}`],
   }
 }
 
@@ -214,4 +214,48 @@ it('caps a concurrent poll storm so extra fetches never start', async () => {
   for (const release of hung) release()
   await Promise.all(storm)
   expect(started).toBe(SOURCE_REQUEST_CAP)
+})
+
+it('filters the inbox at the origin: a message the rule rejects never becomes a Trigger', async () => {
+  const h = host()
+  seed(h)
+  const { fetch } = fakeFetch()
+  wire(h, fetch)
+  h.external.emailList = async () => [
+    { id: 'keep', from: 'fornecedor@ex.test', to: 'vendas@ex.test', subject: 'Pedido 42', text: 'segue' },
+    { id: 'bulk', from: 'news@ex.test', to: 'vendas@ex.test', subject: 'Promoção', text: 'oferta', bulk: true },
+    { id: 'other', from: 'outro@ex.test', to: 'financeiro@ex.test', subject: 'Pedido 43', text: 'nota' },
+  ]
+  h.sessionMemberId = 'ana'
+  h.external.emailFilter = projectId => h.screens.screens.get(projectId, 'external_email_filter', 'default')
+  const saved = h.putEmailFilter({
+    workspaceId: 'ws', projectId: 'pp',
+    filter: { to: [' vendas@ex.test '], from: [], subject: ['pedido'], skipBulk: true },
+  })
+  expect(saved).toEqual({ to: ['vendas@ex.test'], from: [], subject: ['pedido'], skipBulk: true })
+  const polled = await h.pollExternal({ workspaceId: 'ws', projectId: 'pp', personId: 'ana' })
+  expect(polled.results.filter(result => result === 'filtered')).toHaveLength(2)
+  expect(polled.results.filter(result => result === 'stored')).toHaveLength(5)
+  expect(h.getEmailFilter({ workspaceId: 'ws', projectId: 'pp' })).toEqual(saved)
+})
+
+it('reads the mailbox through the real reader when the vault holds a credential', async () => {
+  const h = host()
+  seed(h)
+  const { fetch } = fakeFetch()
+  wire(h, fetch)
+  h.external.emailList = async () => { throw new Error('the fake list must not be used') }
+  h.external.emailReader = async secret => secret === TOKEN
+    ? [{ id: 'real-1', from: 'fornecedor@ex.test', to: 'vendas@ex.test', subject: 'Pedido', text: 'segue' }]
+    : []
+  const polled = await h.pollExternal({ workspaceId: 'ws', projectId: 'pp', personId: 'ana' })
+  expect(polled.results.filter(result => result === 'stored')).toHaveLength(5)
+  expect(JSON.stringify(polled)).not.toContain(TOKEN)
+})
+
+it('offers the Brazilian mailbox presets to the connection screen', () => {
+  const h = host()
+  seed(h)
+  expect(h.listEmailPresets().map(preset => preset.id)).toEqual(['locaweb', 'hostinger', 'godaddy', 'titan', 'zoho', 'icloud'])
+  expect(h.listEmailPresets().every(preset => preset.secure && preset.port === 993)).toBe(true)
 })

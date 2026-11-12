@@ -3,7 +3,8 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { houseEmptyArt } from '../decor/HouseDecor.tsx'
 import { poseUrl, type PersonaCharacterId } from '../assets/asset-url.ts'
-import { uiStateToPose, type PersonaWorkUiState } from '../team/persona-work-state.ts'
+import type { PersonaWorkUiState } from '../team/persona-work-state.ts'
+import { PERSONA_STATE_CHIP_TONE, PERSONA_STATE_LABEL, PERSONA_STATE_POSE, personaStateOf } from '../team/persona-state.ts'
 import { Avatar, BrandIcon, Button, Chip, EmptyState, MenuButton, Skeleton, Toast, ToastRegion, UiIcon, type ChipTone } from '../primitives/index.ts'
 import { subjectDisplayName } from './SubjectBar.tsx'
 import { useCallback, useEffect, useState } from 'react'
@@ -11,6 +12,7 @@ import type { HostQueueControls } from './host-queue.ts'
 import type { HostTurnControls } from './host-turn.ts'
 import { QueuedMessageBubble } from './QueuedMessageBubble.tsx'
 import { TypingIndicator } from './TypingIndicator.tsx'
+import { WorkStepLine } from './work-step/WorkStepLine.tsx'
 import { typingPersona } from './typing-indicator.ts'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import type { ChannelMessageUi } from '../remote/map-host-ui.ts'
@@ -39,6 +41,10 @@ export interface DmRowUi {
   readonly stateTone?: ChipTone | undefined
   /** Live work state → pose in the thread header (UX-GUIDE §3). */
   readonly state?: PersonaWorkUiState | undefined
+  /** Rascunho, Janela de silêncio e pausa: estreitam `state` no vocabulário único de estado (`team/persona-state.ts`). */
+  readonly draftFiles?: number | undefined
+  readonly quiet?: boolean | undefined
+  readonly paused?: boolean | undefined
   /** CV-2: a tarefa em que a persona trabalha agora (título real, ao vivo); ausente = sem tarefa em andamento. */
   readonly workingOn?: string | undefined
   readonly unread?: number | undefined
@@ -49,6 +55,11 @@ export interface DmRowUi {
 }
 
 export interface DirectMessagesViewProps {
+  /**
+   * `true` quando o rail (barra única) já lista as pessoas: a 2ª coluna "Mensagens diretas" não existe e a conversa ocupa a largura toda,
+   * com a mesma medida de leitura do #geral (DESIGN-01-MUSE §5.1 #06). Sem a prop vale a flag da barra única (A-1).
+   */
+  readonly listInRail?: boolean | undefined
   readonly t: PropsLocale<'persona.chat'>['t']
   readonly shellT: PropsLocale<'persona.shell'>['t']
   readonly loading: boolean
@@ -76,6 +87,8 @@ export interface DirectMessagesViewProps {
   readonly onRetrySubjects?: (() => void) | undefined
   readonly passThroughFollowers?: readonly { readonly name: string }[] | undefined
   readonly runErrorHandlers?: RunErrorHandlerContext | undefined
+  /** DESIGN-01 #03: a pílula "Modelo · Esforço" da persona desta conversa (na DM ela aparece sempre que houver o que mostrar). */
+  readonly responderEngine?: import('./responder-engine.ts').ResponderEngine | undefined
   /** P0-30: "Tentar de novo" numa mensagem que não foi enviada. */
   readonly onRetrySend?: ((messageId: string) => void) | undefined
   /** HT-3: "Retomar {persona}" na linha de evento do fio. */
@@ -127,6 +140,7 @@ function portraitFor(row: DmRowUi): string | undefined {
 
 /** Mensagens diretas: conversation list + thread with persona header, shared stream and composer. */
 export function DirectMessagesView({
+  listInRail: listInRailProp,
   t, shellT, loading, dms, selectedId, messages, onSelect, onSend, uploadAttachment, onNewConversation, turnContext, turnActivityLabels, onLoadTurnContext, onOpenTaskOnBoard, memberId, onToggleReaction,
   subjectBar, composerSubjectPlaceholder, composerSubjectColorIndex,
   subjectMoveTargets, onMoveMessageSubject, onUndoMoveMessage,
@@ -134,6 +148,7 @@ export function DirectMessagesView({
   onRetrySubjects,
   passThroughFollowers = [],
   runErrorHandlers,
+  responderEngine,
   onRetrySend,
   onResumePersona,
   personaAsks,
@@ -162,6 +177,9 @@ export function DirectMessagesView({
     }
   }, [availablePersonas, onSelectPersonaForNewDm, onNewConversation])
   const selected = dms.find(row => row.id === selectedId) ?? null
+  const listInRail = listInRailProp ?? isPlacesNavEnabled()
+  // O estado do topo da conversa é o do vocabulário único (regra 0.2): as mesmas palavras, tom e pose da faixa, do rail e dos cartões.
+  const selectedState = selected !== null && selected.state !== undefined ? personaStateOf(selected) : undefined
   // Luz da luminária (NIGHT-THEME-SPEC §5): só com `persona.flag.lampLight` + balões; sem isso nada disto existe.
   const lamp = isLampLightEnabled()
   const lampRef = useLampLight<HTMLElement>(lamp, `${selected?.id ?? ''}:${String(messages.length)}`)
@@ -220,67 +238,69 @@ export function DirectMessagesView({
   }
 
   return (
-    <div className={styles.layout} data-persona-root="">
-      <aside className={styles.listPane} aria-labelledby="persona-dm-title">
-        <header className={styles.listHeader}>
-          <span className={styles.badge} aria-hidden="true"><BrandIcon name="mensagens-diretas" size={20} /></span>
-          <div className={styles.listTitles}>
-            <h1 id="persona-dm-title" className={styles.title}>{shellT('sidebar.directMessages')}</h1>
-            <p className={styles.subtitle}>{t('dm.subtitle')}</p>
-          </div>
-          {(onSelectPersonaForNewDm !== undefined || onNewConversation !== undefined) && (
-            <button
-              type="button"
-              className={styles.newDmHeaderButton}
-              onClick={handleOpenNewDm}
-              aria-label={t('dm.newConversation')}
-              title={t('dm.newConversation')}
-            >
-              <UiIcon name="plus" size={18} strokeWidth={2.2} />
-            </button>
-          )}
-        </header>
-        {loading ? (
-          <div className={styles.skeletons} aria-hidden="true">
-            {[0, 1, 2, 3].map(key => (
-              <div key={key} className={styles.skeletonRow}>
-                <Skeleton shape="circle" width={40} height={40} />
-                <div className={styles.skeletonText}>
-                  <Skeleton width="60%" />
-                  <Skeleton width="85%" height={12} />
+    <div className={styles.layout} data-persona-root="" data-list-in-rail={listInRail ? '' : undefined}>
+      {!listInRail && (
+        <aside className={styles.listPane} aria-labelledby="persona-dm-title">
+          <header className={styles.listHeader}>
+            <span className={styles.badge} aria-hidden="true"><BrandIcon name="mensagens-diretas" size={20} /></span>
+            <div className={styles.listTitles}>
+              <h1 id="persona-dm-title" className={styles.title}>{shellT('sidebar.directMessages')}</h1>
+              <p className={styles.subtitle}>{t('dm.subtitle')}</p>
+            </div>
+            {(onSelectPersonaForNewDm !== undefined || onNewConversation !== undefined) && (
+              <button
+                type="button"
+                className={styles.newDmHeaderButton}
+                onClick={handleOpenNewDm}
+                aria-label={t('dm.newConversation')}
+                title={t('dm.newConversation')}
+              >
+                <UiIcon name="plus" size={18} strokeWidth={2.2} />
+              </button>
+            )}
+          </header>
+          {loading ? (
+            <div className={styles.skeletons} aria-hidden="true">
+              {[0, 1, 2, 3].map(key => (
+                <div key={key} className={styles.skeletonRow}>
+                  <Skeleton shape="circle" width={40} height={40} />
+                  <div className={styles.skeletonText}>
+                    <Skeleton width="60%" />
+                    <Skeleton width="85%" height={12} />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <ul className={styles.dmList} aria-label={t('dm.listTitle')}>
-            {dms.map(row => (
-              <li key={row.id}>
-                <button
-                  type="button"
-                  className={styles.dmItem}
-                  aria-current={row.id === selectedId ? 'true' : undefined}
-                  data-not-started={row.notStarted === true ? '' : undefined}
-                  onClick={() => {
-                    if (row.notStarted === true) onSelectPersonaForNewDm?.(row.peerId)
-                    else onSelect(row.id)
-                  }}
-                >
-                  <Avatar name={row.peerName} src={portraitFor(row)} shape="person" size={40} decorative />
-                  <span className={styles.dmText}>
-                    <span className={styles.dmName}>{row.peerName}</span>
-                    <span className={styles.dmLine}>{row.notStarted === true ? t('dm.startConversation') : (row.lastLine ?? row.role ?? '')}</span>
-                  </span>
-                  <span className={styles.dmMeta}>
-                    {row.timeLabel !== undefined && <time className={styles.dmTime}>{row.timeLabel}</time>}
-                    {row.unread !== undefined && row.unread > 0 && <span className={styles.unread}>{row.unread}</span>}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </aside>
+              ))}
+            </div>
+          ) : (
+            <ul className={styles.dmList} aria-label={t('dm.listTitle')}>
+              {dms.map(row => (
+                <li key={row.id}>
+                  <button
+                    type="button"
+                    className={styles.dmItem}
+                    aria-current={row.id === selectedId ? 'true' : undefined}
+                    data-not-started={row.notStarted === true ? '' : undefined}
+                    onClick={() => {
+                      if (row.notStarted === true) onSelectPersonaForNewDm?.(row.peerId)
+                      else onSelect(row.id)
+                    }}
+                  >
+                    <Avatar name={row.peerName} src={portraitFor(row)} shape="person" size={40} decorative />
+                    <span className={styles.dmText}>
+                      <span className={styles.dmName}>{row.peerName}</span>
+                      <span className={styles.dmLine}>{row.notStarted === true ? t('dm.startConversation') : (row.lastLine ?? row.role ?? '')}</span>
+                    </span>
+                    <span className={styles.dmMeta}>
+                      {row.timeLabel !== undefined && <time className={styles.dmTime}>{row.timeLabel}</time>}
+                      {row.unread !== undefined && row.unread > 0 && <span className={styles.unread}>{row.unread}</span>}
+                    </span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </aside>
+      )}
 
       <section className={styles.threadPane} aria-label={selected?.peerName ?? t('dm.listTitle')} ref={lampRef} {...(lamp ? { 'data-lamp': '' } : {})}>
         {lamp && <div className={styles.lampLayer} aria-hidden="true" />}
@@ -291,21 +311,24 @@ export function DirectMessagesView({
         ) : (
           <>
             <header className={styles.threadHeader}>
-              {selected.characterId !== undefined && selected.state !== undefined
-                && poseUrl(selected.characterId as PersonaCharacterId, uiStateToPose(selected.state)) !== undefined ? (
+              {selected.characterId !== undefined && selectedState !== undefined
+                && poseUrl(selected.characterId as PersonaCharacterId, PERSONA_STATE_POSE[selectedState]) !== undefined ? (
                   <span className={styles.threadStage} aria-hidden="true">
                     <img
-                      key={selected.state}
-                      src={poseUrl(selected.characterId as PersonaCharacterId, uiStateToPose(selected.state))}
+                      key={selectedState}
+                      src={poseUrl(selected.characterId as PersonaCharacterId, PERSONA_STATE_POSE[selectedState])}
                       alt=""
                       data-state={selected.state}
+                      data-persona-state={selectedState}
                     />
                   </span>
                 ) : (
                   <Avatar name={selected.peerName} src={portraitFor(selected)} shape="portrait" size={48} decorative />
                 )}
               <div className={styles.threadTitles}>
-                <h2 className={styles.threadTitle}>{selected.peerName}</h2>
+                {listInRail
+                  ? <h1 className={styles.threadTitle}>{selected.peerName}</h1>
+                  : <h2 className={styles.threadTitle}>{selected.peerName}</h2>}
                 {selected.role !== undefined && (
                   <p className={styles.threadRole}>
                     {isPlacesNavEnabled() && selected.workingOn !== undefined
@@ -314,7 +337,9 @@ export function DirectMessagesView({
                   </p>
                 )}
               </div>
-              {selected.stateLabel !== undefined && <Chip tone={selected.stateTone ?? 'neutral'}>{selected.stateLabel}</Chip>}
+              {selectedState !== undefined
+                ? <Chip tone={PERSONA_STATE_CHIP_TONE[selectedState]} data-persona-state={selectedState}>{shellT(PERSONA_STATE_LABEL[selectedState])}</Chip>
+                : selected.stateLabel !== undefined && <Chip tone={selected.stateTone ?? 'neutral'}>{selected.stateLabel}</Chip>}
               {onTeach !== undefined && (
                 <MenuButton
                   variant="ghost"
@@ -325,7 +350,7 @@ export function DirectMessagesView({
               )}
             </header>
             {subjectBar !== undefined && (
-              <>
+              <div className={styles.subjectRow}>
                 {subjectsLoadError !== null && subjectsLoadError !== undefined && (
                   <div className={styles.subjectError} role="status">
                     <p>{t('subjects.loadError')}</p>
@@ -337,7 +362,7 @@ export function DirectMessagesView({
                   </div>
                 )}
                 <SubjectBar t={t} {...subjectBar} />
-              </>
+              </div>
             )}
             <div
               className={styles.thread}
@@ -411,6 +436,7 @@ export function DirectMessagesView({
                 />
               ))}
               {turnControls !== undefined && peer !== undefined && (typingPersona(messages, [peer]) !== null) && <TypingIndicator t={t} member={peer} />}
+              {turnControls !== undefined && peer !== undefined && (typingPersona(messages, [peer]) !== null) && <WorkStepLine t={t} member={peer} />}
             </div>
             <TurnContextDrawer t={t} context={turnContext} activityLabels={turnActivityLabels} limits={engineLimits} />
             <div className={styles.composer}>
@@ -421,6 +447,7 @@ export function DirectMessagesView({
                 t={t}
                 members={peer === undefined ? [] : [peer]}
                 {...(peer === undefined ? {} : { responderHidden: true })}
+                {...(responderEngine === undefined ? {} : { responderEngine })}
                 // O histórico (↑) e o rascunho guardado (Ctrl+S) são de CADA conversa, não de todas as DMs juntas.
                 conversationKey={`dm:${selected.id}`}
                 {...(slashActions === undefined ? {} : { slashActions })}

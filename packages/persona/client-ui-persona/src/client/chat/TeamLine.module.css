@@ -25,13 +25,35 @@
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  gap: var(--persona-space-1);
+  gap: var(--persona-space-2);
 }
 
 .arrow {
   display: grid;
   place-items: center;
   color: var(--persona-ink-soft);
+}
+
+/* DESIGN-01 (Fio real c): o rosto de 28 px com o anel da ORDEM DE CONTRATAÇÃO (um dos 7 tons --persona-subject-0..6; sem tom, sem anel). */
+.face {
+  display: inline-grid;
+  border-radius: 30%;
+}
+
+.face[data-tint='0'] { box-shadow: 0 0 0 2px var(--persona-subject-0); }
+.face[data-tint='1'] { box-shadow: 0 0 0 2px var(--persona-subject-1); }
+.face[data-tint='2'] { box-shadow: 0 0 0 2px var(--persona-subject-2); }
+.face[data-tint='3'] { box-shadow: 0 0 0 2px var(--persona-subject-3); }
+.face[data-tint='4'] { box-shadow: 0 0 0 2px var(--persona-subject-4); }
+.face[data-tint='5'] { box-shadow: 0 0 0 2px var(--persona-subject-5); }
+.face[data-tint='6'] { box-shadow: 0 0 0 2px var(--persona-subject-6); }
+
+/* Rostos iguais: o nome de cada um ao lado do rosto, antes da seta. */
+.faceName {
+  margin-inline: var(--persona-space-1);
+  font: 700 13px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+  white-space: nowrap;
 }
 
 .body {

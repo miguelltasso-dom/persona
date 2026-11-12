@@ -18,6 +18,7 @@ import { PlaceTabsBar } from '../src/client/shell/PlaceTabsBar.tsx'
 import { bindLocale } from '../src/client/preview/locale-bind.ts'
 import { pt as shellPt } from '../src/client/locale/shell/locales.ts'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
+import { setFlagDefaults } from '../src/client/flags.ts'
 
 installPreviewTheme()
 afterEach(() => { cleanup() })
@@ -35,6 +36,8 @@ function memoryStorage(initial: Record<string, string> = {}) {
 
 /** CV-1: Canais e Mensagens diretas moram na barra de conversas, não num lugar com abas. */
 const CONVERSATION_PANELS: readonly string[] = ['channels', 'directMessages']
+/** Cena 20 e cena 23 (Muse): Membros vira cartão em Conexões (aba só com a flag remoteTeamTab); Personalidade vira Figurinhas dentro de Aparência. */
+const MOVED_PANELS: readonly string[] = ['members', 'personality']
 
 describe('os lugares', () => {
   it('cinco no topo do rail (sem "Conversas": as conversas são a própria barra) e Configurações no rodapé', () => {
@@ -46,11 +49,30 @@ describe('os lugares', () => {
     ])
   })
 
+  it('Configurações com os padrões do produto: Conexões · Cofre · Personas · Uso e limites · Importadores · Aparência · Sobre (sem Membros)', async () => {
+    setFlagDefaults(undefined)
+    vi.resetModules()
+    const fresh = await import('../src/client/shell/nav-places.ts')
+    setFlagDefaults(false)
+    const settings = fresh.NAV_PLACES.find(place => place.id === 'settings')
+    expect(settings?.tabs.map(tab => tab.panel)).toEqual(['connections', 'cofre', 'personas', 'usage', 'importers', 'appearance', 'about'])
+  })
+
+  it('com a flag remoteTeamTab ligada, Membros volta a ser aba e o apelido "Membros" leva a ela', async () => {
+    localStorage.setItem('persona.flag.remoteTeamTab', '1')
+    vi.resetModules()
+    const fresh = await import('../src/client/shell/nav-places.ts')
+    localStorage.removeItem('persona.flag.remoteTeamTab')
+    const settings = fresh.NAV_PLACES.find(place => place.id === 'settings')
+    expect(settings?.tabs.map(tab => tab.panel)).toContain('members')
+    expect(fresh.resolvePlaceAlias('Membros')).toBe('members')
+  })
+
   it('nenhuma tela some: tudo o que o rail antigo mostrava continua a 1 clique de algum lugar (ou da barra de conversas)', () => {
     const reachable = new Set(panelsReachableFromPlaces())
     const old = NAV_GROUPS.flatMap(group => group.items.map(item => item.panel)).filter(panel => panel !== 'help')
     for (const panel of old) {
-      if (CONVERSATION_PANELS.includes(panel)) continue
+      if (CONVERSATION_PANELS.includes(panel) || MOVED_PANELS.includes(panel)) continue
       expect(reachable.has(panel), `painel ${panel} perdeu o lugar`).toBe(true)
     }
     // Canais e DMs não estão em nenhum lugar: a barra de conversas os abre.
@@ -94,9 +116,10 @@ describe('apelidos para o Ctrl K', () => {
     expect(resolvePlaceAlias('Canvas')).toBe('canvas')
     expect(resolvePlaceAlias('Saúde')).toBe('teamHealth')
     expect(resolvePlaceAlias('saude')).toBe('teamHealth')
-    expect(resolvePlaceAlias('Cofre')).toBe('connections')
+    expect(resolvePlaceAlias('Cofre')).toBe('cofre') // item 15 (Muse 12/11): o Cofre tem aba própria, ao lado de Conexões
     expect(resolvePlaceAlias('Conexões')).toBe('connections')
-    expect(resolvePlaceAlias('Membros')).toBe('members')
+    // Sem a flag remoteTeamTab (padrão do produto), "Membros" leva ao cartão Equipe à distância, em Conexões.
+    expect(resolvePlaceAlias('Membros')).toBe('connections')
   })
 
   it('o que não é apelido não é interceptado', () => {
@@ -147,7 +170,7 @@ describe('PlaceTabsBar', () => {
     const { container } = render(<PlaceTabsBar t={t} activePanel="orgChart" onSelect={onSelect} />)
     expect(screen.getByRole('tablist', { name: 'Seções de Equipe' })).toBeTruthy()
     const panels = [...container.querySelectorAll('[role="tab"]')].map(node => node.getAttribute('data-tab-panel'))
-    expect(panels).toEqual(['team', 'orgChart', 'teamHealth'])
+    expect(panels).toEqual(['team', 'orgChart', 'teamHealth', 'routines'])
     expect(screen.getByRole('tab', { name: 'Quem cuida de quem' }).getAttribute('aria-selected')).toBe('true')
     fireEvent.click(screen.getByRole('tab', { name: 'Saúde' }))
     expect(onSelect).toHaveBeenCalledWith('teamHealth')

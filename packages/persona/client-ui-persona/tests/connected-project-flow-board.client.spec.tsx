@@ -65,7 +65,7 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
         <ConnectedProjectFlowBoard
           persona={persona}
           scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
-          onBack={() => {}}
+
           onMutate={() => {}}
         />
       </PreviewFrame>,
@@ -106,7 +106,7 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
         <ConnectedProjectFlowBoard
           persona={persona}
           scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
-          onBack={() => {}}
+
           onMutate={() => {}}
         />
       </PreviewFrame>,
@@ -142,7 +142,7 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
           persona={persona}
           scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
           workspaceTab="sprints"
-          onBack={() => {}}
+
           onMutate={() => {}}
         />
       </PreviewFrame>,
@@ -165,7 +165,7 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
         <ConnectedProjectFlowBoard
           persona={persona}
           scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
-          onBack={() => {}}
+
           onMutate={onMutate}
         />
       </PreviewFrame>,
@@ -200,7 +200,7 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
         <ConnectedProjectFlowBoard
           persona={persona}
           scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
-          onBack={() => {}}
+
           onMutate={() => {}}
         />
       </PreviewFrame>,
@@ -210,7 +210,8 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
       expect(screen.getByText('Hero da home')).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: kanbanPt['proposal.request'] }))
+    fireEvent.click(screen.getByRole('button', { name: kanbanPt['projects.options'] }))
+    fireEvent.click(screen.getByRole('menuitem', { name: kanbanPt['proposal.request'] }))
     await waitFor(() => {
       expect(screen.getByRole('heading', { name: 'Usar este fluxo?' })).toBeTruthy()
     })
@@ -241,7 +242,7 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
         <ConnectedProjectFlowBoard
           persona={persona}
           scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
-          onBack={() => {}}
+
           onMutate={() => {}}
         />
       </PreviewFrame>,
@@ -250,7 +251,8 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
     await waitFor(() => {
       expect(screen.getByText('Hero da home')).toBeTruthy()
     })
-    fireEvent.click(screen.getByRole('button', { name: kanbanPt['proposal.request'] }))
+    fireEvent.click(screen.getByRole('button', { name: kanbanPt['projects.options'] }))
+    fireEvent.click(screen.getByRole('menuitem', { name: kanbanPt['proposal.request'] }))
     await waitFor(() => {
       expect(screen.getByRole('button', { name: kanbanPt['proposal.dismiss'] })).toBeTruthy()
     })
@@ -292,7 +294,7 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
         <ConnectedProjectFlowBoard
           persona={persona}
           scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
-          onBack={() => {}}
+
           onMutate={() => {}}
         />
       </PreviewFrame>,
@@ -367,7 +369,7 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
         <ConnectedProjectFlowBoard
           persona={persona}
           scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
-          onBack={() => {}}
+
           onMutate={() => {}}
         />
       </PreviewFrame>,
@@ -405,7 +407,7 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
         <ConnectedProjectFlowBoard
           persona={persona}
           scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
-          onBack={() => {}}
+
           onMutate={() => {}}
         />
       </PreviewFrame>,
@@ -415,7 +417,8 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
       expect(screen.getByText('Hero da home')).toBeTruthy()
     })
 
-    fireEvent.click(screen.getByRole('button', { name: kanbanPt['action.editFlow'] }))
+    fireEvent.click(screen.getByRole('button', { name: kanbanPt['projects.options'] }))
+    fireEvent.click(screen.getByRole('menuitem', { name: kanbanPt['action.editFlow'] }))
     fireEvent.click(screen.getByRole('button', { name: kanbanPt['editor.save'] }))
 
     await waitFor(() => {
@@ -449,7 +452,7 @@ describe('ConnectedProjectFlowBoard (PB-6/10)', () => {
           persona={persona}
           scope={{ workspaceId: 'ws', projectId: 'proj-site' }}
           channelSubjects={[{ id: 'sub-design', name: 'Design', colorIndex: 3, unreadCount: 0 }]}
-          onBack={() => {}}
+
           onMutate={() => {}}
         />
       </PreviewFrame>,

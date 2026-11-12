@@ -72,3 +72,54 @@
   color: var(--persona-ink-faint);
   font-variant-numeric: tabular-nums;
 }
+
+/* #09: quem está Disponível = UMA linha de rostos de 28 px sobrepostos + "N prontos para começar". */
+.ready {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-height: 44px;
+}
+
+.readyAfterCards {
+  margin-top: var(--persona-space-3);
+  padding-top: var(--persona-space-3);
+  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+.faces {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.face {
+  position: relative;
+  display: inline-flex;
+  flex-shrink: 0;
+  border-radius: 30%;
+  /* The card-colored ring separates the faces; a hairline of the control outline keeps each one readable on the dark card too. */
+  box-shadow: 0 0 0 2px var(--persona-card), 0 0 0 3px var(--persona-outline-control);
+}
+
+.face + .face {
+  /* -4 px, not -8: 28 px portraits that overlap by a third lose the neighbor's face (Carbon). */
+  margin-left: -4px;
+}
+
+.readyText {
+  font: 700 14px/20px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}

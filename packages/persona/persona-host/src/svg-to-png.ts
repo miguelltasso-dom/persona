@@ -38,6 +38,7 @@ export interface SharpImage {
   metadata(): Promise<{ readonly width?: number; readonly height?: number }>
   resize(options: { readonly width?: number; readonly height?: number; readonly fit?: string; readonly withoutEnlargement?: boolean }): SharpImage
   png(options?: { readonly compressionLevel?: number; readonly palette?: boolean; readonly colours?: number; readonly effort?: number }): SharpImage
+  jpeg(options?: { readonly quality?: number }): SharpImage
   toBuffer(options: { readonly resolveWithObject: true }): Promise<{ readonly data: Buffer; readonly info: { readonly width: number; readonly height: number } }>
 }
 export type SharpFactory = (input: Buffer, options?: { readonly density?: number; readonly failOn?: string }) => SharpImage

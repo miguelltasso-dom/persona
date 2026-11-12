@@ -6,7 +6,7 @@
  * The CLI's stderr is DISCARDED on purpose: with an MCP policy it prints the NAMES of the connectors it blocked (personal data).
  */
 
-import { execFileSync, spawn } from 'node:child_process'
+import { spawn } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 
 export interface ControlSession {
@@ -78,8 +78,14 @@ export function openClaudeControl(bin: string = 'claude'): OpenControl {
       }),
       async close() {
         try {
-          if (child.pid !== undefined && process.platform === 'win32') execFileSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' })
-          else child.kill()
+          if (child.pid !== undefined && process.platform === 'win32') {
+            // v1.1.1 (Cobalt): async taskkill; the sync execFileSync blocked the Host event loop for ~520 ms at boot (host CPU profile).
+            const { promise, resolve } = Promise.withResolvers<void>()
+            const killer = spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore', windowsHide: true })
+            killer.once('close', resolve)
+            killer.once('error', resolve)
+            await promise
+          } else child.kill()
         } catch (error) {
           void error
           child.kill()

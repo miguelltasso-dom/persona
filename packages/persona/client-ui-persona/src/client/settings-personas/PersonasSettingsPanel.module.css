@@ -16,8 +16,10 @@
 .row {
   display: flex;
   flex-direction: column;
-  gap: var(--persona-space-3, 12px);
-  padding: var(--persona-space-3, 12px) var(--persona-space-4, 16px);
+  box-sizing: border-box;
+  min-height: 64px;
+  gap: 0;
+  padding: 0 var(--persona-space-4, 16px);
   border-radius: var(--persona-radius-m, 12px);
   background: var(--persona-wash);
   border: 1px solid var(--persona-outline-soft);
@@ -57,8 +59,12 @@
   overflow-wrap: anywhere;
 }
 
+/* WCAG 2.2 AA 2.5.8: a área clicável do chip tem 24 px de altura (o chip em si segue com 22). */
 .engineChipButton {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   border: none;
   background: transparent;
   padding: 0;
@@ -107,6 +113,111 @@
   color: var(--persona-ink);
   padding: 6px 10px;
   font: 600 13px/18px var(--persona-font-text);
+}
+
+
+/* Cena 16 (Muse): o aviso de pasta aparece uma vez, no topo da lista. */
+.banner {
+  margin: 0 0 var(--persona-space-3);
+}
+
+/* Cena 16 (Muse): cada persona é uma linha de 64 px; o botão do cabeçalho abre o corpo em acordeão. */
+.rowToggle {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 62px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--persona-radius-m, 12px);
+}
+
+.rowToggle:focus-visible {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 2px;
+}
+
+.who {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.name,
+.role {
+  display: block;
+}
+
+/* Acordeão de 220 ms por grid-template-rows (sem animar height). Em reduced-motion, os tokens caem para o fade de 100 ms. */
+.accordion {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--motion-base) var(--ease-standard);
+}
+
+.accordion[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+
+.accordion[data-open='true'] .accordionInner {
+  padding: var(--persona-space-3, 12px) 0 var(--persona-space-4, 16px);
+}
+
+.accordionInner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Linha fechada (revisão do Carbon, quill-b8-lote2): o resumo da autonomia e o chevron, que gira 180° ao abrir (--motion-fast). */
+.summary {
+  flex: none;
+  margin-left: auto;
+  color: var(--persona-ink-soft);
+  font: 500 13px/18px var(--persona-font-text);
+  white-space: nowrap;
+}
+
+.chevron {
+  flex: none;
+  margin-left: var(--persona-space-2, 8px);
+  color: var(--persona-ink-soft);
+  transition: transform var(--motion-fast) var(--ease-standard);
+}
+
+/* O chevron do acordeão fica numa área própria, à direita do chip: sem ambiguidade com o chevron do chip. */
+.rowChevronButton {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--persona-ink-soft);
+  cursor: pointer;
+}
+
+.rowChevronButton:focus-visible {
+  outline: 2px solid var(--persona-ink);
+  outline-offset: 2px;
+}
+
+.rowChevronButton[aria-expanded='true'] .chevron {
+  transform: rotate(180deg);
+}
+
+.chipChevron {
+  flex: none;
+  margin-left: 4px;
 }
 
 .askedToday {

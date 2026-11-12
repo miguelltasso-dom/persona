@@ -11,9 +11,9 @@ import { useRef, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { poseUrl } from '../assets/asset-url.ts'
-import { Avatar, Button, Chip, EmptyState, Screen, ScreenHeader, Skeleton, UiIcon, type ChipTone } from '../primitives/index.ts'
+import { Avatar, Button, Chip, EmptyState, Screen, ScreenHeader, Skeleton, UiIcon } from '../primitives/index.ts'
 import { orderRosterIds, type RosterEntry } from './personas-roster.ts'
-import { WORK_STATUS_KEY, uiStateToPose, type PersonaWorkUiState } from './persona-work-state.ts'
+import { PERSONA_STATE_CHIP_TONE, PERSONA_STATE_LABEL, PERSONA_STATE_POSE, personaStateOf } from './persona-state.ts'
 import styles from './PersonasTeamPanel.module.css'
 
 export interface PersonasTeamPanelProps extends PropsLocale<'persona.shell'> {
@@ -24,13 +24,6 @@ export interface PersonasTeamPanelProps extends PropsLocale<'persona.shell'> {
   readonly onOpenPersona?: ((personaId: string) => void) | undefined
   /** "Contratar persona" (o fluxo de contratação que já existe). Sem ele o botão não existe. */
   readonly onHire?: (() => void) | undefined
-}
-
-const STATE_TONE: Readonly<Record<PersonaWorkUiState, ChipTone>> = {
-  working: 'success',
-  waiting: 'accent',
-  stuck: 'danger',
-  resting: 'neutral',
 }
 
 /** A ordem de abertura: os ids que já estavam na tela mantêm o lugar; quem chegou depois entra no fim. */
@@ -53,7 +46,7 @@ function useOpenOrder(roster: readonly RosterEntry[]): readonly string[] {
 
 function PersonaFace({ entry }: { readonly entry: RosterEntry }): ReactNode {
   // O rosto 96 com a pose do estado (descansando, trabalhando…); sem a pose, o retrato da galeria.
-  const pose = poseUrl(entry.characterId, uiStateToPose(entry.state))
+  const pose = poseUrl(entry.characterId, PERSONA_STATE_POSE[personaStateOf(entry)])
   const portrait = AVATAR_96[entry.characterId as keyof typeof AVATAR_96]
   if (pose !== undefined) return <img className={styles.pose} src={pose} alt="" aria-hidden="true" width={96} height={96} />
   return <Avatar name={entry.name} src={portrait} shape="portrait" size={96} decorative />
@@ -91,13 +84,15 @@ export function PersonasTeamPanel({ t, roster, loading = false, onOpenPersona, o
           {order.map((id) => {
             const entry = byId.get(id)
             if (entry === undefined) return null
-            const state = t(WORK_STATUS_KEY[entry.state])
+            const personaState = personaStateOf(entry)
+            const state = t(PERSONA_STATE_LABEL[personaState])
             return (
               <li key={entry.id} className={styles.cell}>
                 <button
                   type="button"
                   className={styles.card}
                   data-state={entry.state}
+                  data-persona-state={personaState}
                   data-persona-card-id={entry.id}
                   aria-label={t('team.personas.cardLabel', { name: entry.name, role: entry.role, state })}
                   onClick={() => { onOpenPersona?.(entry.id) }}
@@ -108,7 +103,7 @@ export function PersonasTeamPanel({ t, roster, loading = false, onOpenPersona, o
                     <span className={styles.name}>{entry.name}</span>
                     <span className={styles.role}>{entry.role}</span>
                     <span className={styles.chips}>
-                      <Chip size="s" tone={STATE_TONE[entry.state]}>{state}</Chip>
+                      <Chip size="s" tone={PERSONA_STATE_CHIP_TONE[personaState]}>{state}</Chip>
                       <span className={styles.queue}>
                         {entry.queueCount > 0 ? t('overview.nowQueue', { count: String(entry.queueCount) }) : t('overview.queueEmpty')}
                       </span>

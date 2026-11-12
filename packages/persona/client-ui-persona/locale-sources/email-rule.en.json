@@ -1,0 +1,23 @@
+{
+  "title": "Company email",
+  "hint": "Read-only: the team reads what arrives and never marks it as read.",
+  "preset.label": "Provider",
+  "preset.choose": "Choose the provider",
+  "preset.server": "{host} · port {port} · TLS",
+  "to.label": "To",
+  "to.hint": "Comma-separated. Empty = any recipient.",
+  "from.label": "From",
+  "from.hint": "Comma-separated. Empty = any sender.",
+  "subject.label": "Subject contains",
+  "subject.hint": "Comma-separated. Empty = any subject.",
+  "skipBulk": "Skip newsletters and automatic notices",
+  "save": "Save rule",
+  "cancel": "Cancel",
+  "saved": "Rule saved.",
+  "failed": "Could not save the rule.",
+  "trigger.phrase": "When email arrives at {to} with subject {subject}",
+  "trigger.any": "When any email arrives",
+  "any": "any",
+  "trigger.hint": "The filter runs before the team wakes.",
+  "edit": "Edit rule"
+}

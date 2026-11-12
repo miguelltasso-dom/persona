@@ -12,6 +12,7 @@
 import type { Ticket } from '@deepseek-ai/dsh-persona-engine'
 import type { ProductRepos, ScreenRepos } from '@deepseek-ai/dsh-persona-store'
 import type { AskResult } from './persona-asks.ts'
+import { knownAnswerToQuestion, type KnownFacts } from './turn-close.ts'
 
 /** Questions a persona may open on ONE Task (each can be a sequence of up to five). */
 export const MAX_ASKS_PER_TASK = 2
@@ -25,6 +26,8 @@ export interface AskToolDeps {
   readonly product: Pick<ProductRepos, 'getPersona'>
   readonly screens: ScreenRepos
   readonly ticketOf: (projectId: string, ticketId: string) => Ticket | undefined
+  /** Item 3: what the host already knows for this Task (the conversation, the company's records, the draft's inputs). A question they answer is not carried to the person. */
+  readonly known?: (projectId: string, ticket: Ticket) => KnownFacts
   readonly asks: {
     ask(input: { readonly projectId: string; readonly ticketId: string; readonly personaId: string; readonly questions: unknown }): AskResult
     assume(input: { readonly projectId: string; readonly ticketId: string; readonly personaId: string; readonly assumption: string }): { readonly ok: boolean; readonly message: string }
@@ -41,6 +44,13 @@ export interface AskToolInput {
 
 const flat = (value: string): string => value.replace(/\s+/gu, ' ').trim().toLowerCase()
 
+/** The question texts of a call: the plain `question`, or each one of a structured `questions` (one object or a list). */
+function questionTexts(question: string, questions: unknown): string[] {
+  if (question !== '') return [question]
+  const list = Array.isArray(questions) ? questions : questions === undefined ? [] : [questions]
+  return list.flatMap(item => (typeof item === 'object' && item !== null && typeof (item as { question?: unknown }).question === 'string' ? [(item as { question: string }).question] : []))
+}
+
 /**
  * @param deps - Host parts.
  * @returns The `ask` hook of the gateway: the sentence the model reads as the tool's result.
@@ -48,6 +58,8 @@ const flat = (value: string): string => value.replace(/\s+/gu, ' ').trim().toLow
 export function createAskTool(deps: AskToolDeps): (input: AskToolInput) => string {
   // The same call twice (a retry) answers the same and opens nothing twice. Kept for the life of the process, bounded.
   const answered = new Map<string, string>()
+  // Item 3: a question the host could answer is sent back ONCE per Task and kind of datum; asked again, it goes through (she may know better).
+  const sentBack = new Set<string>()
   return (input) => {
     const persona = deps.product.getPersona(input.run.personaId)
     const ticket = persona === undefined ? undefined : deps.ticketOf(persona.projectId, input.run.ticketId)
@@ -64,6 +76,16 @@ export function createAskTool(deps: AskToolDeps): (input: AskToolInput) => strin
     const key = `${input.run.assignmentId}:${flat(question)}:${flat(JSON.stringify(input.questions ?? ''))}`
     const before = answered.get(key)
     if (before !== undefined) return before
+    // Item 3 (sem pergunta boba): the answer is already in the conversation, the company's records or the draft: it goes back to her, not to the person. Never cached: asking again passes.
+    const known = deps.known?.(projectId, ticket)
+    for (const text of known === undefined ? [] : questionTexts(question, input.questions)) {
+      const answer = knownAnswerToQuestion(text, known)
+      const kindKey = answer === undefined ? '' : `${ticket.id}:${answer.label}`
+      if (answer !== undefined && !sentBack.has(kindKey)) {
+        sentBack.add(kindKey)
+        return `Já está ${answer.where}: ${answer.value}. Use isso e siga com o trabalho, sem perguntar. Se ainda assim faltar algo, pergunte de novo.`
+      }
+    }
     const used = deps.screens.get<{ count: number }>(projectId, COUNT_KIND, ticket.id)?.count ?? 0
     let result: string
     if (used >= MAX_ASKS_PER_TASK) {

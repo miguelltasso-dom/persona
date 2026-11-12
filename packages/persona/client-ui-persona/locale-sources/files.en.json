@@ -20,5 +20,6 @@
   "needRoot.title": "Choose the project folder",
   "needRoot.hint": "Files stay confined to one folder on your computer. Nothing uploads without you seeing it.",
   "needRoot.action": "Choose folder",
-  "needRoot.illustration": "Illustration: project folder awaiting selection"
+  "needRoot.illustration": "Illustration: project folder awaiting selection",
+  "header.eyebrowProject": "Work · {project}"
 }

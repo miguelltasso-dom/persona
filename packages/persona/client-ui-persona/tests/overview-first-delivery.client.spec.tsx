@@ -62,3 +62,32 @@ describe('OverviewView first delivery milestone (peak-end)', () => {
     expect(screen.getByText(shellPt['overview.firstDeliveryOnTheWay'])).toBeTruthy()
   })
 })
+
+describe('Visão geral · um CTA âmbar só (Carbon)', () => {
+  it('"Ver no quadro" do cartão da primeira entrega é secundário: o âmbar fica para "Nova tarefa"', () => {
+    renderOverview()
+    const open = screen.getByRole('button', { name: 'Ver no quadro' })
+    expect(open.className).not.toMatch(/primary/u)
+    expect(open.className).toMatch(/secondary/u)
+  })
+
+  it('a entrega que o cartão destaca não se repete em "Enquanto você estava fora"', () => {
+    render(
+      <OverviewView
+        t={t}
+        attentionItems={[]}
+        nowRows={[]}
+        awayEvents={[]}
+        firstDelivery={FIRST}
+        away={{
+          since: new Date(Date.now() - 3_600_000).toISOString(),
+          awayMinutes: 60,
+          waiting: [],
+          done: [{ id: 'd1', kind: 'delivery', body: 'Revisar contrato', deliveredTitle: 'Revisar contrato', taskLabel: 'Revisar contrato', taskId: 'task-1', persona: { id: 'nina', name: 'Nina', characterId: 'nina' } }],
+        } as never}
+      />,
+    )
+    expect(screen.getByRole('heading', { name: 'Sua equipe entregou o primeiro trabalho!' })).toBeTruthy()
+    expect(screen.queryByRole('heading', { name: 'Enquanto você estava fora' })).toBeNull()
+  })
+})

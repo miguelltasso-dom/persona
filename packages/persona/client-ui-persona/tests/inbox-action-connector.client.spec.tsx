@@ -2,7 +2,7 @@
 // D-095 / blocker de release (Keel 05/11 04:01): na Caixa de Aprovações V2 (agora a padrão) um cartão de ação externa mostra a PRÉVIA REAL
 // (para quem, assunto, corpo) e o botão principal é "Enviar", nunca "Aceitar"; o de conector mostra as três escolhas; sem prévia só dá para
 // Cancelar. Os atalhos A / D e o lote nunca decidem um desses dois.
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { ApprovalView } from '@deepseek-ai/dsh-persona-host/types'
 import { ApprovalsInboxV2, type ApprovalsInboxV2Props } from '../src/client/approvals/ApprovalsInboxV2.tsx'
@@ -13,6 +13,7 @@ import { approvalViewToItem } from '../src/client/data/adapters/approvals.ts'
 import { pt as approvalsPt } from '../src/client/locale/approvals/locales.ts'
 import { installPreviewTheme } from '../src/client/preview/install-preview-theme.ts'
 import { PreviewFrame } from '../src/client/preview/PreviewFrame.tsx'
+import { holdToApprove } from './hold-approve-helper.client.ts'
 
 installPreviewTheme()
 afterEach(() => { cleanup(); localStorage.clear() })
@@ -49,18 +50,20 @@ const detail = (): HTMLElement => document.querySelector<HTMLElement>('[data-per
 const root = (): HTMLElement => document.querySelector<HTMLElement>('[data-persona-inbox]')!
 
 describe('external action in the V2 detail: the real preview, and Enviar as the primary', () => {
-  it('shows to whom, the subject and the body, and the primary is "Enviar" (never "Aceitar" / "Revisar")', () => {
+  it('shows to whom, the subject and the body, and the primary is "Segure para enviar" (never "Aceitar" / "Revisar")', async () => {
     const { onDecideAction, onDecideItem } = mount([ACTION])
     const pane = within(detail())
     expect(pane.getByText('ana@padarialua.com.br')).toBeTruthy()
     expect(pane.getByText('Encomenda de sexta')).toBeTruthy()
     expect(pane.getByText(/Confirmo os bolos/)).toBeTruthy()
-    expect(pane.getByRole('button', { name: 'Enviar' })).toBeTruthy()
+    expect(pane.getByRole('button', { name: 'Segure para enviar' })).toBeTruthy()
     expect(pane.getByRole('button', { name: 'Cancelar' })).toBeTruthy()
     expect(pane.queryByRole('button', { name: /Aceitar|Aprovar|Revisar|Dispensar/ })).toBeNull()
     expect(detail().querySelector('[aria-keyshortcuts]')).toBeNull()
-    fireEvent.click(pane.getByRole('button', { name: 'Enviar' }))
-    expect(onDecideAction).toHaveBeenCalledWith(expect.objectContaining({ approvalId: 'act-1', choice: 'send' }))
+    fireEvent.click(pane.getByRole('button', { name: 'Segure para enviar' }))
+    expect(onDecideAction).not.toHaveBeenCalled() // um clique não envia
+    await holdToApprove(pane.getByRole('button', { name: 'Segure para enviar' }))
+    await waitFor(() => { expect(onDecideAction).toHaveBeenCalledWith(expect.objectContaining({ approvalId: 'act-1', choice: 'send' })) })
     expect(onDecideItem).not.toHaveBeenCalled()
   })
 
@@ -75,20 +78,20 @@ describe('external action in the V2 detail: the real preview, and Enviar as the 
     const pay = pending(approvalViewToItem(actionView({ id: 'act-pay' }, preview({ actionClass: 'pay', verb: 'pay', connectorName: 'Mercado Pago', amount: 'R$ 120,00', payee: 'Gráfica Boa Impressão', to: undefined, subject: undefined, body: undefined, canRemember: false }))))
     mount([pay])
     const pane = within(detail())
-    expect(pane.getByRole('button', { name: 'Pagar' })).toBeTruthy()
+    expect(pane.getByRole('button', { name: 'Segure para pagar' })).toBeTruthy()
     expect(pane.getByText('Isso não dá para desfazer depois.')).toBeTruthy()
     expect(pane.queryByText(/Não perguntar de novo/)).toBeNull()
   })
 
   it('a cut preview cannot be sent (Enviar off) and says why', () => {
     mount([BLIND_PREVIEW])
-    expect((within(detail()).getByRole('button', { name: 'Enviar' }) as HTMLButtonElement).disabled).toBe(true)
+    expect((within(detail()).getByRole('button', { name: 'Segure para enviar' }) as HTMLButtonElement).disabled).toBe(true)
     expect(within(detail()).getByText(/não dá para enviar às cegas/)).toBeTruthy()
   })
 
   it('with no way to answer wired it is read-only: no button that looks alive', () => {
     mount([ACTION], { onDecideAction: undefined })
-    expect(within(detail()).queryByRole('button', { name: 'Enviar' })).toBeNull()
+    expect(within(detail()).queryByRole('button', { name: 'Segure para enviar' })).toBeNull()
     expect(within(detail()).queryByRole('button', { name: 'Cancelar' })).toBeNull()
   })
 

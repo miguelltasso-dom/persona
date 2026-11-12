@@ -21,7 +21,6 @@ import {
   stickerUrl,
   Toast,
   ToastRegion,
-  ActivityGroup,
   FixedRowVirtualScroller,
   type ActivityGroupProps,
   type ReactionId,
@@ -33,6 +32,8 @@ import { MoveMessageSubject } from './MoveMessageSubject.tsx'
 import { subjectDisplayName } from './SubjectBar.tsx'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
 import { TeamChannelStrip } from '../team/TeamChannelStrip.tsx'
+import { TeamCompactBar } from '../team/TeamCompactBar.tsx'
+import { useStageCollapsed } from '../team/stage-collapse.ts'
 import { isHeldAfterStop } from './queued-after-stop.ts'
 import { QueuedMessageBubble, type QueuedMessageItem } from './QueuedMessageBubble.tsx'
 import { nextQueueSeq, readQueuedMessages, writeQueuedMessages } from './composer-queue-store.ts'
@@ -43,13 +44,14 @@ import { MessageQuoteToolbar, type MessageQuote } from './MessageQuoteToolbar.ts
 import type { ComposerSlashActions } from './composer-slash-commands.ts'
 import type { EngineLimitsUi } from '../remote/engine-limits.ts'
 import { MarkdownBody } from './markdown/MarkdownBody.tsx'
-import { MessageSprig } from './MessageSprig.tsx'
 import { isBubblesEnabled } from './bubbles-flag.ts'
 import { isLampLightEnabled, useLampLight } from './lamp-light.ts'
 import type { HostQueueControls } from './host-queue.ts'
 import type { HostTurnControls } from './host-turn.ts'
 import { useStreamAnnouncement } from './use-stream-announcement.ts'
 import { TypingIndicator } from './TypingIndicator.tsx'
+import { WorkStepLine } from './work-step/WorkStepLine.tsx'
+import { TurnStepSummary } from './work-step/TurnStepSummary.tsx'
 import { typingPersona } from './typing-indicator.ts'
 import { bubbleNeedsWidth, groupPositions, type GroupPosition } from './message-grouping.ts'
 import { SubjectBar, type SubjectBarProps } from './SubjectBar.tsx'
@@ -70,6 +72,8 @@ import { HarnessEventLine } from './HarnessEventLine.tsx'
 import { DailyBriefCard, type DailyBriefActions } from './DailyBriefCard.tsx'
 import { useMessageFocus } from './message-focus.ts'
 import { PersonaAskCard, hasAskChips } from '../ask/PersonaAskCard.tsx'
+import { PersonaChoiceCard } from '../ask/PersonaChoiceCard.tsx'
+import { IndicatorOffer } from '../indicators/IndicatorOffer.tsx'
 import { HandoffGroup, HandoffLine, ReviewLine } from './TeamLine.tsx'
 import { ReviewedBySeal } from '../teamwork/ReviewedBySeal.tsx'
 import { analyzeTeamStreamNoise, groupHelpRuns, handoffLineText, reviewLineText, type HandoffLineUi } from '../teamwork/team-lines-model.ts'
@@ -79,8 +83,12 @@ import type { TaskProposalsBinding } from '../proposal/use-connected-task-propos
 import type { PersonaAsksBinding } from '../ask/use-connected-persona-asks.ts'
 import { isTeamworkEnabled } from './teamwork-flag.ts'
 import { isSystemActor } from './system-actor.ts'
+import { isProductVoice, SystemLine } from './SystemLine.tsx'
+import { roleAfterName } from './author-role.ts'
 import { TeamPlanCard } from './TeamPlanCard.tsx'
 import { DeliveryCard } from './DeliveryCard.tsx'
+import { deliveryArt } from './delivery-art.ts'
+import type { ResponderEngine } from './responder-engine.ts'
 import { DraftFilesLine } from './draft-files/DraftFilesLine.tsx'
 import { ActionPreviewCard, type ActionDecision } from './ActionPreviewCard.tsx'
 import { ActionEventLine } from './ActionEventLine.tsx'
@@ -186,6 +194,8 @@ export interface GeneralChannelViewProps extends PropsLocale<'persona.chat'> {
   /** P0-19: outro motor conectado → "Usar {motor} enquanto isso". Sem handler, o botão não existe. */
   readonly otherEngine?: { readonly name: string; readonly onUse: () => void } | undefined
   readonly responderAutonomy?: import('../persona-editor/persona-draft.ts').AutonomyLevel | undefined
+  /** DESIGN-01 #03: a pílula "Modelo · Esforço" da persona que responde (o composer decide quando aparece). */
+  readonly responderEngine?: ResponderEngine | undefined
   /** UX-PHASE §6: messages waiting for the responder's current step; local queue when the host has none. */
   readonly queuedMessages?: readonly QueuedMessageItem[] | undefined
   readonly onSendQueuedNow?: ((id: string) => void) | undefined
@@ -290,6 +300,7 @@ export function GeneralChannelView({
   onSeeUsage,
   otherEngine,
   responderAutonomy,
+  responderEngine,
   queuedMessages,
   onSendQueuedNow,
   onEditQueued,
@@ -560,6 +571,7 @@ export function GeneralChannelView({
     ...(onSeeUsage === undefined ? {} : { onSeeUsage }),
     ...(otherEngine === undefined ? {} : { otherEngine }),
     ...(responderAutonomy === undefined ? {} : { responderAutonomy }),
+    ...(responderEngine === undefined ? {} : { responderEngine }),
     ...(replyTarget === undefined ? {} : { replyTarget }),
     ...(onSendReply === undefined ? {} : { onSendReply }),
     ...(opinionTarget === null ? {} : { opinionContext: opinionTarget, onClearOpinionContext: () => { setOpinionTarget(null) } }),
@@ -574,6 +586,9 @@ export function GeneralChannelView({
   }
   const userName = messages.find(message => message.authorId === 'user')?.authorName ?? t('message.you')
   const scrollRef = useRef<HTMLDivElement>(null)
+  // DESIGN-01-MUSE cena 02: a faixa grande vira a barra de 56 px quando a PESSOA rola o fio (nunca por contagem de mensagens); mensagem nova não a reabre.
+  const stripRef = useRef<HTMLDivElement>(null)
+  const { collapsed: stageCollapsed, showStage } = useStageCollapsed(scrollRef, stripRef, members.length > 0 && !loading)
   const lastId = messages[messages.length - 1]?.id
   // P1-4: "{persona} está escrevendo…" (atrás da mesma flag do controle de trabalho: só com `turnControls`).
   const typing = turnControls === undefined ? null : typingPersona(messages, members)
@@ -619,7 +634,7 @@ export function GeneralChannelView({
             <p className={styles.subtitle}>{t('header.subtitle')}</p>
           </div>
         )}
-        {singleBar && <ChannelTeamFaces members={members} label={t('header.teamFaces')} />}
+        {/* Muse 11/11 14:10: no #geral a pílula de rostos do cabeçalho NÃO aparece nunca: ou a faixa grande ou a barra de 56 px já mostra os mesmos rostos. */}
         <div className={styles.headerTools}>
           <IconButton
             label={t('header.search')}
@@ -670,14 +685,24 @@ export function GeneralChannelView({
 
       <div className={styles.scroll} ref={scrollRef} tabIndex={0} role="region" aria-label={t('header.channelGeneral')}>
         <div className={styles.column}>
-          <TeamChannelStrip
+          <TeamCompactBar
             t={shellT}
             members={members}
-            loading={loading}
-            onBuildTeam={onBuildTeam}
-            {...(personaFace === undefined || personaMenu === undefined ? {} : { personaFace, personaMenu })}
-            {...(personaCardTrigger === undefined ? {} : { personaCardTrigger })}
+            visible={stageCollapsed}
+            writing={typing?.name}
+            onShowStage={showStage}
+            personaFace={personaFace}
           />
+          <div ref={stripRef} data-persona-stage="">
+            <TeamChannelStrip
+              t={shellT}
+              members={members}
+              loading={loading}
+              onBuildTeam={onBuildTeam}
+              {...(personaFace === undefined || personaMenu === undefined ? {} : { personaFace, personaMenu })}
+              {...(personaCardTrigger === undefined ? {} : { personaCardTrigger })}
+            />
+          </div>
           {passThroughFollowers.length > 0 && (
             <ul className={styles.passThroughList} aria-live="polite">
               {passThroughFollowers.map(row => (
@@ -812,6 +837,7 @@ export function GeneralChannelView({
               />
             ))}
             {typing !== null && <TypingIndicator t={t} member={typing} />}
+            {typing !== null && <WorkStepLine t={t} member={typing} />}
           </div>
         </div>
       </div>
@@ -967,7 +993,7 @@ export function MessageList({ t, team = null, messages: allMessages, gestorPlans
   const opinionBlocks = useMemo(() => buildOpinionBlocks(messages), [messages])
   // A block is taller than a fixed row and its other lines draw nothing: a thread with a block is not windowed.
   // IV-10 / P1-9: os cartões com chips e botões são mais altos que a linha fixa da lista virtual (104 px): com eles no fio a lista não virtualiza.
-  const hasTallCards = (personaAsks !== undefined || taskProposals !== undefined)
+  const hasTallCards = messages.some(message => message.indicatorOffer !== undefined) || (personaAsks !== undefined || taskProposals !== undefined)
     && messages.some(message => (message.personaAsk !== undefined && personaAsks !== undefined) || (message.taskProposal !== undefined && taskProposals !== undefined))
   const virtualized = messages.length >= CHAT_MESSAGE_VIRTUAL_MIN && fanoutBlocks.size === 0 && opinionBlocks.size === 0 && !hasTallCards
   // CV-9 (atrás da flag `persona.flag.bubbles`): quem forma um grupo (mesmo autor, menos de 5 min, sem cartão no meio).
@@ -1093,11 +1119,14 @@ export function MessageList({ t, team = null, messages: allMessages, gestorPlans
         />
       )
     }
+    // Muse (ticket de leigo): o que o PRODUTO diz ("Boas-vindas à Persona.") é uma linha centrada, sem autor — nunca a inicial "S" de uma "pessoa" que não existe.
+    if (isProductVoice(message)) return <SystemLine text={message.body} {...(rowTag === undefined ? {} : { rowTag })} />
     if (message.deliveryCard !== undefined && isTeamworkEnabled()) {
       const delivery = message.deliveryCard.reviewSkippedCount === undefined && teamNoise.reviewSkippedCount > 0
         ? { ...message.deliveryCard, reviewSkippedCount: teamNoise.reviewSkippedCount }
         : message.deliveryCard
-      return <DeliveryCard t={t} delivery={delivery} {...(rowTag === undefined ? {} : { rowTag })} {...(onOpenApprovalItem === undefined ? {} : { onOpenApproval: onOpenApprovalItem })} {...(onOpenTaskOnBoard === undefined ? {} : { onOpenTask: onOpenTaskOnBoard })} />
+      const art = deliveryArt(messages, delivery)
+      return <DeliveryCard t={t} delivery={delivery} {...(art === undefined ? {} : { art })} {...(rowTag === undefined ? {} : { rowTag })} {...(onOpenApprovalItem === undefined ? {} : { onOpenApproval: onOpenApprovalItem })} {...(onOpenTaskOnBoard === undefined ? {} : { onOpenTask: onOpenTaskOnBoard })} />
     }
     // D-084 §3: o pedido de iniciativa ("{persona} quer usar o {conector} para …") com as três saídas.
     if (message.initiativeAsk !== undefined && isActionPreviewEnabled()) {
@@ -1134,6 +1163,44 @@ export function MessageList({ t, team = null, messages: allMessages, gestorPlans
     }
     if (message.teamReview !== undefined && reviewLineText(message.teamReview) !== undefined && isTeamworkEnabled()) {
       return <ReviewLine t={t} line={message.teamReview} timeLabel={message.timeLabel} {...(rowTag === undefined ? {} : { rowTag })} {...(onOpenTaskOnBoard === undefined ? {} : { onOpenTask: onOpenTaskOnBoard })} />
+    }
+    // Colheita item 19a: o número da persona com "Fixar na Visão geral". As palavras dela seguem como mensagem e o número entra logo abaixo.
+    if (message.indicatorOffer !== undefined && message.personaAsk === undefined) {
+      const withWords = message.body.trim() !== ''
+      const offer = <IndicatorOffer offer={message.indicatorOffer} personaName={message.authorName} continued={withWords} {...(rowTag === undefined ? {} : { rowTag })} />
+      return withWords
+        ? (
+          <>
+            <ChannelMessageRow {...rowProps(index)} {...(rowTag === undefined ? {} : { rowTag })} />
+            {offer}
+          </>
+        )
+        : offer
+    }
+    // Colheita item 11: o cartão de escolha do fim da vez. As palavras da persona seguem como mensagem e o cartão entra logo abaixo
+    // (sem repetir o rosto); uma mensagem só com o cartão mostra o rosto e o nome no próprio cartão.
+    if (message.personaAsk?.kind === 'fimDoTurno' && personaAsks !== undefined && hasAskChips(message.personaAsk)) {
+      const withWords = message.body.trim() !== ''
+      const card = (
+        <PersonaChoiceCard
+          t={t}
+          ask={message.personaAsk}
+          live={personaAsks.liveById[message.personaAsk.askId]}
+          characterId={message.personaAsk.characterId}
+          timeLabel={message.timeLabel}
+          continued={withWords}
+          onAnswer={personaAsks.onAnswer}
+          {...(rowTag === undefined ? {} : { rowTag })}
+        />
+      )
+      return withWords
+        ? (
+          <>
+            <ChannelMessageRow {...rowProps(index)} {...(rowTag === undefined ? {} : { rowTag })} />
+            {card}
+          </>
+        )
+        : card
     }
     // IV-10 (atrás de `persona.flag.personaAsk`): a pergunta com chips vira o cartão; sem a flag, o corpo simples do host aparece como antes.
     if (message.personaAsk !== undefined && personaAsks !== undefined && hasAskChips(message.personaAsk)) {
@@ -1337,7 +1404,8 @@ function ChannelMessageRow(props: {
           <div className={styles.meta}>
             <span className={styles.author}>{message.authorName}</span>
             <span className={styles.metaSoft}>
-              {authorRole !== undefined && authorRole.length > 0 ? ` · ${authorRole}` : ''}
+              {/* Muse (ticket de leigo): função igual ao nome ("Probe · Probe") aparece uma vez só. */}
+              {roleAfterName(authorRole, message.authorName) === '' ? '' : ` · ${roleAfterName(authorRole, message.authorName)}`}
               {' · '}
               <time dateTime={message.timeLabel}>{message.timeLabel}</time>
             </span>
@@ -1380,7 +1448,6 @@ function ChannelMessageRow(props: {
             data-position={position}
             data-wide={wide ? '' : undefined}
           >
-            {!isUser && (position === 'first' || position === 'single') && <MessageSprig className={styles.sprig} />}
             {isUser
               ? <p className={styles.text}>{message.body}</p>
               : <div className={styles.text} {...streamingAttrs}><MarkdownBody source={message.body} t={t} streaming={message.streaming === true} /></div>}
@@ -1471,11 +1538,11 @@ function ChannelMessageRow(props: {
         {inlineActivity && (
           <div className={styles.messageActivity} aria-label={t('context.activityLabel')}>
             {turnActivityFolds.map(fold => (
-              <ActivityGroup
+              <TurnStepSummary
                 key={fold.persona.name}
-                persona={fold.persona}
+                t={t}
                 items={fold.items}
-                labels={turnActivityLabels}
+                moreCount={fold.moreCount}
               />
             ))}
           </div>

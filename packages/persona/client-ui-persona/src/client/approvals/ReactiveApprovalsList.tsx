@@ -144,7 +144,7 @@ function ReactiveApprovalRow({
       >
         {stamped && (
           <div className={styles.approvalStamp}>
-            <ApprovedStamp label={t('stamp.approved')} animate seed={item.id} />
+            <ApprovedStamp label={t(item.stampKey ?? 'stamp.approved')} animate seed={item.id} />
             {rememberStampNote !== null && (
               <p className={styles.rememberStampNote}>{rememberStampNote}</p>
             )}
@@ -261,7 +261,7 @@ function ReactiveApprovalRow({
                       onClick={() => { onDecideItem?.(item, false) }}
                       disabled={onDecideItem === undefined || leaving || deciding || (!controlled && exitStampId !== null)}
                     >
-                      {t('action.dismiss')}
+                      {t(item.dismissKey ?? 'action.dismiss')}
                     </Button>
                   </div>
                 )}

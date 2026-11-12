@@ -10,7 +10,6 @@ import {
   BrandIcon,
   Button,
   Card,
-  EmptyState,
   MilestoneCard,
   Notice,
   Toast,
@@ -23,6 +22,8 @@ import { DAILY_NOW_FAILED, planDailyNow, type DailyNowAction, type DailyNowNotic
 import type { AwaySummaryEvent, PersonaNowSnapshot } from '../team/persona-work-state.ts'
 import type { AwayLive } from '../remote/map-host-ui.ts'
 import { AwayWhileOutPanel } from './AwayWhileOutPanel.tsx'
+import { AttentionCalmBanner } from './AttentionCalmBanner.tsx'
+import { coordinationOf } from './now-groups.ts'
 import { OverviewNowStrip } from './OverviewNowStrip.tsx'
 import type { Decision } from '../decisions/decision-types.ts'
 import { DecisionFeedback } from '../decisions/DecisionFeedback.tsx'
@@ -30,7 +31,7 @@ import type { ReplyTarget } from '../answer/reply-target.ts'
 import { DecisionStateNote } from '../decisions/DecisionStateNote.tsx'
 import { blockingDecisions as selectBlocking, openBlockingCount } from '../decisions/decision-selectors.ts'
 import { useDecisionListMotion } from '../decisions/use-decision-list-motion.ts'
-import { personaPortraitSrc } from '../approvals/approvals-ui-helpers.ts'
+import { resolvePersonaFace } from '../approvals/approvals-ui-helpers.ts'
 import styles from './OverviewView.module.css'
 
 export interface OverviewViewProps extends PropsLocale<'persona.shell'> {
@@ -63,12 +64,26 @@ export interface OverviewViewProps extends PropsLocale<'persona.shell'> {
   /** "Retomar" no aviso "O resumo do dia está pausado": só existe se o host aceita retomar a rotina (sem isto, o aviso não tem ação). */
   readonly onResumeDailyBrief?: (() => void | Promise<void>) | undefined
   readonly onOpenAwayTask?: ((taskId: string) => void) | undefined
-  /** Live first task (C8); falls back to locale copy when absent. */
+  /** A task the board already has and nobody is working on (C8): the block opens it on the board. */
   readonly suggestedTask?: { readonly id: string; readonly title: string } | undefined
+  /**
+   * A request derived from what the person wrote about the business (host `suggestFirstRequests`). Without it, and without a live task,
+   * the block does not exist: the screen never invents an example for a company it does not know.
+   */
+  readonly companySuggestion?: { readonly title: string } | undefined
+  /**
+   * "Pedir a {Coordenação} agora": sends the text to the thread and opens it. Absent = the block has no button, so it is not drawn.
+   * Fire and forget: a send that fails shows up in the thread as "Não enviado · Tentar de novo".
+   */
+  readonly onAskCoordination?: ((text: string) => void) | undefined
   /** The team's first finished task ever (Prism wires from the board); shown once as a milestone (peak-end). */
   readonly firstDelivery?: FirstDelivery | undefined
   /** Guided first delivery requested during onboarding is currently in progress (FIRST-DELIVERY-SPEC). */
   readonly firstDeliveryPending?: boolean | undefined
+  /** Item 13: a faixa "N pessoas da equipe estão sem IA" e o modal que liga a equipe toda (`ConnectedTeamAi`). Ausente = não existe. */
+  readonly teamAiSlot?: ReactNode
+  /** Item 19a: a seção "Seus números" (os números fixados, atualizados em silêncio). Ausente = não existe. */
+  readonly numbersSlot?: ReactNode
 }
 
 export interface FirstDelivery {
@@ -113,8 +128,12 @@ export function OverviewView({
   onResumeDailyBrief,
   onOpenAwayTask,
   suggestedTask,
+  companySuggestion,
+  onAskCoordination,
   firstDelivery,
   firstDeliveryPending,
+  teamAiSlot,
+  numbersSlot,
 }: OverviewViewProps): ReactNode {
   const [dismissedTaskId, setDismissedTaskId] = useState<string | null>(null)
   // "Resumir o dia": o botão vira "Resumindo…" (desabilitado) durante a chamada; o resultado vira o cartão (posted) ou um aviso neutro com a ação que resolve.
@@ -189,8 +208,14 @@ export function OverviewView({
   useDecisionListMotion(attentionListRef, shownDecisions.map(d => d.id), attentionTitleRef)
   // The one number every screen reads: pending + failed, never a count of its own.
   const pendingCount = hasDecisions ? openBlockingCount(decisions) : attentionItems.length
-  const showFirstTask = (hasDecisions ? blockingDecisions.length === 0 : attentionItems.length === 0) && !teamHasActiveTask
-  const firstTaskTitle = suggestedTask?.title ?? t('overview.suggestedTaskBody')
+  const calm = hasDecisions ? blockingDecisions.length === 0 : attentionItems.length === 0
+  const coordination = coordinationOf(nowRows)
+  const quiet = calm && !teamHasActiveTask
+  // One block, two honest sources: a real task on the board, or a request from the company profile addressed to who coordinates.
+  const liveTask = quiet && suggestedTask !== undefined && onOpenAwayTask !== undefined ? suggestedTask : undefined
+  const profileAsk = quiet && liveTask === undefined && companySuggestion !== undefined && onAskCoordination !== undefined && coordination !== undefined
+    ? { title: companySuggestion.title, who: coordination.member.name, send: onAskCoordination }
+    : undefined
 
   // Placeholder member names ("Você", "Owner") are not names: greet without one.
   const firstName = userName?.trim().split(/\s+/u)[0] ?? ''
@@ -266,8 +291,9 @@ export function OverviewView({
             contributorsLabel={t('overview.firstDelivery.who')}
             actions={(
               <>
+                {/* One amber button per screen: "Nova tarefa" (or "Pedir a …"). The celebration's button is a secondary one (Carbon). */}
                 <Button
-                  variant="primary"
+                  variant="secondary"
                   onClick={() => {
                     dismissMilestone()
                     if (onOpenAwayTask !== undefined) onOpenAwayTask(firstDelivery.taskId)
@@ -289,123 +315,124 @@ export function OverviewView({
         </section>
       )}
 
+      {teamAiSlot}
+
+      {numbersSlot}
+
       <div className={styles.grid}>
         <div className={styles.mainCol}>
-          <Card
-            as="section"
-            titleAs="h2"
-            aria-labelledby="persona-attention-title"
-            eyebrow={pendingCount > 0 ? t(pendingCount === 1 ? 'overview.attentionCount.one' : 'overview.attentionCount', { count: String(pendingCount) }) : undefined}
-            title={<span id="persona-attention-title" ref={attentionTitleRef} tabIndex={-1}>{t('overview.attentionTitle')}</span>}
-            className={styles.attentionCard}
-          >
-            <CardSprig />
-            {hasDecisions ? (
-              blockingDecisions.length > 0 ? (
-                <>
-                  <ul className={styles.attentionList} role="list" ref={attentionListRef}>
-                    {shownDecisions.map((decision) => {
-                      // The store resolved the real persona's portrait; the name-based lookup is only a fallback.
-                      const portrait = decision.requester.avatarSrc ?? personaPortraitSrc(undefined, decision.requester.name)
-                      const titleId = `persona-decision-${decision.id}`
-                      const leaving = decision.state === 'accepted' || decision.state === 'declined'
-                      return (
-                        <li
-                          key={decision.id}
-                          data-decision-id={decision.id}
-                          data-decision-state={decision.state}
-                          className={`${styles.attentionItem}${leaving ? ` ${decision.state === 'declined' ? styles.attentionLeavingDeclined : styles.attentionLeaving}` : ''}`}
-                        >
-                          <Avatar
-                            name={decision.requester.name}
-                            size={32}
-                            shape="portrait"
-                            decorative
-                            {...(portrait === undefined ? {} : { src: portrait })}
-                          />
-                          <span className={styles.attentionText}>
-                            <span className={styles.attentionKind}>{t(`decision.kind.${decision.kind}`)} · {decision.requester.name}</span>
-                            <span id={titleId} className={styles.attentionTitle}>{decision.title}</span>
-                          </span>
-                          {decision.state === 'deciding' && (
-                            <Button size="s" variant="secondary" loading aria-describedby={titleId}>
-                              {t('decision.approve')}
-                            </Button>
-                          )}
-                          {decision.state === 'accepted' && (
-                            <ApprovedStamp label={t('decision.live.accepted', { title: decision.title })} animate seed={decision.id} />
-                          )}
-                          {(decision.state === 'declined' || decision.state === 'failed') && (
-                            <DecisionStateNote
-                              state={decision.state}
-                              t={t}
-                              {...(onDecide === undefined ? {} : { onRetry: () => { onDecide(decision.id, true) } })}
+          {calm ? (
+            <AttentionCalmBanner t={t} coordination={coordination === undefined ? undefined : { id: coordination.member.id, name: coordination.member.name }} />
+          ) : (
+            <Card
+              as="section"
+              titleAs="h2"
+              aria-labelledby="persona-attention-title"
+              eyebrow={pendingCount > 0 ? t(pendingCount === 1 ? 'overview.attentionCount.one' : 'overview.attentionCount', { count: String(pendingCount) }) : undefined}
+              title={<span id="persona-attention-title" ref={attentionTitleRef} tabIndex={-1}>{t('overview.attentionTitle')}</span>}
+              className={styles.attentionCard}
+            >
+              <CardSprig />
+              {hasDecisions ? (
+                blockingDecisions.length > 0 ? (
+                  <>
+                    <ul className={styles.attentionList} role="list" ref={attentionListRef}>
+                      {shownDecisions.map((decision) => {
+                        // D-069: a persona is never a letter. The store's real portrait wins, then the known character, then a gallery animal for an
+                        // id with no portrait; the system author ("Equipe", no persona id) gets the team icon on a calm disc.
+                        const portrait = resolvePersonaFace({
+                          id: decision.requester.personaId,
+                          name: decision.requester.name,
+                          avatarSrc: decision.requester.avatarSrc,
+                        })
+                        const titleId = `persona-decision-${decision.id}`
+                        const leaving = decision.state === 'accepted' || decision.state === 'declined'
+                        return (
+                          <li
+                            key={decision.id}
+                            data-decision-id={decision.id}
+                            data-decision-state={decision.state}
+                            className={`${styles.attentionItem}${leaving ? ` ${decision.state === 'declined' ? styles.attentionLeavingDeclined : styles.attentionLeaving}` : ''}`}
+                          >
+                            <Avatar
+                              name={decision.requester.name}
+                              size={32}
+                              shape="portrait"
+                              decorative
+                              {...(portrait === undefined
+                                ? { icon: <BrandIcon name="equipe" size={18} /> }
+                                : { src: portrait })}
                             />
-                          )}
-                          {decision.state === 'pending' && onReply !== undefined && replyTargets?.get(decision.id) !== undefined && (
-                            <Button size="s" variant="primary" aria-describedby={titleId} onClick={() => { onReply(replyTargets.get(decision.id)!) }}>
-                              {t('decision.reply')}
-                            </Button>
-                          )}
-                          {decision.state === 'pending' && !(onReply !== undefined && replyTargets?.get(decision.id) !== undefined) && (
-                            decision.risk === 'low' ? (
-                              <Button size="s" variant="primary" aria-describedby={titleId} onClick={() => { onDecide?.(decision.id, true) }}>
+                            <span className={styles.attentionText}>
+                              <span className={styles.attentionKind}>{t(`decision.kind.${decision.kind}`)} · {decision.requester.name}</span>
+                              <span id={titleId} className={styles.attentionTitle}>{decision.title}</span>
+                            </span>
+                            {decision.state === 'deciding' && (
+                              <Button size="s" variant="secondary" loading aria-describedby={titleId}>
                                 {t('decision.approve')}
                               </Button>
-                            ) : (
-                              <Button
-                                size="s"
-                                variant="secondary"
-                                aria-describedby={titleId}
-                                onClick={() => { onNavigate?.('approvals', { focus: decision.id }) }}
-                              >
-                                {t('decision.review')}
+                            )}
+                            {decision.state === 'accepted' && (
+                              <ApprovedStamp label={t('decision.live.accepted', { title: decision.title })} animate seed={decision.id} />
+                            )}
+                            {(decision.state === 'declined' || decision.state === 'failed') && (
+                              <DecisionStateNote
+                                state={decision.state}
+                                t={t}
+                                {...(onDecide === undefined ? {} : { onRetry: () => { onDecide(decision.id, true) } })}
+                              />
+                            )}
+                            {decision.state === 'pending' && onReply !== undefined && replyTargets?.get(decision.id) !== undefined && (
+                              <Button size="s" variant="primary" aria-describedby={titleId} onClick={() => { onReply(replyTargets.get(decision.id)!) }}>
+                                {t('decision.reply')}
                               </Button>
-                            )
-                          )}
-                        </li>
-                      )
-                    })}
-                  </ul>
-                  {blockingDecisions.length > 3 && (
-                    <div className={styles.seeAllRow}>
-                      <Button variant="ghost" size="s" onClick={() => { onNavigate?.('approvals') }}>
-                        {t('overview.seeAllDecisions', { count: String(blockingDecisions.length) })}
+                            )}
+                            {decision.state === 'pending' && !(onReply !== undefined && replyTargets?.get(decision.id) !== undefined) && (
+                              decision.risk === 'low' ? (
+                                <Button size="s" variant="primary" aria-describedby={titleId} onClick={() => { onDecide?.(decision.id, true) }}>
+                                  {t('decision.approve')}
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="s"
+                                  variant="secondary"
+                                  aria-describedby={titleId}
+                                  onClick={() => { onNavigate?.('approvals', { focus: decision.id }) }}
+                                >
+                                  {t('decision.review')}
+                                </Button>
+                              )
+                            )}
+                          </li>
+                        )
+                      })}
+                    </ul>
+                    {blockingDecisions.length > 3 && (
+                      <div className={styles.seeAllRow}>
+                        <Button variant="ghost" size="s" onClick={() => { onNavigate?.('approvals') }}>
+                          {t('overview.seeAllDecisions', { count: String(blockingDecisions.length) })}
+                        </Button>
+                      </div>
+                    )}
+                  </>
+                ) : null
+              ) : attentionItems.length > 0 ? (
+                <ul className={styles.attentionList}>
+                  {attentionItems.map(item => (
+                    <li key={item} className={styles.attentionItem}>
+                      <span className={styles.attentionIcon} aria-hidden="true">
+                        <UiIcon name="clock" size={18} strokeWidth={2} />
+                      </span>
+                      <span className={styles.attentionText}>{item}</span>
+                      <Button size="s" variant="secondary" onClick={() => { onNavigate?.('approvals') }}>
+                        {t('overview.attentionAction')}
                       </Button>
-                    </div>
-                  )}
-                </>
-              ) : (
-                <EmptyState
-                  compact
-                  illustration={ILLUSTRATIONS['empty-inbox']}
-                  title={t('overview.attentionEmptyTitle')}
-                  body={t('overview.attentionEmptyBody')}
-                />
-              )
-            ) : attentionItems.length > 0 ? (
-              <ul className={styles.attentionList}>
-                {attentionItems.map(item => (
-                  <li key={item} className={styles.attentionItem}>
-                    <span className={styles.attentionIcon} aria-hidden="true">
-                      <UiIcon name="clock" size={18} strokeWidth={2} />
-                    </span>
-                    <span className={styles.attentionText}>{item}</span>
-                    <Button size="s" variant="secondary" onClick={() => { onNavigate?.('approvals') }}>
-                      {t('overview.attentionAction')}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <EmptyState
-                compact
-                illustration={ILLUSTRATIONS['empty-inbox']}
-                title={t('overview.attentionEmptyTitle')}
-                body={t('overview.attentionEmptyBody')}
-              />
-            )}
-          </Card>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </Card>
+          )}
 
           <AwayWhileOutPanel
             t={t}
@@ -415,31 +442,36 @@ export function OverviewView({
             onOpenApproval={onNavigate === undefined ? undefined : (approvalId) => { onNavigate('approvals', { focus: approvalId }) }}
             onDismiss={onDismissAway}
             onScreenAttention={shownDecisions.map(decision => ({ id: decision.id, title: decision.title }))}
-            onOpenAttention={() => { attentionTitleRef.current?.focus() }}
+            omitDelivery={showMilestone ? { taskId: firstDelivery.taskId, title: firstDelivery.title } : undefined}
           />
 
-          {showFirstTask && (
+          {(liveTask !== undefined || profileAsk !== undefined) && (
             <Card
               as="section"
               titleAs="h2"
               eyebrow={t('overview.suggestedTaskTitle')}
-              title={firstTaskTitle}
+              title={liveTask?.title ?? profileAsk?.title}
               tone="brand"
+              data-persona-suggested-task=""
             >
-              <p className={styles.introLine}>{t('overview.teamIntroLine')}</p>
               <div className={styles.cardActions}>
-                <Button
-                  variant="secondary"
-                  icon={<UiIcon name="arrowRight" size={18} strokeWidth={2.2} />}
-                  onClick={() => {
-                    if (suggestedTask !== undefined && onOpenAwayTask !== undefined) onOpenAwayTask(suggestedTask.id)
-                    else onNavigate?.('channels')
-                  }}
-                >
-                  {suggestedTask !== undefined && onOpenAwayTask !== undefined
-                    ? t('overview.suggestedTaskOpenBoard')
-                    : t('overview.suggestedTaskAction')}
-                </Button>
+                {liveTask !== undefined ? (
+                  <Button
+                    variant="secondary"
+                    icon={<UiIcon name="arrowRight" size={18} strokeWidth={2.2} />}
+                    onClick={() => { onOpenAwayTask?.(liveTask.id) }}
+                  >
+                    {t('overview.suggestedTaskOpenBoard')}
+                  </Button>
+                ) : profileAsk !== undefined && (
+                  <Button
+                    variant="primary"
+                    icon={<UiIcon name="arrowRight" size={18} strokeWidth={2.2} />}
+                    onClick={() => { profileAsk.send(profileAsk.title) }}
+                  >
+                    {t('overview.askCoordination', { name: profileAsk.who })}
+                  </Button>
+                )}
               </div>
             </Card>
           )}

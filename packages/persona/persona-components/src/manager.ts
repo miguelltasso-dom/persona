@@ -120,7 +120,13 @@ export class ComponentManager {
       const free = statfsSync(this.options.root)
       if (free.bavail * free.bsize < entry.bytes * 3) return this.fail(kind, 'disk')
       await this.download(entry, part)
-      await extractZip(part, { dir: staging })
+      if (entry.format === 'tar.gz') {
+        // The worker loads this archive directly; extraction would only move the files it expects to stream.
+        mkdirSync(staging, { recursive: true })
+        renameSync(part, join(staging, 'model.tar.gz'))
+      } else {
+        await extractZip(part, { dir: staging })
+      }
       mkdirSync(join(this.options.root, kind), { recursive: true })
       rmSync(installed, { recursive: true, force: true })
       renameSync(staging, installed)

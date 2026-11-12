@@ -34,6 +34,11 @@ export interface Trigger {
   text: string
   channel?: ChannelRef
   url?: string
+  /**
+   * Harvest 19b: the trigger came from an external mailbox. A turn it starts may read and answer, but never auto-approves an
+   * outbound send: the person decides every send (the authority table reads this flag).
+   */
+  viaEmail?: true
   /** Source-native details for adapters; the core never interprets them. */
   meta: Record<string, unknown>
 }

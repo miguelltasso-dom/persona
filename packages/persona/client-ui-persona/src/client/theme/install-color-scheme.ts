@@ -105,23 +105,72 @@ export function installPersonaColorScheme(): () => void {
   }
 }
 
-/** UX-GUIDE §2.3: pause every ambient loop (breathing, blink, seals, shimmer) while the window is hidden or unfocused. */
+/**
+ * DESIGN-01 §2.7 rule 3: one body attribute pauses every ambient loop when the window is hidden, unfocused, or idle for
+ * 15 s with no working/reviewing turn. Input or a turn resumes on the same frame.
+ */
 function installAmbientPause(): () => void {
+  let lastInput = Date.now()
+  // The focus EVENT owns this flag: a synthetic `blur` (the preaccept gate) never changes document.hasFocus().
+  let focused = document.hasFocus()
+  const markInput = (): void => { lastInput = Date.now() }
   const sync = (): void => {
     const body = document.body as HTMLElement | null
     if (body === null) return
-    body.toggleAttribute('data-persona-hidden', document.hidden)
-    // D-101: a visible-but-unfocused window (second monitor, user in another app) kept every loop at full rate; the
-    // compositor only stops when the document is hidden. Focus is the missing signal.
-    body.toggleAttribute('data-persona-unfocused', !document.hidden && !document.hasFocus())
+    const busy = document.querySelector(
+      '[data-streaming], [data-persona-shell] [data-state="working"], [data-persona-shell] [data-state="reviewing"]',
+    ) !== null
+    const idle = Date.now() - lastInput >= 15_000
+    // DESIGN-01 §2.7 rule 3: a full-screen scrim (onboarding, modal) covers the shell; the loops behind it are invisible
+    // and their blend through the scrim is exactly what kept the compositor busy on the onboarding screen. The cover pauses
+    // ONLY the shell subtree (its own entrance animations keep running).
+    const covered = document.querySelector('[data-persona-cover]') !== null
+    body.toggleAttribute('data-persona-covered', covered)
+    const paused = document.hidden || !focused || (idle && !busy)
+    body.toggleAttribute('data-persona-ambient-paused', paused)
+    if (paused) pauseAnimations()
+    else if (covered) pauseAnimations(document.querySelector('[data-persona-shell]'))
+    else resumeAnimations()
   }
+  // WAAPI animations (the pose/cursor loops) ignore `animation-play-state`; the gate counts them as running. Pause the ones
+  // we found running and resume exactly those, so a finished transition never restarts.
+  const pausedAnimations = new Set<Animation>()
+  const pauseAnimations = (scope?: Element | null): void => {
+    // jsdom (tests) and older engines have no getAnimations; the CSS rule still covers the CSS animations there.
+    if (typeof document.getAnimations !== 'function') return
+    for (const animation of document.getAnimations()) {
+      if (animation.playState !== 'running' || pausedAnimations.has(animation)) continue
+      if (scope !== undefined && scope !== null) {
+        const target = (animation.effect as KeyframeEffect | null)?.target
+        if (!(target instanceof Element) || !scope.contains(target)) continue
+        // The overlay lives in a shell slot: the cover's own entrance animations keep running.
+        if (target.closest('[data-persona-cover]') !== null) continue
+      }
+      animation.pause()
+      pausedAnimations.add(animation)
+    }
+  }
+  const resumeAnimations = (): void => {
+    for (const animation of pausedAnimations) if (animation.playState === 'paused') animation.play()
+    pausedAnimations.clear()
+  }
+  const onFocus = (): void => { focused = true; sync() }
+  const onBlur = (): void => { focused = false; sync() }
+  const inputs = ['pointermove', 'keydown', 'wheel', 'touchstart'] as const
+  for (const event of inputs) window.addEventListener(event, markInput, { passive: true })
+  const timer = setInterval(sync, 1_000)
   document.addEventListener('visibilitychange', sync)
-  window.addEventListener('focus', sync)
-  window.addEventListener('blur', sync)
+  window.addEventListener('focus', onFocus)
+  window.addEventListener('blur', onBlur)
+  // A scrim opening/closing announces itself: the cover pauses and resumes on the same frame instead of the next tick.
+  window.addEventListener('persona:cover-change', sync)
   sync()
   return () => {
+    for (const event of inputs) window.removeEventListener(event, markInput)
+    clearInterval(timer)
     document.removeEventListener('visibilitychange', sync)
-    window.removeEventListener('focus', sync)
-    window.removeEventListener('blur', sync)
+    window.removeEventListener('focus', onFocus)
+    window.removeEventListener('blur', onBlur)
+    window.removeEventListener('persona:cover-change', sync)
   }
 }

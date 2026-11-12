@@ -13,7 +13,7 @@ const BASE: PersonaLiveSnapshot = {
         id: 'coord-1',
         workspaceId: 'ws',
         projectId: 'p',
-        name: 'Lodi',
+        name: 'Lena',
         title: 'Coordenação',
         description: '',
         avatarKind: 'gallery',
@@ -61,7 +61,7 @@ describe('deriveOrgChartFromLive', () => {
   it('puts coordination on root and owner group for personas', () => {
     const chart = deriveOrgChartFromLive('ws', 'person', BASE, true)
     expect(chart).not.toBeNull()
-    expect(chart!.rightHand?.name).toBe('Lodi')
+    expect(chart!.rightHand?.name).toBe('Lena')
     expect(chart!.groups[0]?.members.some(row => row.name === 'Ada')).toBe(true)
     expect(chart!.groups[0]?.members[0]?.state).toBe('working')
   })

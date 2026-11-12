@@ -58,6 +58,82 @@ button.box:focus-visible {
   max-width: 160px;
 }
 
+/* DESIGN-01 (Fio real a): a miniatura de 36 px da arte nova na pílula da opinião recolhida. */
+.pill {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--persona-radius-s);
+}
+
+.pill .image {
+  width: 100%;
+  height: 100%;
+  /* Carbon (fio-d103-r2 #1): cover, para a miniatura paisagem preencher os 36x36 sem faixas em cima e embaixo (no escuro elas apareciam). */
+  object-fit: cover;
+}
+
+/* (b): a ARTE da persona é a protagonista do cartão aberto: grande, até 320 px (a miniatura do host chega a 192 px e cresce até caber), borda de 1,5 px. */
+.hero {
+  width: 320px;
+  min-width: 64px;
+  max-width: 100%;
+  border: 1.5px solid var(--persona-outline);
+  border-radius: var(--persona-radius-m);
+}
+
+/* Vetor (SVG): o próprio arquivo escala sem perder nada: enche o espaço, até 320 px. */
+.hero[data-thumb='vector'] .image {
+  width: 100%;
+  height: auto;
+  max-width: 320px;
+  max-height: 320px;
+  object-fit: contain;
+}
+
+/* Raster: nunca além do tamanho real (o teto, largura natural ÷ DPR, vem do componente): centrado no espaço, no fundo de papel, sem esticar e sem borrar. */
+.hero[data-thumb='raster'] .image {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 320px;
+  object-fit: contain;
+}
+
+/* Carbon (fio-d103 #1): a moldura ABRAÇA a imagem real (nada de caixa dentro de caixa nem letterbox). */
+.hero[data-thumb='raster'] {
+  width: fit-content;
+  max-width: min(320px, 100%);
+}
+
+.delivery[data-thumb='raster'] {
+  width: fit-content;
+  max-width: min(240px, 100%);
+}
+
+/* (d): a miniatura da arte final no cartão de entrega: 240 px. */
+.delivery {
+  width: min(240px, 100%);
+  min-width: 64px;
+  max-width: 240px;
+  border-radius: var(--persona-radius-m);
+}
+
+.delivery[data-thumb='vector'] .image {
+  width: 100%;
+  height: auto;
+  max-width: 240px;
+  max-height: 240px;
+  object-fit: contain;
+}
+
+.delivery[data-thumb='raster'] .image {
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 240px;
+  object-fit: contain;
+}
+
 .art.small .image {
   max-height: 160px;
 }

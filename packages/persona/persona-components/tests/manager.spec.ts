@@ -58,6 +58,7 @@ describe('component manifest', () => {
     ['http url', { schemaVersion: 1, components: [entry(archive(), { url: 'http://example/x.zip' })] }],
     ['bad sha256', { schemaVersion: 1, components: [entry(archive(), { sha256: 'abc' })] }],
     ['bad bytes', { schemaVersion: 1, components: [entry(archive(), { bytes: 0 })] }],
+    ['bad format', { schemaVersion: 1, components: [{ kind: 'python', version: '3.12.0', url: 'https://components.example/python-3.12.0.zip', sha256: 'a'.repeat(64), bytes: 1, format: 'rar' }] }],
     ['duplicate kind', { schemaVersion: 1, components: [entry(archive()), entry(archive())] }],
   ])('rejects %s', (_name, value) => {
     expect(() => parseComponentManifest(value)).toThrow(/components:/u)
@@ -81,6 +82,19 @@ describe('component manager', () => {
     expect(again.state).toBe('installed')
     expect(fetchImpl).toHaveBeenCalledTimes(1)
     expect(instance.state('python').state).toBe('installed')
+  })
+
+  it('keeps a tar.gz archive as model.tar.gz instead of extracting it', async () => {
+    const bytes = new Uint8Array([31, 139, 8, 0, 1, 2, 3])
+    const instance = manager({ schemaVersion: 1, components: [entry(bytes, {
+      kind: 'stt',
+      version: 'vosk-model-small-pt-0.3',
+      url: 'https://example.invalid/model.tar.gz',
+      format: 'tar.gz',
+    })] }, respond(bytes))
+    const installed = await instance.ensure('stt')
+    if (installed.state !== 'installed') throw new Error('not installed')
+    expect(readFileSync(join(installed.path, 'model.tar.gz')).equals(Buffer.from(bytes))).toBe(true)
   })
 
   it('shares one download between concurrent callers', async () => {

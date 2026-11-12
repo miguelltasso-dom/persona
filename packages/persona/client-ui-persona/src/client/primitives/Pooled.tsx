@@ -108,6 +108,8 @@ export interface ActivityItem {
   /** "npm test", "contratos/proposta.md", "mensagem para Sol" */
   readonly title: string
   readonly status: ActivityStatus
+  /** Instante do evento (ISO) quando o host manda: o resumo do turno conta o tempo com ele. */
+  readonly at?: string | undefined
   readonly onOpen?: (() => void) | undefined
 }
 

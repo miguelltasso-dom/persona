@@ -1,0 +1,85 @@
+/*
+ * The Ctrl K palette (DESIGN-01-MUSE §5.2 #11 / Carbon #11): a modal over the current screen. The scrim is SOLID (rule 2.7: no blur, it is a modal
+ * background and not behind the screen's text): rgb(36 22 48 / .56) in light and rgb(8 4 12 / .72) in dark.
+ */
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 14vh;
+  box-sizing: border-box;
+  background: rgb(36 22 48 / 0.56);
+  animation: paletteScrimIn 150ms var(--ease-enter) both;
+}
+
+:global(body[data-ds-dark-theme='true']) .backdrop {
+  background: rgb(8 4 12 / 0.72);
+}
+
+.dialog {
+  display: flex;
+  flex-direction: column;
+  width: min(640px, 92vw);
+  /* At most 460 px, and never past the window: the palette starts 14 vh down, so it keeps 16 px under it (200% zoom is a 360 px window). The list inside scrolls. */
+  max-height: min(460px, calc(100vh - 14vh - 16px));
+  max-height: min(460px, calc(100dvh - 14vh - 16px));
+  box-sizing: border-box;
+  overflow: hidden;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-xl);
+  background: var(--persona-card);
+  color: var(--persona-ink);
+  box-shadow: var(--persona-shadow-float);
+  transform-origin: 50% 0;
+  /* Enter: scale .97 -> 1 and opacity 0 -> 1 in 150 ms. */
+  animation: paletteIn 150ms var(--ease-enter) both;
+}
+
+/* Leave: 110 ms with the exit curve. */
+.backdrop[data-closing] {
+  pointer-events: none;
+  animation: paletteScrimOut 110ms var(--ease-exit) both;
+}
+
+.backdrop[data-closing] .dialog {
+  animation: paletteOut 110ms var(--ease-exit) both;
+}
+
+@keyframes paletteIn {
+  from { opacity: 0; transform: scale(0.97); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes paletteOut {
+  from { opacity: 1; transform: scale(1); }
+  to { opacity: 0; transform: scale(0.97); }
+}
+
+@keyframes paletteScrimIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes paletteScrimOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Reduced motion: a hard cut, no scale and no fade. */
+@media (prefers-reduced-motion: reduce) {
+  .backdrop,
+  .dialog,
+  .backdrop[data-closing],
+  .backdrop[data-closing] .dialog {
+    animation: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .backdrop {
+    background: Canvas;
+  }
+}

@@ -1,0 +1,11 @@
+/* A linha do produto no fio: centrada, calada, sem rosto nem nome. */
+.line {
+  display: flex;
+  justify-content: center;
+  margin: var(--persona-space-3) 0;
+  list-style: none;
+  text-align: center;
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-muted);
+  overflow-wrap: anywhere;
+}

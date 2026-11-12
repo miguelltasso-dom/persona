@@ -1,0 +1,60 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-height: 48px;
+  padding: 0 var(--persona-space-2);
+}
+
+/* O ponto vermelho pisca 1 s (a contínua permitida pela Muse). */
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--persona-danger);
+  animation: voice-blink 1s steps(2, start) infinite;
+}
+
+@keyframes voice-blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+
+.time {
+  font: 600 14px/20px var(--persona-font-text);
+  color: var(--persona-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.wave {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+  height: 24px;
+}
+
+/* 3 px de largura, 4 a 24 px de altura: só `transform` muda (a altura fica fixa em 24 px). */
+.tick {
+  flex: 0 0 3px;
+  width: 3px;
+  height: 24px;
+  border-radius: 2px;
+  background: var(--persona-brand);
+  transform-origin: center;
+  will-change: transform;
+}
+
+.limit {
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-danger);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dot {
+    animation: none;
+  }
+}

@@ -9,6 +9,7 @@ import type { AutonomyLevel } from '../persona-editor/persona-draft.ts'
 import { isEngineEffortEnabled } from '../profile/engine-effort-flag.ts'
 import type { PersonaLiveSnapshot } from '../remote/persona-live-store.ts'
 import { isTeamworkEnabled } from '../teamwork/teamwork-flag.ts'
+import { sortPersonasForUi } from '../team/sort-personas.ts'
 import { readFileTools, writeCanSaveFiles } from './file-tools.ts'
 import { PersonasSettingsPanel, type SettingsPersonaRow } from './PersonasSettingsPanel.tsx'
 
@@ -198,7 +199,7 @@ export function ConnectedPersonasSettings({
 
   const personas: readonly SettingsPersonaRow[] | null = team === null
     ? null
-    : team.personas.map((row) => {
+    : sortPersonasForUi(team.personas).map((row) => {
       const cfg = autonomyMap[row.id]
       const personaGrants = grants
         .filter(g => g.personaId === row.id)

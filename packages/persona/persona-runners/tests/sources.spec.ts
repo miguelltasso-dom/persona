@@ -137,6 +137,7 @@ describe('Telegram / email sources', () => {
       threads: [{ source: EMAIL_SOURCE, id: 'Landing' }],
       actor: { source: EMAIL_SOURCE, id: 'ana@ex.test' },
       text: 'revisa o hero',
+      viaEmail: true,
       channel: { source: EMAIL_SOURCE, thread: 'Landing', address: { from: 'ana@ex.test', to: 'nina@ex.test', message: 'm1' } },
     })
     const inbox = await pollEmail({

@@ -34,6 +34,82 @@
   line-height: 1.45;
 }
 
+/* Item 16: a memory the owner asked for shows the message that said it, word for word. Calm: a line and a quote, no box. */
+.proof {
+  margin: var(--persona-space-2) 0 0;
+  padding: 0;
+}
+
+/* Source line: 13px / 600 / ink-muted (ink-soft does not reach 4.5:1 at this size). */
+.proofLine {
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 600;
+  color: var(--persona-ink-muted);
+}
+
+/* The owner's words: 14px italic ink, a 3px rule in the control outline (the lilac-300 one was too light in the dark theme; amber is "waiting for you"), four lines then "Ver tudo". */
+.proofQuote {
+  margin: var(--persona-space-1) 0 0;
+  padding-left: var(--persona-space-3);
+  border-left: 3px solid var(--persona-outline-control);
+  font-size: 14px;
+  font-style: italic;
+  line-height: 20px;
+  color: var(--persona-ink);
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  line-clamp: 4;
+  overflow: hidden;
+}
+
+/* the memory above already says the same thing: the quote starts on one line */
+.proofQuote[data-compact] {
+  -webkit-line-clamp: 1;
+  line-clamp: 1;
+}
+
+.proofQuote[data-expanded] {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: visible;
+}
+
+/* A hidden copy of the box (same width, no clamp) used only to measure where the cut falls; never visible, never in the way. */
+.proofQuote[data-measuring] {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+  overflow: visible;
+  position: absolute;
+  visibility: hidden;
+  pointer-events: none;
+  margin: 0;
+}
+
+.proofMore {
+  margin: var(--persona-space-1) 0 0;
+  padding: 0 var(--persona-space-1);
+  min-height: var(--control-h-s);
+  border: 0;
+  border-radius: var(--persona-radius-s);
+  background: none;
+  font: 700 13px/20px var(--persona-font-text);
+  color: var(--persona-brand);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.proofMore:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--persona-focus-halo);
+}
+
 .meta {
   margin: var(--persona-space-2) 0 0;
   font-size: 0.8125rem;

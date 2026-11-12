@@ -232,14 +232,15 @@ async function walkPostOnboarding(
   const boards = REAL_GALLERY_PANELS.find(p => p.slug === 'kanban')!
   await tryNav(page, boards, note, shot)
   await shot('05-quadros')
-  if (!(await hasVisibleCopy(page, /Cada projeto com o seu fluxo/i))) {
+  // DESIGN-01 #10: Projetos opens on the board of the project of the moment, whose subtitle says the flow is the project's own.
+  if (!(await hasVisibleCopy(page, /Fluxo próprio deste projeto/i))) {
     note(
-      'Subtítulo dos Quadros não encontrado (getByText)',
+      'Subtítulo do quadro do projeto não encontrado (getByText)',
       'P1',
       'Lumen',
-      'Quadros após onboarding',
+      'Projetos após onboarding',
       await shot('05-quadros-copy'),
-      'Cada projeto com o seu fluxo',
+      'Fluxo próprio deste projeto',
       'getByText ausente (não usar textContent agregado)',
     )
   }
@@ -384,7 +385,15 @@ async function tryNewProject(
   shot: (n: string) => Promise<string>,
   note: NoteFn,
 ): Promise<void> {
-  const neu = page.getByRole('button', { name: 'Novo projeto' })
+  let neu = page.getByRole('button', { name: 'Novo projeto' })
+  if (await neu.count() === 0) {
+    // On a board the action is an item of the project switcher menu (the header keeps two controls).
+    const switcher = page.getByRole('button', { name: /Trocar de projeto/u })
+    if (await switcher.count() > 0) {
+      await switcher.first().click({ force: true })
+      neu = page.getByRole('menuitem', { name: 'Novo projeto' })
+    }
+  }
   if (await neu.count() === 0) {
     note(`Novo projeto ausente (queria ${name})`, 'P1', 'Lumen', 'Quadros → Novo projeto', await shot(`proj-${name}-sem-botao`), 'botão Novo projeto', 'ausente')
     return

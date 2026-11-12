@@ -4,9 +4,10 @@
  *
  * Regras (Muse):
  *  - até 8 pessoas: todas, em linhas completas (rosto 32, última linha, hora ou não lidas);
- *  - mais de 8: "Recentes" (as últimas conversas, linha completa) e "Todas as personas · {n}" por equipe, recolhíveis
- *    (4 rostos empilhados quando recolhido); o grupo da equipe da conversa aberta vem aberto, os outros recolhidos;
- *    o que a pessoa abriu ou recolheu fica lembrado (localStorage com try/catch);
+ *  - mais de 8: "Todas as personas · {n}" por equipe, recolhíveis (4 rostos empilhados quando recolhido); o grupo da equipe da
+ *    conversa aberta vem aberto, os outros recolhidos; o que a pessoa abriu ou recolheu fica lembrado (localStorage com try/catch);
+ *  - ORDEM ESTÁVEL (DESIGN-01-MUSE §5.1 #06): a ordem em que as pessoas chegam (Coordenação primeiro, depois a do host) é a ordem do rail
+ *    em qualquer estado: nunca se reordena por atividade (a recência vive no Ctrl+K › Recentes);
  *  - a busca filtra canais e pessoas na hora e mostra uma lista só (sem grupos recolhidos escondendo resultado);
  *  - a ordem do Alt+↑/↓ é a ordem em que as linhas aparecem (as de um grupo recolhido não entram).
  */
@@ -14,10 +15,8 @@
 import { conversationKey, sameConversation, type ConversationTarget } from './conversation-selection.ts'
 import type { RailPersonaState } from './RailTeam.tsx'
 
-/** Quantas pessoas ainda cabem "todas, em linhas completas" (acima disso: Recentes + grupos por equipe). */
+/** Quantas pessoas ainda cabem "todas, em linhas completas" (acima disso: grupos por equipe). */
 export const PEOPLE_SHOW_ALL_MAX = 8
-/** Quantas conversas recentes aparecem no topo das Pessoas quando há mais de {@link PEOPLE_SHOW_ALL_MAX}. */
-export const RECENT_MAX = 6
 /** Rostos empilhados num grupo recolhido. */
 export const GROUP_FACES_MAX = 4
 
@@ -30,6 +29,10 @@ export interface ConversationPerson {
   /** Chave do retrato (AVATAR_96) quando há arte. */
   readonly characterId?: string | undefined
   readonly state?: RailPersonaState | undefined
+  /** Draft files, Janela de silêncio and pause: they narrow `state` into the one vocabulary (`team/persona-state.ts`). */
+  readonly draftFiles?: number | undefined
+  readonly quiet?: boolean | undefined
+  readonly paused?: boolean | undefined
   readonly teamId: string | null
   readonly teamName: string | null
   /** Mensagens não lidas na DM com esta pessoa. */
@@ -70,7 +73,7 @@ export interface PeopleGroup {
 
 export type PeopleSection =
   | { readonly mode: 'all'; readonly people: readonly ConversationPerson[] }
-  | { readonly mode: 'grouped'; readonly recent: readonly ConversationPerson[]; readonly groups: readonly PeopleGroup[]; readonly total: number }
+  | { readonly mode: 'grouped'; readonly groups: readonly PeopleGroup[]; readonly total: number }
   | { readonly mode: 'search'; readonly people: readonly ConversationPerson[] }
 
 export interface ConversationsModel {
@@ -113,8 +116,6 @@ function matchesChannel(channel: ConversationChannel, needle: string): boolean {
   return [channel.name, channel.note ?? ''].some(field => normalizeQuery(field).includes(needle))
 }
 
-const byNamePt = (a: ConversationPerson, b: ConversationPerson): number => a.name.localeCompare(b.name, 'pt-BR')
-
 /** Quem já conversou primeiro, pela atividade (0 = a mais recente); quem nunca conversou depois, na ordem recebida. */
 function byActivity(people: readonly ConversationPerson[]): readonly ConversationPerson[] {
   const talked = people
@@ -149,27 +150,21 @@ function groupPeople(input: BuildConversationsInput, people: readonly Conversati
     group.people.push(person)
     byTeam.set(key, group)
   }
-  return [...byTeam.entries()]
-    .map(([key, group]): PeopleGroup => {
-      const sorted = [...group.people].sort(byNamePt)
-      const remembered = input.collapsed[key]
-      const collapsed = remembered ?? !(openTeam !== null && group.teamId === openTeam)
-      return {
-        key,
-        teamId: group.teamId,
-        teamName: group.teamName,
-        people: sorted,
-        unread: sorted.reduce((sum, person) => sum + person.unread, 0),
-        collapsed,
-        faces: sorted.slice(0, GROUP_FACES_MAX),
-      }
-    })
-    // Equipes pelo nome; as pessoas sem equipe por último.
-    .sort((a, b) => {
-      if (a.teamName === null) return b.teamName === null ? 0 : 1
-      if (b.teamName === null) return -1
-      return a.teamName.localeCompare(b.teamName, 'pt-BR')
-    })
+  // ORDEM ESTÁVEL (DESIGN-01-MUSE §5.1 #06 cond. 4): as pessoas ficam na ordem em que chegam (Coordenação primeiro, depois a ordem do host),
+  // e as equipes na ordem em que cada uma aparece pela primeira vez: nada se reordena por atividade nem por nome.
+  return [...byTeam.entries()].map(([key, group]): PeopleGroup => {
+    const remembered = input.collapsed[key]
+    const collapsed = remembered ?? !(openTeam !== null && group.teamId === openTeam)
+    return {
+      key,
+      teamId: group.teamId,
+      teamName: group.teamName,
+      people: group.people,
+      unread: group.people.reduce((sum, person) => sum + person.unread, 0),
+      collapsed,
+      faces: group.people.slice(0, GROUP_FACES_MAX),
+    }
+  })
 }
 
 /** Junta tudo: o que a barra desenha e a ordem do teclado. */
@@ -190,7 +185,7 @@ export function buildConversationsModel(input: BuildConversationsInput): Convers
 
   const channels = input.channels
   if (input.people.length <= PEOPLE_SHOW_ALL_MAX) {
-    const people = byActivity(input.people)
+    const people = input.people
     return {
       channels,
       people: { mode: 'all', people },
@@ -199,7 +194,6 @@ export function buildConversationsModel(input: BuildConversationsInput): Convers
     }
   }
 
-  const recent = byActivity(input.people).filter(person => person.hasConversation).slice(0, RECENT_MAX)
   const groups = groupPeople(input, input.people)
   const seen = new Set<string>()
   const order: ConversationTarget[] = []
@@ -210,14 +204,13 @@ export function buildConversationsModel(input: BuildConversationsInput): Convers
     order.push(target)
   }
   channels.forEach((channel) => { push(channelTarget(channel)) })
-  recent.forEach((person) => { push(personTarget(person)) })
   for (const group of groups) {
     if (group.collapsed) continue
     group.people.forEach((person) => { push(personTarget(person)) })
   }
   return {
     channels,
-    people: { mode: 'grouped', recent, groups, total: input.people.length },
+    people: { mode: 'grouped', groups, total: input.people.length },
     order,
     noResults: false,
   }

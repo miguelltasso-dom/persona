@@ -1,8 +1,10 @@
 import type { PersonaCharacterId } from '../assets/asset-url.ts'
 import type { KanbanCardModel } from '../kanban/types.ts'
 import type { RailPersona, RailPersonaState } from '../shell/RailTeam.tsx'
-import type { PersonaWorkUiState } from '../team/persona-work-state.ts'
+import type { ChannelPersonaMember, PersonaWorkUiState } from '../team/persona-work-state.ts'
+import { isPersonaReviewing } from '../team/persona-reviewing.ts'
 import type { PersonaLiveSnapshot } from './persona-live-store.ts'
+import { characterIdForPersona as hostCharacterIdOf } from './map-host-ui.ts'
 import type { PersonaView } from './persona-remote-types.ts'
 import { sortPersonasForUi } from '../team/sort-personas.ts'
 
@@ -19,19 +21,29 @@ function characterIdForPersona(persona: PersonaView): RailPersona['characterId']
   return ref.slice(0, 32) || persona.id
 }
 
+/** The facts the one state vocabulary needs besides the activity (draft files, silence window, pause), copied from the stage member. */
+function stateFactsOf(member: ChannelPersonaMember): Pick<RailPersona, 'draftFiles' | 'quiet' | 'paused'> {
+  return {
+    ...(member.draftFiles === undefined ? {} : { draftFiles: member.draftFiles }),
+    ...(member.quiet === undefined ? {} : { quiet: member.quiet }),
+    ...(member.paused === undefined ? {} : { paused: member.paused }),
+  }
+}
+
 function nowForPersona(
   snap: PersonaLiveSnapshot,
   persona: PersonaView,
-): { readonly state: PersonaWorkUiState; readonly currentTask?: string } {
+): { readonly state: PersonaWorkUiState; readonly currentTask?: string; readonly facts: Pick<RailPersona, 'draftFiles' | 'quiet' | 'paused'> } {
   const row = snap.nowRows.find(r => r.member.name === persona.name)
   if (row !== undefined) {
+    const facts = stateFactsOf(row.member)
     return row.currentTask === undefined
-      ? { state: row.member.state }
-      : { state: row.member.state, currentTask: row.currentTask }
+      ? { state: row.member.state, facts }
+      : { state: row.member.state, currentTask: row.currentTask, facts }
   }
   const strip = snap.stripMembers.find(m => m.name === persona.name)
-  if (strip !== undefined) return { state: strip.state }
-  return { state: 'resting' }
+  if (strip !== undefined) return { state: strip.state, facts: stateFactsOf(strip) }
+  return { state: 'resting', facts: {} }
 }
 
 function railState(
@@ -41,14 +53,10 @@ function railState(
   cards: readonly KanbanCardModel[],
 ): RailPersonaState {
   if (!hostOnline) return 'offline'
-  const reviewTitles = new Set(
-    cards.filter(card => card.column === 'in_review').map(card => card.title),
-  )
-  if (currentTask !== undefined && reviewTitles.has(currentTask)) return 'reviewing'
+  if (isPersonaReviewing(ui, currentTask, cards)) return 'reviewing'
   if (ui === 'stuck') return 'stuck'
   if (ui === 'waiting') return 'waiting'
   if (ui === 'resting') return 'resting'
-  if (ui === 'working' && reviewTitles.size > 0 && currentTask !== undefined) return 'reviewing'
   return 'working'
 }
 
@@ -76,10 +84,12 @@ export function mapRailTeamFromLive(
     const gestor = persona.systemRoles.includes('team_manager')
     return {
       id: persona.id,
-      characterId: characterIdForPersona(persona),
+      // The SAME animal the DM header and the stage draw (never a letter, D-069): the shared rule first, this file's guess only as a last resort.
+      characterId: hostCharacterIdOf(snap.team, persona.id) ?? characterIdForPersona(persona),
       name: persona.name,
       role: persona.title,
       state: railState(hostOnline, now.state, now.currentTask, snap.kanbanCards),
+      ...now.facts,
       unread: unreadForPersona(snap, persona.id),
       ...(gestor ? { gestor: true as const } : {}),
       ...(arriving.includes(persona.id) ? { arriving: true as const } : {}),

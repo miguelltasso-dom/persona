@@ -64,6 +64,49 @@
 .presence[data-presence='away'] { background: var(--persona-lilac-400); }
 .presence[data-presence='offline'] { background: var(--persona-paper-sunken); }
 
+/*
+ * Persona state dot (DESIGN-01-MUSE §0.2): ONE color per state, from --persona-state-*. Active states (working, reviewing,
+ * waiting, draft, stuck) are a filled dot; idle states (available, resting, paused) are a ring in the state color; offline
+ * ("Sem motor") is a dashed ring. Resting adds a small crescent so it never reads as the same ring as available.
+ */
+.presence[data-persona-state] {
+  background: var(--persona-card);
+  border-color: var(--persona-card);
+}
+
+.presence[data-persona-state='working'],
+.presence[data-persona-state='reviewing'],
+.presence[data-persona-state='waiting'],
+.presence[data-persona-state='draft'],
+.presence[data-persona-state='stuck'] {
+  background: var(--persona-state-color);
+}
+
+.presence[data-persona-state='available'],
+.presence[data-persona-state='resting'],
+.presence[data-persona-state='paused'] {
+  border-color: var(--persona-state-color);
+}
+
+.presence[data-persona-state='resting'] {
+  background: radial-gradient(circle at 72% 38%, var(--persona-card) 0 46%, var(--persona-state-color) 50%);
+}
+
+.presence[data-persona-state='offline'] {
+  border: 2px dashed var(--persona-state-color);
+  outline: none;
+}
+
+.presence[data-persona-state='working'] { --persona-state-color: var(--persona-state-working); }
+.presence[data-persona-state='reviewing'] { --persona-state-color: var(--persona-state-reviewing); }
+.presence[data-persona-state='waiting'] { --persona-state-color: var(--persona-state-waiting); }
+.presence[data-persona-state='draft'] { --persona-state-color: var(--persona-state-draft); }
+.presence[data-persona-state='stuck'] { --persona-state-color: var(--persona-state-stuck); }
+.presence[data-persona-state='available'] { --persona-state-color: var(--persona-state-available); }
+.presence[data-persona-state='resting'] { --persona-state-color: var(--persona-state-resting); }
+.presence[data-persona-state='paused'] { --persona-state-color: var(--persona-state-paused); }
+.presence[data-persona-state='offline'] { --persona-state-color: var(--persona-state-offline); }
+
 /* Muse: system actor (no face): icon on the calm wash, ink-soft glyph. */
 .avatar[data-icon] {
   background: var(--persona-wash);

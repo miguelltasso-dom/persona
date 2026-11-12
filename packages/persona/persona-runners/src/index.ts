@@ -28,6 +28,7 @@ export {
   type RunnerUsage,
   type StartTurnInput,
   type TurnImage,
+  type TurnMcpServer,
   type TurnTool,
   type TurnToolSet,
 } from './contract.ts'
@@ -148,6 +149,23 @@ export {
   type EmailMessage,
 } from './sources/email.ts'
 export {
+  matchesEmailFilter,
+  filterEmailMessages,
+  type EmailArrivalFilter,
+} from './sources/email-filter.ts'
+export {
+  EMAIL_PRESETS,
+  READ_ONLY_IMAP_COMMANDS,
+  emailPresetFor,
+  type EmailPreset,
+} from './sources/email-presets.ts'
+export {
+  readImapInbox,
+  readImapInboxFromSecret,
+  type ImapCredentials,
+  type ImapReadOptions,
+} from './sources/imap.ts'
+export {
   TELEGRAM_SOURCE,
   pollTelegram,
   replyTelegram,
@@ -263,6 +281,7 @@ export {
   type AiMemoryHandoff,
 } from './memory/ai-memory.ts'
 export { createOarRunner, requireExplicitPermission, type OarRunnerOptions } from './oar/adapter.ts'
+export { withThreadResume, type ThreadResumeOptions } from './oar/thread-resume.ts'
 export { createOarSessionRunner, type OarSessionOptions } from './oar/session.ts'
 export { resolveGitExecutable, GitUnavailableError, type GitResolution, type GitResolutionOptions, type GitVersionProbe } from './resolve/git.ts'
 export { createWindowsHistoryFileOps, WindowsHistoryFileError, type WindowsHistoryIo, type WindowsHistoryFileOptions, type WindowsFileFailure } from './workspace/windows-files.ts'
@@ -272,6 +291,7 @@ export {
   CLAUDE_CONNECTOR_ARGS,
   cliCapabilityReport,
   type CliCapabilityReport,
+  type ConnectorActions,
   type PreviewSupport,
   CLAUDE_ISOLATION_ARGS,
   CLAUDE_ISOLATION_ENV,
@@ -331,8 +351,29 @@ export {
   type PermissionGateOptions,
   type PermissionRequest,
 } from './resolve/permission-gate.ts'
+// D-103a: fail closed per engine (connectors read-only where the permission gate is not proven)
+export {
+  connectorVerdict,
+  engineConnectorNotice,
+  engineGateProven,
+  withEngineConnectorPolicy,
+  type ConnectorVerdict,
+} from './resolve/engine-gate.ts'
+// D-103b: at most 2 simultaneous calls per subscription account, jitter 400-800 ms on a fan-out
+export {
+  ACCOUNT_MAX_CONCURRENT,
+  AccountLimiter,
+  FANOUT_JITTER_MAX_MS,
+  FANOUT_JITTER_MIN_MS,
+  LEASE_HOLD_LIMIT_MS,
+  accountKeyOf,
+  defaultAccountLimiter,
+  withAccountLimit,
+  type AccountLease,
+  type AccountLimiterOptions,
+} from './resolve/account-limit.ts'
 // HT-8/HT-9: the kind of action a tool is, and the two views of a call's arguments (the hash approval is checked against; the bounded preview)
-export { classifyTool, type ActionClass, type ToolAction, type ToolAnnotations } from './resolve/tool-action.ts'
+export { classifyTool, isReadByName, toolWords, type ActionClass, type ToolAction, type ToolAnnotations } from './resolve/tool-action.ts'
 export {
   INPUT_MAX_FIELDS,
   INPUT_MAX_STRING_BYTES,
@@ -463,6 +504,7 @@ export {
   classifyToolAccess,
   effectiveToolLevel,
   gatewayToolLevel,
+  isNativeToolName,
   toolNameFromEvent,
   withToolLevel,
   type ToolLevel,
@@ -527,3 +569,23 @@ export {
   type QuotaRecheckOptions,
   type QuotaVerdict,
 } from './resolve/quota-recheck.ts'
+
+// COLHEITA 8 (Lumen): the one authority table, the deterministic command judge and the gate of each CLI.
+export {
+  ACTION_KINDS,
+  AUTHORITY_KINDS,
+  authorityCell,
+  authorityRow,
+  preAllowAfterOrigin,
+  verdictFor,
+  worstOf,
+  type ActionKind,
+  type AuthorityKind,
+  type RunOrigin,
+  type Verdict,
+} from './authority/authority-table.ts'
+export { headOfCommand, isSecretPath, judgeCommand, type CommandContext, type CommandJudgment } from './authority/command-policy.ts'
+export { CLI_GATES, cliAuthorityReport, gateOf, hasBrowserGate, hasCommandGate, hasDraftWriteGate, type CliAuthorityReport, type CliGate, type GateKind } from './authority/cli-gates.ts'
+export { nativeGateFor, needsNativeGate, withNativeGate, type NativeGate } from './authority/native-gate.ts'
+export { BROWSER_SERVER, browserToolOf, judgeBrowserTool, type BrowserJudgment } from './authority/browser-policy.ts'
+export { OPENCODE_CONFIG_ENV, opencodeConfigContent, opencodePermission, type OpenCodeGrants } from './authority/opencode-config.ts'

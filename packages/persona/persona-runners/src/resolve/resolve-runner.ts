@@ -30,12 +30,16 @@ import { connectorFallback, type ConnectorFallback } from '../oar/connector-reac
 import type { ConnectorUnreached } from '../contract.ts'
 import { defaultIsolationRuntime, type IsolationDecision, type IsolationRuntime } from '../oar/isolation-gate.ts'
 import { withPermissionReport, type PermissionGate } from './permission-gate.ts'
+import { nativeGateFor, withNativeGate } from '../authority/native-gate.ts'
+import { accountKeyOf, defaultAccountLimiter, withAccountLimit, type AccountLimiter } from './account-limit.ts'
+import { withEngineConnectorPolicy } from './engine-gate.ts'
 import { prepareIsolatedHome, type IsolatedHomeIo } from '../oar/isolated-home.ts'
 import { pickProviderAccount, type AccountPolicy, type AccountQuota, type ProviderAccount } from './accounts.ts'
 import { RunnerResolveError, resolveCaughtError } from './errors.ts'
 import { asProbe, PROBE_TIMEOUT_MS, withTimeout } from './probe.ts'
 import { quotaVerdict, withQuotaRecheck } from './quota-recheck.ts'
-import { assertCliNeverPrompt, cliPolicyOf } from './cli-policy.ts'
+import { assertCliNeverPrompt, cliPolicyOf, grantsOf } from './cli-policy.ts'
+import { OPENCODE_CONFIG_ENV, opencodeConfigContent } from '../authority/opencode-config.ts'
 import { pickFastestModel } from './fastest-model.ts'
 import { cachedAuth, cachedModels, rememberAuth, rememberModels } from './probe-cache.ts'
 import {
@@ -57,11 +61,12 @@ import {
 } from './usage-meter.ts'
 import { isLocalProvider } from '../dsh/local.ts'
 import { realTurnCapFromEnv, withRealTurnCap } from './real-turn-cap.ts'
+import { decidedSpeed, speedArgsOf, type TurnSpeed } from './turn-speed.ts'
 import { withSpendBudget, type SpendBudgetOptions } from './spend-budget.ts'
 
 export type PersonaRunnerSpec =
   | { kind: 'dsh'; model: string; talkModel?: string; provider?: DshProvider; baseUrl?: string }
-  | { kind: 'cli'; cli: CliKind; model: string; talkModel?: string; effort?: string }
+  | { kind: 'cli'; cli: CliKind; model: string; talkModel?: string; effort?: string; speed?: TurnSpeed }
 
 export interface VaultSecretReader {
   get(personId: string, provider: string): Promise<string | undefined>
@@ -115,6 +120,16 @@ export interface ResolveRunnerOptions {
    * turn that asked for something not allowed ends `blocked`. The host `arm`s it before a turn and reads `takeRequests()` after.
    */
   permissionGate?: PermissionGate
+  /**
+   * COLHEITA 17: the host attaches the product's browser server to this runner's turns (a persona with a profile grant). A Claude task then always runs behind the hook gate, even with no file
+   * or shell grant: the server is attached per turn, after the session opened, and under `dontAsk` only the gate's explicit `allow` lets its tools run.
+   */
+  carriesBrowser?: boolean
+  /**
+   * D-103b: the ceiling of simultaneous calls per subscription account (2) with a 400-800 ms jitter on the calls of a fan-out. Default: the one limiter of the process, so the ceiling
+   * is per ACCOUNT across every runner. CLI (subscription) calls only; a DSH (API key) call is not limited. Tests inject their own.
+   */
+  accountLimiter?: AccountLimiter
   /**
    * ISO-5: proxy URLs of the account connectors THIS call needs (the router's choice, HT-10; the person's explicit request authorises them
    * for this request). Claude, calls with tools, mode `needed`. Each is proven usable for the CLI version first (pre-flight, zero model);
@@ -234,9 +249,12 @@ function specForPurpose(spec: PersonaRunnerSpec, purpose: RunnerPurpose): Person
   }
   // EFF-1: the persona's effort belongs to its own model (a task); the cheap talk model keeps the engine's default.
   const effort = purpose === 'talk' || spec.effort === undefined ? {} : { effort: spec.effort }
+  // Item 9c: the faster tier is decided HERE, per purpose (live conversation only); a persona who never asked carries nothing.
+  const decided = decidedSpeed(spec, purpose)
+  const speed = decided === undefined ? {} : { speed: decided }
   return spec.talkModel === undefined
-    ? { kind: 'cli', cli: spec.cli, model, ...effort }
-    : { kind: 'cli', cli: spec.cli, model, talkModel: spec.talkModel, ...effort }
+    ? { kind: 'cli', cli: spec.cli, model, ...effort, ...speed }
+    : { kind: 'cli', cli: spec.cli, model, talkModel: spec.talkModel, ...effort, ...speed }
 }
 
 async function assertReady(runtime: Runtime, spec: PersonaRunnerSpec, cwd: string): Promise<AvailableInstallation | undefined> {
@@ -386,9 +404,13 @@ function wrap(
       ? cliPolicyOf(options.spec.cli, options.tools ?? {}, options.permissionMode).toolLevel
       : options.tools === undefined ? 'write' : effectiveToolLevel(options.tools)
   )
+  // D-103a: on an engine whose permission gate is not proven (all but Claude) the person's connectors are read-only, whatever the persona's own grant: refused here, before the tool level.
+  if (options.spec.kind === 'cli') runner = withEngineConnectorPolicy(runner, options.spec.cli)
   runner = withToolLevel(runner, level)
   if (options.permissionGate !== undefined && options.spec.kind === 'cli' && options.spec.cli === 'claude') runner = withPermissionReport(runner, options.permissionGate)
   runner = withInfraRecovery(runner, options.infra ?? { wait: async () => undefined })
+  // D-103b: at most 2 simultaneous calls per subscription account, jitter 400-800 ms on a fan-out. Inside the meter and the spend cap (a refused call never queues); the slot covers infra retries.
+  if (options.spec.kind === 'cli') runner = withAccountLimit(runner, options.accountLimiter ?? defaultAccountLimiter, accountKeyOf(provider, options.accountId))
   const meter = options.usage ?? (
     options.usageStore !== undefined && options.usageScope !== undefined
       ? usageStoreSink(options.usageStore, options.usageScope)
@@ -461,13 +483,15 @@ async function createCliRunner(
   // HT-8/9: the hook goes in as flag settings (they apply under any --setting-sources). No tool it guards is ever put in an allow rule.
   // ISO-5: the CLI takes ONE --settings; the connector allow-list and the gate's hook are merged into it.
   const gateSettings = permissionGate === undefined || spec.cli !== 'claude' ? undefined : permissionGate.settings()
-  const extraLaunch = [...plan.launchArgs, ...parityArgs, ...settingsArgs(mergeFlagSettings([plan.settings, gateSettings]))]
+  const extraLaunch = [...plan.launchArgs, ...parityArgs, ...settingsArgs(mergeFlagSettings([plan.settings, gateSettings])), ...speedArgsOf(spec.cli, spec.speed)]
   const policy = extraLaunch.length === 0 ? vendorPolicy : { ...vendorPolicy, launchArgs: [...vendorPolicy.launchArgs, ...extraLaunch] }
   const isolation = sessionIsolation(spec.cli, home, accountHome, vaultEnv, homeIo)
   // D-097 interim (Keel 06:22): with built-in tools present the CLI DEFERS MCP tool definitions (the model needs a ToolSearch request before using one). When the session carries NO connector
   // server, only our small persona tool set, `auto:5` keeps it inline (proved on the real CLI against a fake endpoint: reports/team-offer-dry.json); with any connector granted nothing changes.
   const inlineOurTools = spec.cli === 'claude' && decision.effectiveMode === 'needed' && connectors.requested === 0 ? { ENABLE_TOOL_SEARCH: TOOL_SEARCH_OURS_INLINE } : {}
-  const env = { env: { ...isolation.env, ...plan.env, ...inlineOurTools } }
+  // D-103a: OpenCode never asks the product for a decision; its own permission block is the gate (`authority/opencode-config.ts`).
+  const opencodeGate = spec.cli === 'opencode' ? { [OPENCODE_CONFIG_ENV]: opencodeConfigContent(grantsOf(tools ?? {}), permissionMode === 'allow-once') } : {}
+  const env = { env: { ...isolation.env, ...plan.env, ...inlineOurTools, ...opencodeGate } }
   const loaded = plan.accountConnectors ?? 0
   const modes = {
     requested: decision.requestedMode, effective: decision.effectiveMode, reason: decision.reason,
@@ -707,9 +731,12 @@ export async function resolveRunner(options: ResolveRunnerOptions): Promise<Runn
         }
       }
     }
+    // COLHEITA 8: a Claude task that may save files or run commands is always behind the hook gate; the runner opens its own when the host brought none (tasks without connectors).
+    const native = await nativeGateFor({ cli: cliSpec.cli, permissionMode: options.permissionMode, tools: options.tools, hostGate: options.permissionGate, carriesBrowser: options.carriesBrowser === true })
+    const gateOption = native.gate === undefined ? {} : { permissionGate: native.gate }
     const inner = await createCliRunner(
       cliSpec, runtime, installation, options.home, chosen.accountHome ?? options.accountHome, vaultEnv, options.homeIo,
-      options.permissionMode, options.tools, options.env, options.isolation, options.permissionGate,
+      options.permissionMode, options.tools, options.env, options.isolation, native.gate,
       { usable, requested: asked.length, skillsWanted, ...(unreached.length === 0 || fallback === undefined ? {} : { unreached, fallback }), ...(skillsRoot === undefined ? {} : { skillsRoot }) },
     )
     // Innermost, so infra-recovery retries and warm-session turns are counted and refused before the CLI runs.
@@ -722,8 +749,8 @@ export async function resolveRunner(options: ResolveRunnerOptions): Promise<Runn
       ...(modelDropped === undefined ? {} : { modelDropped }),
     })
     resolved = wrap(
-      turnCap === undefined ? reported : withRealTurnCap(reported, turnCap),
-      accountId === undefined ? { ...options, spec: cliSpec } : { ...options, spec: cliSpec, accountId },
+      withNativeGate(turnCap === undefined ? reported : withRealTurnCap(reported, turnCap), native.own),
+      accountId === undefined ? { ...options, ...gateOption, spec: cliSpec } : { ...options, ...gateOption, spec: cliSpec, accountId },
       cliSpec.cli,
       cliSpec.model,
       purpose,

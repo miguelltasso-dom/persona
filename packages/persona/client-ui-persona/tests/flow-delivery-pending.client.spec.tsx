@@ -35,7 +35,7 @@ const BOARD: ProjectBoardView = {
 function board(persona: PersonaRemoteClient) {
   return render(
     <PreviewFrame brandLabel="Persona">
-      <ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onBack={() => {}} onMutate={() => {}} />
+      <ConnectedProjectFlowBoard persona={persona} scope={{ workspaceId: 'ws', projectId: 'proj-site' }} onMutate={() => {}} />
     </PreviewFrame>,
   )
 }

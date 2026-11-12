@@ -100,3 +100,31 @@
   white-space: nowrap;
   border: 0;
 }
+
+/* The empty states of Arquivos: on a short window (200% zoom) the block shrinks so the title and "Escolher pasta" stay in sight. */
+.emptyBlock {
+  display: contents;
+}
+
+@media (max-height: 520px) {
+  .emptyBlock > div {
+    gap: var(--persona-space-1);
+    padding-block: var(--persona-space-3);
+  }
+
+  .emptyBlock > div > div:first-child {
+    min-height: 0;
+  }
+
+  .emptyBlock img {
+    max-height: 72px;
+    max-width: 96px;
+  }
+}
+
+/* A very short window (200% zoom on a laptop): the picture steps aside so the title and "Escolher pasta" are both in sight. */
+@media (max-height: 420px) {
+  .emptyBlock > div > div:first-child {
+    display: none;
+  }
+}

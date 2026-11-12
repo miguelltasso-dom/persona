@@ -7,9 +7,14 @@
   width: 100%;
   height: var(--figure-h);
   transform-origin: 50% 100%;
+  transition: transform var(--motion-base) var(--ease-spring);
+}
+
+/* DESIGN-01 §2.7 rule 4: a resting/available persona stays still; continuous movement means real work. */
+.figure[data-state='working'],
+.figure[data-state='reviewing'] {
   animation: personaBreathe 4.6s ease-in-out infinite;
   animation-delay: var(--persona-breathe-delay, 0s);
-  transition: transform var(--motion-base) var(--ease-spring);
 }
 
 .figure:hover {
@@ -37,7 +42,8 @@
 .poseTail {
   height: calc(var(--figure-h) * var(--species, 0.9) * var(--pose-k, 1));
   max-height: var(--figure-h);
-  max-width: 210px;
+  /* 100% of the member box, not a fixed 210 px: a narrow member (5 on a 900 px strip) must never be wider than its own column. */
+  max-width: 100%;
   width: auto;
   object-fit: contain;
   object-position: bottom center;
@@ -55,20 +61,21 @@
 }
 
 .poseBlink {
-  animation: personaBlinkFrame 5.5s steps(1, end) infinite;
+  animation: personaBlinkFrame 9s steps(1, end) infinite;
   animation-delay: var(--persona-breathe-delay, 0s);
 }
 
 .poseTail {
-  animation: personaTailFrame 7s steps(1, end) infinite;
+  animation: personaTailFrame 11s steps(1, end) infinite;
   animation-delay: calc(var(--persona-breathe-delay, 0s) + 1.2s);
 }
 
 /* State overlay (Brush icons/overlays): a soft thought-cloud touching the head — decoration, never a control. */
 .overlay {
   position: absolute;
-  top: -4px;
-  right: -6px;
+  /* Inside the pose box (2 px), never past it: the strip clips anything that leaves it (Carbon, 2ª leitura). */
+  top: 2px;
+  right: 2px;
   width: 30px;
   height: 30px;
   box-sizing: border-box;
@@ -95,8 +102,17 @@
 
 :global([data-ambient-paused]) .figure,
 :global([data-ambient-paused]) .poseBlink,
-:global([data-ambient-paused]) .poseTail {
+:global([data-ambient-paused]) .poseTail,
+:global([data-persona-ambient-paused]) .figure,
+:global([data-persona-ambient-paused]) .poseBlink,
+:global([data-persona-ambient-paused]) .poseTail {
   animation-play-state: paused;
+}
+
+/* DESIGN-01 §2.7 rule 4 (Muse): the sleeping pose is still; the zZz is drawing, not animation. */
+.figure[data-pose='descansando'] .poseBlink,
+.figure[data-pose='descansando'] .poseTail {
+  animation: none;
 }
 
 @keyframes personaBreathe {
@@ -122,6 +138,13 @@
   }
 }
 
+/* A member box of 130 px or less (5 members on a 900 px strip): a shorter figure, so the body never covers the next one's overlay. */
+@container persona-member (max-width: 130px) {
+  .figure {
+    --figure-h: 136px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .figure,
   .poseBlink,
@@ -141,7 +164,7 @@
   left: 50%;
   height: calc(var(--figure-h) * var(--species, 0.9) * var(--pose-k, 1));
   max-height: var(--figure-h);
-  max-width: 210px;
+  max-width: 100%;
   width: auto;
   object-fit: contain;
   object-position: bottom center;

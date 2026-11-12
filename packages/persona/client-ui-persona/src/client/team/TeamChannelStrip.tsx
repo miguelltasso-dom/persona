@@ -3,7 +3,7 @@ import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { BrandIcon, Button, Chip, Skeleton, TeamScene, UiIcon, usePawCelebration, type PersonaCardFaceProps, type PersonaCardMenuProps } from '../primitives/index.ts'
 import type { ChannelPersonaMember } from './persona-work-state.ts'
-import { WORK_STATUS_KEY } from './persona-work-state.ts'
+import { PERSONA_STATE_LABEL, personaStateOf } from './persona-state.ts'
 import { PersonaTeamFigure } from './PersonaTeamFigure.tsx'
 import styles from './TeamChannelStrip.module.css'
 
@@ -71,132 +71,138 @@ export function TeamChannelStrip({ t, members, onBuildTeam, loading = false, per
   }, [members, paw.celebrate])
 
   return (
-    <section
-      ref={ref}
-      className={styles.strip}
-      aria-labelledby="persona-team-strip-title"
-      data-ambient-paused={paused ? '' : undefined}
-      aria-busy={showLoading ? 'true' : undefined}
-      data-loading={showLoading ? '' : undefined}
-    >
-      {paw.node}
-      <div className={styles.scene} aria-hidden="true">
-        {bannerLight !== undefined ? (
-          <>
-            <img className={styles.bannerLight} src={bannerLight} alt="" />
-            <img className={styles.bannerDark} src={bannerDark ?? bannerLight} alt="" />
-          </>
-        ) : (
-          <TeamScene />
-        )}
-      </div>
+    // `.host` declares the `persona-strip` container: the strip lays itself out by the width the CHANNEL gives it, not by the window's.
+    <div className={styles.host}>
+      <section
+        ref={ref}
+        className={styles.strip}
+        aria-labelledby="persona-team-strip-title"
+        data-ambient-paused={paused ? '' : undefined}
+        aria-busy={showLoading ? 'true' : undefined}
+        data-loading={showLoading ? '' : undefined}
+      >
+        {paw.node}
+        <div className={styles.scene} aria-hidden="true">
+          {bannerLight !== undefined ? (
+            <>
+              <img className={styles.bannerLight} src={bannerLight} alt="" />
+              <img className={styles.bannerDark} src={bannerDark ?? bannerLight} alt="" />
+            </>
+          ) : (
+            <TeamScene />
+          )}
+        </div>
 
-      <div className={styles.intro}>
-        <h2 id="persona-team-strip-title" className={styles.title}>
-          {showLoading ? t('team.channelStripTitle') : members.length > 0 ? t('team.channelStripTitle') : t('team.emptyTitle')}
-        </h2>
-        {showLoading ? (
-          <Skeleton width={96} height={26} shape="block" />
-        ) : members.length > 0 ? (
-          <Chip tone="plain" icon={<BrandIcon name="equipe" size={16} />}>
-            {t('team.memberCount', { count: String(members.length) })}
-          </Chip>
-        ) : (
-          <>
-            <p className={styles.emptyBody}>{t('team.emptyBody')}</p>
-            {onBuildTeam !== undefined && (
-              <Button variant="primary" icon={<UiIcon name="plus" size={18} strokeWidth={2.2} />} onClick={onBuildTeam}>
-                {t('team.emptyAction')}
-              </Button>
-            )}
-          </>
-        )}
-      </div>
-
-      <ul className={styles.cast}>
-        {members.map((member, index) => {
-          const status = t(WORK_STATUS_KEY[member.state])
-          const inDraft = member.state === 'working' && (member.draftFiles ?? 0) >= 1
-          return (
-            <li
-              key={member.id}
-              className={styles.member}
-              data-state={member.state}
-              data-arriving={member.arriving === true ? '' : undefined}
-              style={{ '--arrive-delay': `${index * 180}ms` } as CSSProperties}
-            >
-              {member.arriving === true && <span className={styles.arrived} role="status">{t('team.arrived', { name: member.name })}</span>}
-              {personaFace !== undefined && personaMenu !== undefined ? (
-                <button
-                  type="button"
-                  className={styles.figureButton}
-                  aria-label={t('sidebar.team.openDm', { name: member.name })}
-                  {...personaFace(member.id)}
-                >
-                  <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
-                </button>
-              ) : personaCardTrigger === undefined ? (
-                <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
-              ) : (
-                <button
-                  type="button"
-                  className={styles.figureButton}
-                  aria-label={member.name}
-                  {...personaCardTrigger(member.id)}
-                >
-                  <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
-                </button>
+        <div className={styles.intro}>
+          <h2 id="persona-team-strip-title" className={styles.title}>
+            {showLoading ? t('team.channelStripTitle') : members.length > 0 ? t('team.channelStripTitle') : t('team.emptyTitle')}
+          </h2>
+          {showLoading ? (
+            <Skeleton width={96} height={26} shape="block" />
+          ) : members.length > 0 ? (
+            <Chip tone="plain" icon={<BrandIcon name="equipe" size={16} />}>
+              {/* Plural de verdade (Muse): "1 membro", "2 membros". */}
+              {t(members.length === 1 ? 'team.memberCount.one' : 'team.memberCount.other', { count: String(members.length) })}
+            </Chip>
+          ) : (
+            <>
+              <p className={styles.emptyBody}>{t('team.emptyBody')}</p>
+              {onBuildTeam !== undefined && (
+                <Button variant="primary" icon={<UiIcon name="plus" size={18} strokeWidth={2.2} />} onClick={onBuildTeam}>
+                  {t('team.emptyAction')}
+                </Button>
               )}
-              {/* O `title` repete "nome · estado": abaixo da largura que cabe, a etiqueta só mostra o nome e o ponto (o texto do estado vira só leitura de tela, CSS). */}
-              <span className={styles.tag} title={`${member.name} · ${inDraft ? t('team.statusDraft') : status}`}>
-                <span className={styles.tagName}>
-                  {member.systemRoles?.includes('team_manager') === true && <UiIcon name="baton" size={13} strokeWidth={2.4} className={styles.gestorIcon} />}
-                  <span className={styles.tagNameText}>{member.name}</span>
-                  {personaFace !== undefined && personaMenu !== undefined && (
-                    <button
-                      type="button"
-                      className={styles.tagMore}
-                      aria-label={t('sidebar.team.profile', { name: member.name })}
-                      title={t('sidebar.team.profile', { name: member.name })}
-                      {...personaMenu(member.id)}
-                    >
-                      <UiIcon name="more" size={16} />
-                    </button>
-                  )}
-                </span>
-                {inDraft ? (
-                  // SW-7: "Trabalhando num rascunho" — o ponto brand + o texto (nunca só cor); o leitor de tela ouve a frase inteira.
-                  <span className={styles.tagStatus} data-draft="">
-                    <span className={styles.statusDot} data-state="draft" aria-hidden="true" />
-                    <span className={styles.tagStatusText} aria-hidden="true">{t('team.statusDraft')}</span>
-                    <span className="persona-sr-only">{t('team.statusDraftSr')}</span>
-                  </span>
+            </>
+          )}
+        </div>
+
+        <ul className={styles.cast}>
+          {members.map((member, index) => {
+            const personaState = personaStateOf(member)
+            const status = t(PERSONA_STATE_LABEL[personaState])
+            const inDraft = personaState === 'draft'
+            return (
+              <li
+                key={member.id}
+                className={styles.member}
+                data-state={member.state}
+                data-persona-state={personaState}
+                data-arriving={member.arriving === true ? '' : undefined}
+                style={{ '--arrive-delay': `${index * 180}ms` } as CSSProperties}
+              >
+                {member.arriving === true && <span className={styles.arrived} role="status">{t('team.arrived', { name: member.name })}</span>}
+                {personaFace !== undefined && personaMenu !== undefined ? (
+                  <button
+                    type="button"
+                    className={styles.figureButton}
+                    aria-label={t('sidebar.team.openDm', { name: member.name })}
+                    {...personaFace(member.id)}
+                  >
+                    <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
+                  </button>
+                ) : personaCardTrigger === undefined ? (
+                  <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
                 ) : (
-                  <span className={styles.tagStatus}>
-                    <span className={styles.statusDot} data-state={member.state} aria-hidden="true" />
-                    <span className={styles.tagStatusText}>{status}</span>
-                  </span>
+                  <button
+                    type="button"
+                    className={styles.figureButton}
+                    aria-label={member.name}
+                    {...personaCardTrigger(member.id)}
+                  >
+                    <PersonaTeamFigure member={member} breatheDelay={`${(index * 0.73) % 3.1}s`} />
+                  </button>
                 )}
-                <span className="persona-sr-only">{`, ${member.role}`}</span>
-              </span>
+                {/* O `title` repete "nome · estado": abaixo da largura que cabe, a etiqueta só mostra o nome e o ponto (o texto do estado vira só leitura de tela, CSS). */}
+                <span className={styles.tag} title={`${member.name} · ${inDraft ? t('team.statusDraft') : status}`}>
+                  <span className={styles.tagName}>
+                    {member.systemRoles?.includes('team_manager') === true && <UiIcon name="baton" size={13} strokeWidth={2.4} className={styles.gestorIcon} />}
+                    <span className={styles.tagNameText}>{member.name}</span>
+                    {personaFace !== undefined && personaMenu !== undefined && (
+                      <button
+                        type="button"
+                        className={styles.tagMore}
+                        aria-label={t('sidebar.team.profile', { name: member.name })}
+                        title={t('sidebar.team.profile', { name: member.name })}
+                        {...personaMenu(member.id)}
+                      >
+                        <UiIcon name="more" size={16} />
+                      </button>
+                    )}
+                  </span>
+                  {inDraft ? (
+                  // SW-7: "Trabalhando num rascunho" — o ponto brand + o texto (nunca só cor); o leitor de tela ouve a frase inteira.
+                    <span className={styles.tagStatus} data-draft="">
+                      <span className={styles.statusDot} data-state="draft" data-persona-state="draft" aria-hidden="true" />
+                      <span className={styles.tagStatusText} aria-hidden="true">{t('team.statusDraft')}</span>
+                      <span className="persona-sr-only">{t('team.statusDraftSr')}</span>
+                    </span>
+                  ) : (
+                    <span className={styles.tagStatus}>
+                      <span className={styles.statusDot} data-state={member.state} data-persona-state={personaState} aria-hidden="true" />
+                      <span className={styles.tagStatusText}>{status}</span>
+                    </span>
+                  )}
+                  <span className="persona-sr-only">{`, ${member.role}`}</span>
+                </span>
+              </li>
+            )
+          })}
+          {showLoading && [0.84, 1, 0.9].map(scale => (
+            <li key={scale} className={styles.member} aria-hidden="true">
+              <Skeleton width={Math.round(72 * scale)} height={Math.round(72 * scale)} shape="circle" />
+              <Skeleton width={64} height={14} />
             </li>
-          )
-        })}
-        {showLoading && [0.84, 1, 0.9].map(scale => (
-          <li key={scale} className={styles.member} aria-hidden="true">
-            <Skeleton width={Math.round(72 * scale)} height={Math.round(72 * scale)} shape="circle" />
-            <Skeleton width={64} height={14} />
-          </li>
-        ))}
-        {!showLoading && members.length === 0 && [0.84, 1, 0.9].map((scale, index) => (
-          <li key={scale} className={styles.member}>
-            <span className={styles.seat} style={{ '--seat-scale': scale, animationDelay: `${index * 0.6}s` } as CSSProperties} aria-hidden="true">
-              <UiIcon name="plus" size={26} strokeWidth={2.4} />
-            </span>
-            <span className={`${styles.tag} ${styles.tagSeat}`}>{t('team.emptySeat')}</span>
-          </li>
-        ))}
-      </ul>
-    </section>
+          ))}
+          {!showLoading && members.length === 0 && [0.84, 1, 0.9].map((scale, index) => (
+            <li key={scale} className={styles.member}>
+              <span className={styles.seat} style={{ '--seat-scale': scale, animationDelay: `${index * 0.6}s` } as CSSProperties} aria-hidden="true">
+                <UiIcon name="plus" size={26} strokeWidth={2.4} />
+              </span>
+              <span className={`${styles.tag} ${styles.tagSeat}`}>{t('team.emptySeat')}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
   )
 }

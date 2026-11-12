@@ -176,7 +176,7 @@ describe.skipIf(!run)('SB-7 + GES-6 app — Segundo cérebro e Gestor de equipe'
 
     vitestIt('[SB-5b] busca por texto acha a página e abre (sem rede: filtra o que já está carregado)', async () => {
       await openBrainHome()
-      await s.page.getByPlaceholder('Buscar no Segundo cérebro').fill('fiado')
+      await s.page.getByPlaceholder('Buscar nas páginas da empresa').fill('fiado')
       const hit = surface().getByRole('button', { name: 'Regra da casa SBGES' }).first()
       await hit.waitFor({ state: 'visible', timeout: 15_000 })
       await hit.click()
@@ -249,10 +249,10 @@ describe.skipIf(!run)('SB-7 + GES-6 app — Segundo cérebro e Gestor de equipe'
       const home = await mainText(s.page)
       expect(home).toContain('Nota privada SBGES')
       expect(home, 'página restrita à persona vazou na home').not.toMatch(/Segredo persona SBGES|conteudo-restrito-sbges/u)
-      await s.page.getByPlaceholder('Buscar no Segundo cérebro').fill('conteudo-restrito-sbges')
+      await s.page.getByPlaceholder('Buscar nas páginas da empresa').fill('conteudo-restrito-sbges')
       await s.page.waitForTimeout(600)
       expect(await mainText(s.page), 'busca devolveu a página restrita').not.toMatch(/Segredo persona SBGES/u)
-      await s.page.getByPlaceholder('Buscar no Segundo cérebro').fill('')
+      await s.page.getByPlaceholder('Buscar nas páginas da empresa').fill('')
       await surface().getByRole('button', { name: /^Aprendizado\s*\d/u }).first().click()
       await surface().getByRole('tab', { name: 'Tudo' }).click()
       const list = await mainText(s.page)

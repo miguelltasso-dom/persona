@@ -22,6 +22,18 @@ export interface SealedPayload {
   ciphertext: string
 }
 
+/**
+ * E2EE per channel (Entrega 2): AES-256-GCM under the channel key of `epoch`, signed by the author's Ed25519 key. The Durable Object never opens it;
+ * it only checks `sig` against the member's public key. `ciphertext` is `base64(iv || tag || body)`, `sig` is base64url. Additive: `SealedPayload` is untouched.
+ */
+export interface ChannelSealedPayload {
+  alg: 'channel'
+  epoch: number
+  authorId: string
+  ciphertext: string
+  sig: string
+}
+
 /** Optional workspace-key cipher. The host holds the key; the server does not. */
 export interface PayloadCipher {
   /**

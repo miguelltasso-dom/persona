@@ -61,7 +61,7 @@ describe('brain-ui-adapters', () => {
     const system = page({ id: 'x', kind: 'company', title: 'T', editorHint: 'person:system' })
     // No librarian in this team: a neutral label and no borrowed portrait.
     const none = feedEditorDisplay(pt, system)
-    expect(none.who).toBe('O bibliotecário')
+    expect(none.who).toBe('Atualização automática da equipe')
     expect(none.whoAvatar).toBeUndefined()
     // With one, her name (and her portrait when she has one).
     const named = feedEditorDisplay(pt, system, {}, { system: 'Atlas' })
@@ -84,7 +84,7 @@ describe('brain-ui-adapters', () => {
       sources: ['derived-index'],
     }))
     expect(item.source).toBe(pt['feed.sourceDerivedIndex'])
-    expect(item.who).toBe('O bibliotecário')
+    expect(item.who).toBe('Atualização automática da equipe')
   })
 })
 

@@ -14,6 +14,7 @@ import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, statSync
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { PADARIA_SCENARIOS, type PadariaScenarioId } from './eval-padaria-scenarios.ts'
 import { hostRpcOk } from './gauge-sb-ges.ts'
 import { readHostFlags, v11FlagsOn, type HostFlags } from './host-flags.ts'
 import { readLedgerEvidence, type LedgerEvidence } from './ledger-evidence.ts'
@@ -104,6 +105,10 @@ export interface TeamRoundOptions {
   readonly deadlineMs: number
   /** The thread, the Tasks and the ledger unchanged this long = the team is done. */
   readonly quietMs: number
+  /** FAKE only (COLHEITA item 14): one persona does ONE thing wrong, so the eval can be seen flagging it end to end (`eval-padaria-scenarios.ts`). Absent = the clean rehearsal. */
+  readonly scenario?: PadariaScenarioId
+  /** FAKE only: `legacy` (default) = the stub passes the art to Bia and asks Lia for help (the P0-1 rehearsal); `d100` = the stub makes no hand-off, the host's D-100 flow does the work. */
+  readonly choreography?: 'legacy' | 'd100'
 }
 
 export interface TeamRoundResult {
@@ -224,13 +229,14 @@ function collectDraftProof(calls: ReturnType<RealPersonaSession['fakeCli']['invo
  * What the stub saw for the three P0 (see `TeamRoundResult.stubProof`): its own look at each working directory when a turn started, the tool calls of its scripted model, the tool
  * catalog the CLI was offered. A turn "carries the request" when its prompt holds the request's text (a part of the split) or a bilhete that is not a review (the colleague of a pass/help).
  */
-function readStubProof(calls: ReturnType<RealPersonaSession['fakeCli']['invocations']>, transcript: TeamTranscript | undefined): NonNullable<TeamRoundResult['stubProof']> {
+function readStubProof(calls: ReturnType<RealPersonaSession['fakeCli']['invocations']>, transcript: TeamTranscript | undefined, scripted = true): NonNullable<TeamRoundResult['stubProof']> {
   const carriesRequest = (turn: StubTurnEvent): boolean => turn.needles?.[REQUEST_TEXT] === true || (turn.needles?.[BILHETE_BLOCK] === true && turn.needles?.review_verdict !== true)
   const problems = stubTurnProblems(calls, { attachmentName: ATTACHMENT_NAME, posterSha256: POSTER_SHA256 }, carriesRequest)
   // "X salvou … no rascunho" only for what X's own turn wrote (a copy the host handed her is not her work).
   if (transcript !== undefined) problems.push(...savedLinesProblems(transcript, calls.filter(call => call.event === 'write' && call.recreated !== true)))
   const toolCalls = calls.filter(call => call.event === 'toolcall').map(call => ({ toolName: call.toolName ?? '?', ok: call.ok === true, text: (call.text ?? '').slice(0, 240) }))
-  for (const wanted of ['pass_forward', 'ask_colleague']) {
+  // The legacy rehearsal makes the stub CALL the product's hand-off tools (the only way to reach the receivers of a bilhete); the D-100 choreography makes none, the host's flow does the work.
+  for (const wanted of scripted ? ['pass_forward', 'ask_colleague'] : []) {
     const mine = toolCalls.filter(call => call.toolName === wanted)
     if (mine.length === 0) problems.push(`P0-1 stub: the scripted model never called ${wanted}: the receivers of a bilhete with a file were not exercised`)
     else if (!mine.some(call => call.ok)) problems.push(`P0-1 stub: the product refused every ${wanted} of the scripted model (${mine.map(call => call.text).join(' | ')}): the receivers of a bilhete with a file were not exercised`)
@@ -260,6 +266,16 @@ export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRound
     ...(real ? { PERSONA_REAL_TURN_CAP: String(options.cap), PERSONA_REAL_TURN_LEDGER: options.ledgerFile ?? '' } : {}),
   }
   if (real && (options.ledgerFile ?? '') === '') throw new Error('a real round needs an absolute fresh ledger file for the limiter')
+  if (real && (options.scenario !== undefined || options.choreography !== undefined)) throw new Error('a RED scenario and the choreography are played by the stub: they never run on the real engine')
+  const scenario = options.scenario === undefined ? undefined : PADARIA_SCENARIOS[options.scenario]
+  // The text part (Bia) is the one that misbehaves: her words reach the thread, the bilhete and the review the way a model's do. The rule goes right after the reviewer's verdict and BEFORE the
+  // clean part rules (the first match wins), so a review prompt that quotes her assignment still gets its "APROVADO".
+  // `selfCorrects`: when the host sends her back with its internal charge (every variant ends "Não diga que fez o que não fez"), she delivers honestly, as a model does once it is told.
+  const defectRules = [
+    ...(scenario?.selfCorrects === true ? [{ match: 'Não diga que fez o que não fez', reply: LONG_DELIVERY }] : []),
+    ...(scenario?.textPartAppend === undefined ? [] : [{ match: 'Sua parte: texto', reply: `${LONG_DELIVERY}\n${scenario.textPartAppend}` }]),
+  ]
+  const defectCalls = scenario?.textPartAsks === undefined ? [] : [{ match: 'Sua parte: texto', once: true, calls: [{ tool: 'persona_ask', args: { question: scenario.textPartAsks } }] }]
 
   // Isolation proven BEFORE any paid turn (Atlas): the verdicts of this `claude` version and the parity of haiku with the person's settings as they are now.
   let isolation: { version: string; fingerprint: string; problems: string[] } | undefined
@@ -279,6 +295,7 @@ export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRound
     // any real turn; a part of a split request ("Sua parte: …") answers with a LONG delivery that ends in `DELIVERY_END`, so the rehearsal can prove the reviewer gets the WHOLE delivery.
     engine: real ? { kind: 'real' } : {
       kind: 'fake', turnMs: 1_500, needles: [REQUEST_TEXT, DELIVERY_END, ENTREGA_BLOCK, BILHETE_BLOCK, 'review_verdict'], toolsProbe: true,
+      ...(scenario?.inputTokens === undefined ? {} : { inputTokens: scenario.inputTokens }),
       // P0-1 (Atlas 07/11): ONLY the art part writes the art (the old `writeFile` wrote it in EVERY turn, so a colleague that could not find it never showed). A turn whose prompt names the art file
       // while the file is not in its working directory MAKES one — what Lia did in the real round — and the log says so (`recreated`).
       writeRules: [
@@ -287,15 +304,17 @@ export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRound
       ],
       // The stub as the MODEL of the art part: it passes the work on to Bia with the art as a file of the bilhete (`pass_forward`) and asks Lia for help with it (`ask_colleague`), through the
       // product's own tools — the only way a rehearsal with no model reaches the receivers of a bilhete.
-      toolCalls: [{
+      // `choreography: 'd100'` (COLHEITA item 14): the stub makes NO hand-off of its own — the D-100 flow is the host's: Bia delivers the text, the art of Téo is born from her delivery, ONE art, Lia reviews it.
+      toolCalls: [...defectCalls, ...(options.choreography === 'd100' ? [] : [{
         match: 'Sua parte: arte', once: true,
         calls: [
           { tool: 'pass_forward', args: { colleague: 'Bia', title: 'Texto do cartaz', done: ['Arte-base pronta, seguindo a foto do pedido.'], needed: ['O texto do título e o contato do WhatsApp para a faixa branca.'], files: [ART_FILE], decisions: ['Formato 4:5 para o Instagram.'] } },
           { tool: 'ask_colleague', args: { colleague: 'Lia', title: 'Conferir o contraste da arte', done: ['Arte-base pronta.'], needed: ['Dizer se o contraste funciona para o Instagram.'], files: [ART_FILE], decisions: [] } },
         ],
-      }],
+      }])],
       rules: [
         { match: 'review_verdict', reply: 'APROVADO\n\nO texto e a arte estão coerentes com o pedido.' },
+        ...defectRules,
         // P0-2: what a real model says between its tool calls (the words of attempt 4) comes BEFORE the delivery; only the delivery may reach the thread, the bilhete and the review.
         { match: 'Sua parte: arte', reply: LONG_DELIVERY, narration: NARRATION_STEPS },
         { match: 'Sua parte:', reply: LONG_DELIVERY },
@@ -479,7 +498,7 @@ export async function runTeamRound(options: TeamRoundOptions): Promise<TeamRound
 
     const ledger = readLedgerEvidence(options.home)
     const transcript = readTeamTranscript(options.home)
-    const stubProof = stubEvents === undefined ? undefined : readStubProof(stubEvents, transcript)
+    const stubProof = stubEvents === undefined ? undefined : readStubProof(stubEvents, transcript, options.choreography !== 'd100')
     // P0-1/2/3 of the real round of 07/11 are part of the verdict itself (real and fake): the shared files are read from the drafts on disk, the words from the thread/bilhetes/reviews.
     const verdict = transcript === undefined ? undefined : evaluateTeamRound(transcript, {
       ceilingTurns: options.cap, minPersonas: 2, requireImage: true, answeredAsks: answerer.answered.length,

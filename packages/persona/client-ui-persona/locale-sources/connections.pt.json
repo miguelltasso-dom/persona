@@ -46,7 +46,13 @@
   "account.menu": "Mais ações para {provider} · {label}",
   "account.inUseNow": "Em uso agora",
   "accountPolicy.legend": "Quando uma conta chegar ao limite",
+  "emailRule.legend": "Receber pedidos por e-mail",
   "accountPolicy.recommended": "Recomendado",
+  "account.label.claude": "Conta do Claude neste computador",
+  "account.label.dsh": "Conta DeepSeek neste computador",
+  "capability.full": "Completo",
+  "capability.readOnly": "Só leitura",
+  "capability.readOnly.note": "Nos conectores, este motor só lê. Enviar, publicar, pagar ou apagar não rodam por aqui.",
   "accountPolicy.fixed.title": "Ficar nesta conta",
   "accountPolicy.fixed.body": "No limite, a tarefa espera a cota voltar.",
   "accountPolicy.next_on_limit.title": "Trocar sozinha para a próxima conta",
@@ -104,5 +110,8 @@
   "swapPolicy.saved": "Regra salva.",
   "swapPolicy.saveError": "Não consegui salvar a regra agora. Tente de novo.",
   "account.add.showCommand": "Ver o comando",
-  "swapPolicy.legacyRule": "A opção de dividir o uso entre contas saiu. Escolha uma das três."
+  "swapPolicy.legacyRule": "A opção de dividir o uso entre contas saiu. Escolha uma das três.",
+  "status.checking": "Conferindo…",
+  "status.unconfirmed": "Não consegui conferir",
+  "action.retryCheck": "Tentar de novo"
 }

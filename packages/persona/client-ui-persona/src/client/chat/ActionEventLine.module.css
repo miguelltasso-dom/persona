@@ -23,6 +23,16 @@
   overflow-wrap: anywhere;
 }
 
+/* COLHEITA 5: passou dos 5 min (ou foi desfeito): texto simples em tinta suave, sem link. */
+.muted {
+  color: var(--persona-ink-muted);
+}
+
+.note {
+  font: 600 13px/20px var(--persona-font-text);
+  color: var(--persona-ink-soft);
+}
+
 .undo {
   padding: 2px 0;
   border: 0;

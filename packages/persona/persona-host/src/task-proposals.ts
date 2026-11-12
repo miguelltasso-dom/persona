@@ -84,6 +84,8 @@ export interface TaskProposalPort {
   flush(projectId: string, nowIso: string): boolean
   /** Close the proposals nobody answered in 3 days. */
   expire(projectId: string, nowIso: string): void
+  /** HONEST-1: how many proposals are recorded and waiting for the card (so the team's quiet window can say it held the card back). */
+  queued?(projectId: string): number
 }
 
 /** What the host binds. */
@@ -194,6 +196,10 @@ export class TaskProposalHost implements TaskProposalPort {
       this.putStats(personaId, { ...stats, day: nowIso.slice(0, 10), offeredToday: (stats.offeredToday ?? 0) + count, lastOfferedAt: nowIso })
     }
     return true
+  }
+
+  queued(projectId: string): number {
+    return this.records(projectId).filter(row => row.status === 'queued').length
   }
 
   expire(projectId: string, nowIso: string): void {

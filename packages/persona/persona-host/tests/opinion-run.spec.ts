@@ -342,3 +342,33 @@ describe('in the real host', () => {
     expect(row?.messageId).toBeNull() // untouched
   })
 })
+
+describe('D-100: "NOVA VERSÃO:" never leaks, wherever the model puts it', () => {
+  it('on the SAME line: the marker cuts the sentence, it is never shown', () => {
+    expect(parseConsolidation('Só troco o preço. NOVA VERSÃO: Pão de queijo, 2 por R$ 9.')).toEqual({ text: 'Só troco o preço.', after: 'Pão de queijo, 2 por R$ 9.' })
+    expect(parseConsolidation('Só troco o preço.   nova  versao :   Pão de queijo')).toEqual({ text: 'Só troco o preço.', after: 'Pão de queijo' })
+    expect(parseConsolidation('NOVA VERSÃO: Só isso').text).toBe('Ajustei o rascunho com o que a equipe disse.')
+  })
+
+  it('a multi-line new text is kept whole after the marker', () => {
+    expect(parseConsolidation('Ajustei o título. NOVA VERSÃO: Linha 1 Linha 2')).toEqual({ text: 'Ajustei o título.', after: 'Linha 1 Linha 2' })
+  })
+
+  it('through a round: the line says the 1–2 sentences only, and the new text rides on the version (Antes · Depois)', async () => {
+    const r = rig({ answers: { teo: '[sugestão] Troque “agora” por “hoje”.', caio: '[nada]', bia: 'Troco para “hoje”. NOVA VERSÃO: Compre hoje e leve dois.' } })
+    await r.opinions.run(r.input)
+    const final = r.lines.get('opinion:call-1:consolidated')
+    expect(final?.body).toBe('Troco para “hoje”.')
+    expect(final?.body).not.toMatch(/NOVA VERS/iu)
+    expect(final?.view?.version).toEqual({ k: 1, before: { text: 'Compre agora e leve dois.' }, after: { text: 'Compre hoje e leve dois.' } })
+  })
+
+  it('a "new version" that is the SAME text as the draft is not a new version: no Antes · Depois of nothing', async () => {
+    const r = rig({ answers: { teo: '[gostei] Está bom.', caio: '[nada]', bia: 'Fica como está. NOVA VERSÃO: Compre   agora e leve dois.' } })
+    const result = await r.opinions.run(r.input)
+    const final = r.lines.get('opinion:call-1:consolidated')
+    expect(final?.body).toBe('Fica como está.')
+    expect(final?.view?.version).toBeUndefined()
+    expect(result.version).toBeUndefined()
+  })
+})

@@ -74,7 +74,7 @@ describe('ask_team_opinion with draft.files', () => {
     expect(draft.attachmentIds).toBeUndefined()
     expect(draft.files).toHaveLength(1)
     expect(draft.files![0]).toMatchObject({ path: 'arte/cartaz.svg', name: 'cartaz.svg', mime: 'image/svg+xml', taskId: 't-1', personaId: 'teo' })
-    expect(draft.files![0]!.thumb?.startsWith('data:image/png;base64,')).toBe(true)
+    expect(draft.files![0]!.thumb?.startsWith('data:image/svg+xml;base64,')).toBe(true)
     expect(draft.text).toBe('Cartaz do sábado')
   }, 30_000)
 

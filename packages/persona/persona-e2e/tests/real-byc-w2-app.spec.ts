@@ -433,10 +433,8 @@ describe.skipIf(!run)('W2-1 app — assuntos coloridos no #geral', () => {
     await hostRpc(s.page, 'postMessage', { id: `gauge-d-${TAG}`, ...STREAM, body: ask, actorId: 'owner', subjectId: `s-d-${TAG}`, occurredAt: new Date().toISOString(), topicId: interface_.id })
     await s.page.waitForTimeout(6_000)
     await navigateGalleryPanel(s.page, REAL_GALLERY_PANELS.find(panel => panel.slug === 'kanban')!)
-    const back = s.page.getByRole('button', { name: 'Voltar aos quadros' })
-    if (await back.count() > 0) await back.first().click()
-    await s.page.getByText('Pessoal', { exact: true }).first().click()
-    await s.page.getByRole('button', { name: 'Editar fluxo' }).first().waitFor({ state: 'visible', timeout: 30_000 })
+    // DESIGN-01 #10: Projetos opens straight on the board of the project of the moment.
+    await s.page.getByRole('button', { name: 'Opções' }).first().waitFor({ state: 'visible', timeout: 30_000 })
     const card = s.page.getByText(new RegExp(`README sobre ${TAG}d`, 'u')).first()
     await card.waitFor({ state: 'visible', timeout: 30_000 })
     // Walk up from the card title to the card root (the smallest ancestor that also shows the origin assunto).

@@ -41,7 +41,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  min-height: 30px;
+  min-height: var(--control-h-s);
   padding: 0 10px 0 8px;
   margin-bottom: 2px;
   border: var(--persona-border-width) solid var(--persona-outline-soft);

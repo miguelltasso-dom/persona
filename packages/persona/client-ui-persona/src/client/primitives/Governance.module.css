@@ -368,7 +368,7 @@
 
 .gaugeFill {
   stroke: var(--level);
-  transition: stroke-dasharray var(--motion-slow) var(--ease-standard);
+  transition: stroke-dasharray 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .gaugeValue {
@@ -408,6 +408,10 @@
 
 @media (prefers-reduced-motion: reduce) {
   .gaugeFill {
+    transition: none;
+  }
+
+  .slot {
     transition: none;
   }
 }
@@ -531,13 +535,29 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 2px var(--persona-space-2);
+  gap: var(--persona-space-2);
+  min-width: 0;
+}
+
+.rowFace {
+  display: inline-flex;
+  flex-shrink: 0;
+}
+
+.rowText {
+  display: flex;
+  flex: 1 1 140px;
+  flex-direction: column;
   min-width: 0;
 }
 
 .rowName {
-  flex-basis: 100%;
   font: 600 15px/20px var(--persona-font-display);
+}
+
+.rowRole {
+  font: 700 12px/16px var(--persona-font-text);
+  color: var(--persona-ink-faint);
 }
 
 .rowReason {
@@ -553,6 +573,9 @@
   box-sizing: border-box;
   border: var(--persona-border-width) solid var(--persona-outline);
   border-radius: var(--persona-radius-m);
+  /* #15: when the host recalculates and a bar turns green, the rows change one after another (45 ms apart). */
+  transition: background-color 220ms var(--ease-standard), color 220ms var(--ease-standard);
+  transition-delay: calc(var(--two-day-index, 0) * 45ms);
 }
 
 .slot[data-outcome='runs'] { background: var(--persona-success-tint); color: var(--persona-success); }

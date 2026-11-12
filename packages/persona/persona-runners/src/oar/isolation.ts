@@ -203,6 +203,9 @@ export function cliIsolationReport(cli: string, env?: NodeJS.ProcessEnv): Isolat
 /** How a tool the persona is about to use can be stopped for the person's preview card. */
 export type PreviewSupport = 'hook' | 'unconfirmed' | 'none'
 
+/** D-103a: what the person's connectors may do on a CLI: `gated` = every call is judged by a PROVEN permission gate first; `read-only` = no gate proven, so only reads. */
+export type ConnectorActions = 'gated' | 'read-only'
+
 /**
  * HT-12: what the product can truthfully say about one CLI on the screen. A promise the runner cannot keep is worse than a limit stated:
  * Codex has everything of the person already loaded and no filter for it; its tool-permission interception is not CONFIRMED by a run yet.
@@ -217,6 +220,8 @@ export interface CliCapabilityReport extends IsolationReport {
   readonly skills: 'optional' | 'all-loaded' | 'none'
   /** Can the product hold a guarded tool until the person decides (HT-8/9)? `hook` = proven on the real CLI; `unconfirmed` = not proven yet; `none` = no known way. */
   readonly permissionPreview: PreviewSupport
+  /** D-103a: follows `permissionPreview` (one switch): only a CLI whose gate is proven (`hook`) is `gated`; the rest read their connectors and nothing else. */
+  readonly connectorActions: ConnectorActions
 }
 
 /**
@@ -225,6 +230,11 @@ export interface CliCapabilityReport extends IsolationReport {
  * @param env - Environment (default `process.env`).
  */
 export function cliCapabilityReport(cli: string, env?: NodeJS.ProcessEnv): CliCapabilityReport {
+  const base = capabilityBase(cli, env)
+  return { ...base, connectorActions: base.permissionPreview === 'hook' ? 'gated' : 'read-only' }
+}
+
+function capabilityBase(cli: string, env?: NodeJS.ProcessEnv): Omit<CliCapabilityReport, 'connectorActions'> {
   const { level, notIsolated } = isolationPlan(cli, env === undefined ? {} : { env })
   const needed = cliEnvMode(env ?? process.env) === 'needed'
   if (cli === 'claude') {

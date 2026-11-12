@@ -1,7 +1,8 @@
 import type { ReactNode } from 'react'
+import type { PersonaStateName } from '../theme/tokens.ts'
 import styles from './Avatar.module.css'
 
-export type AvatarSize = 24 | 32 | 40 | 48 | 56 | 96
+export type AvatarSize = 24 | 28 | 32 | 36 | 40 | 44 | 48 | 56 | 96
 export type AvatarPresence = 'online' | 'busy' | 'away' | 'offline'
 
 export interface AvatarProps {
@@ -13,6 +14,11 @@ export interface AvatarProps {
   /** Persona portraits are rounded squares; people are circles. */
   readonly shape?: 'portrait' | 'person'
   readonly presence?: AvatarPresence | undefined
+  /**
+   * What a PERSONA is doing, in the one state vocabulary (DESIGN-01-MUSE §0.2; `team/persona-state.ts` derives it). Draws the
+   * state dot with the `--persona-state-*` color and takes the place of `presence`, which stays for people.
+   */
+  readonly state?: PersonaStateName | undefined
   /** Decorative avatar next to a visible name. */
   readonly decorative?: boolean
   /**
@@ -46,6 +52,7 @@ export function Avatar({
   size = 40,
   shape = src === undefined ? 'person' : 'portrait',
   presence,
+  state,
   decorative = false,
   className,
   icon,
@@ -67,7 +74,9 @@ export function Avatar({
       ) : (
         <span className={styles.initials}>{initialsOf(name)}</span>
       )}
-      {presence !== undefined && <span className={styles.presence} data-presence={presence} />}
+      {state !== undefined
+        ? <span className={styles.presence} data-persona-state={state} />
+        : presence !== undefined && <span className={styles.presence} data-presence={presence} />}
     </span>
   )
 }

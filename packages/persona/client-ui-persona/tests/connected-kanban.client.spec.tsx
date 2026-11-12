@@ -75,7 +75,6 @@ describe('ConnectedGlobalKanban (InjectFace)', () => {
         <ConnectedGlobalKanban
           persona={{} as never}
           refreshKanban={async () => {}}
-          navigateProjectTab={() => {}}
           clearBoardsFocusProject={() => { shellActions.clearBoardsFocusProject() }}
           clearKanbanFocusTicket={() => { shellActions.clearKanbanFocusTicket() }}
           setProjectWorkspaceProjectId={(id) => { shellActions.setProjectWorkspaceProjectId(id) }}
@@ -85,7 +84,8 @@ describe('ConnectedGlobalKanban (InjectFace)', () => {
         />
       </PreviewFrame>,
     )
-    expect(document.querySelector('[data-persona-boards][aria-busy="true"]')).toBeTruthy()
-    expect(screen.getByRole('heading', { level: 1, name: kanbanPt['title.boards'] })).toBeTruthy()
+    // the place opens on a board, so its loading state is the board's skeleton under the place's own title
+    expect(document.querySelector('[data-persona-surface="boards"]')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 1, name: kanbanPt['projects.switcher.title'] })).toBeTruthy()
   })
 })

@@ -1,12 +1,17 @@
 /**
- * "Configurações › Aparência" (TH-1, APARENCIA-SPEC): o Tema (Sistema / Claro / Escuro) em três cartões com uma miniatura do app desenhada
- * com os tokens, e o interruptor "Dicas de atalho". A troca do tema é AO VIVO e fica no Config do usuário (ver `theme-preference.ts`).
+ * "Configurações › Aparência" (TH-1, APARENCIA-SPEC; cena 22 da Muse): o Tema (Sistema / Claro / Escuro) em três cartões com uma
+ * miniatura do app desenhada com os tokens; as Figurinhas das personas (antes a aba Personalidade, atrás da flag figurinhas);
+ * e o interruptor "Dicas de atalho". A troca do tema é AO VIVO e fica no Config do usuário (ver `theme-preference.ts`).
+ * Não há "som ao concluir": não existe backend para ele (decisão do Keel).
  */
 
 import { useSyncExternalStore, type ReactNode } from 'react'
 import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots'
 import { Card, ChoiceCards, Screen, ScreenHeader, Switch, type ChoiceCardOption } from '../primitives/index.ts'
 import { THEME_CHOICES, type ThemeBridge, type ThemeChoice } from '../theme/theme-preference.ts'
+import { isStickersEnabled } from '../figurinhas/figurinhas-flag.ts'
+import { StickersSection } from '../figurinhas/StickersSection.tsx'
+import { SettingsScrollFrame } from './SettingsScrollFrame.tsx'
 import { useShortcutTips } from './shortcut-tips-preference.ts'
 import styles from './AppearanceSettingsPanel.module.css'
 
@@ -63,34 +68,37 @@ export function AppearanceSettingsPanel({ t, themeBridge }: AppearanceSettingsPa
     icon: <ThemeMiniature choice={id} />,
   }))
   return (
-    <Screen>
-      <ScreenHeader icon="configuracoes" eyebrow={t('place.settings')} title={t('appearance.title')} />
-      {/* `data-theme-persistence`: onde a escolha fica guardada (`config` = Config do usuário via o serviço de tema do host; `local` = só este navegador); as provas leem. */}
-      <Card as="section" titleAs="h2" title={t('appearance.theme')} padding="m" data-theme-persistence={themeBridge.persistence}>
-        <ChoiceCards<ThemeChoice>
-          legend={t('appearance.theme')}
-          hideLegend
-          variant="preview"
-          name="persona-theme"
-          options={options}
-          value={choice}
-          onChange={(next) => { themeBridge.write(next) }}
-        />
-      </Card>
-      <Card as="section" padding="m">
-        <div className={styles.tipsRow}>
-          <div className={styles.tipsText}>
-            <h2 id="persona-shortcut-tips-title" className={styles.tipsTitle}>{t('appearance.shortcutTips')}</h2>
-            <p id="persona-shortcut-tips-hint" className={styles.tipsHint}>{t('appearance.shortcutTipsHint')}</p>
-          </div>
-          <Switch
-            checked={tips.enabled}
-            onChange={tips.setEnabled}
-            labelledBy="persona-shortcut-tips-title"
-            describedBy="persona-shortcut-tips-hint"
+    <SettingsScrollFrame>
+      <Screen>
+        <ScreenHeader icon="configuracoes" eyebrow={t('place.settings')} title={t('appearance.title')} />
+        {/* `data-theme-persistence`: onde a escolha fica guardada (`config` = Config do usuário via o serviço de tema do host; `local` = só este navegador); as provas leem. */}
+        <Card as="section" titleAs="h2" title={t('appearance.theme')} padding="m" data-theme-persistence={themeBridge.persistence}>
+          <ChoiceCards<ThemeChoice>
+            legend={t('appearance.theme')}
+            hideLegend
+            variant="preview"
+            name="persona-theme"
+            options={options}
+            value={choice}
+            onChange={(next) => { themeBridge.write(next) }}
           />
-        </div>
-      </Card>
-    </Screen>
+        </Card>
+        {isStickersEnabled() && <StickersSection t={t} />}
+        <Card as="section" padding="m">
+          <div className={styles.tipsRow}>
+            <div className={styles.tipsText}>
+              <h2 id="persona-shortcut-tips-title" className={styles.tipsTitle}>{t('appearance.shortcutTips')}</h2>
+              <p id="persona-shortcut-tips-hint" className={styles.tipsHint}>{t('appearance.shortcutTipsHint')}</p>
+            </div>
+            <Switch
+              checked={tips.enabled}
+              onChange={tips.setEnabled}
+              labelledBy="persona-shortcut-tips-title"
+              describedBy="persona-shortcut-tips-hint"
+            />
+          </div>
+        </Card>
+      </Screen>
+    </SettingsScrollFrame>
   )
 }

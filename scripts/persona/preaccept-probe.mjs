@@ -11,8 +11,16 @@
 // e por último aperta Tab UMA vez para ver se o foco aparece (com e sem o foco: se a região muda, o foco é visível).
 import { readFileSync, writeFileSync } from 'node:fs'
 
-/** 2 = mede o diálogo (cabe na janela, rodapé à vista). 3 = D-103c: fala das personas, chip duplicado no composer, popover sobre mensagem, chip "Exemplo", rosto em inicial. */
-export const PROBE_VERSION = 3
+/**
+ * 2 = mede o diálogo (cabe na janela, rodapé à vista). 3 = D-103c: fala das personas, chip duplicado no composer, popover sobre mensagem, chip "Exemplo", rosto em inicial.
+ * 4 = DESIGN-01 §2.7 regra 6 (`preaccept-gpu`): animações rodando com a janela sem foco (e, se pedido, após 16 s sem turno ativo).
+ */
+export const PROBE_VERSION = 4
+
+/** Quanto esperar, depois do `blur`, para a pausa do app pousar (e as transições curtas acabarem) antes de contar. */
+export const GPU_SETTLE_MS = 800
+/** Transições finitas ainda em voo depois do assentamento ganham até isto para acabar; animação infinita não ganha prazo. */
+const GPU_FINITE_GRACE_MS = 1200
 
 /** Roda dentro da página; sem referências de fora (o Playwright serializa a função). */
 function inPageProbe() {
@@ -51,6 +59,8 @@ function inPageProbe() {
   const brokenImages = []
   for (const img of document.images) {
     if (!rendered(img)) continue
+    // Imagem preguiçosa (`loading="lazy"`) fora da janela ainda não foi buscada e não está desenhada nesta captura: não é imagem quebrada.
+    if (!img.complete && img.loading === 'lazy' && !inViewport(img.getBoundingClientRect())) continue
     if (img.currentSrc === '' || img.src === '' || (img.complete && img.naturalWidth === 0) || !img.complete) {
       brokenImages.push(`${img.complete ? 'sem pixels' : 'não carregou'}: ${short(img.currentSrc || img.src || '(sem src)', 90)}`)
     }
@@ -96,7 +106,15 @@ function inPageProbe() {
   for (const dialog of document.querySelectorAll('[role="dialog"], [role="alertdialog"], dialog[open]')) {
     if (!rendered(dialog)) continue
     const box = dialog.getBoundingClientRect()
-    const controls = [...dialog.querySelectorAll('button, [role="button"], a[href], input:not([type="hidden"]), select, textarea')].filter(rendered)
+    // O "rodapé" é o último controle FORA de uma lista rolável interna: o último item de uma paleta/lista com rolagem própria fica abaixo da dobra por desenho (o teclado o traz à vista).
+    const inInnerScroller = (el) => {
+      for (let node = el.parentElement; node && node !== dialog; node = node.parentElement) {
+        const cs = getComputedStyle(node)
+        if (/(auto|scroll)/u.test(cs.overflowY) && node.scrollHeight > node.clientHeight + 1) return true
+      }
+      return false
+    }
+    const controls = [...dialog.querySelectorAll('button, [role="button"], a[href], input:not([type="hidden"]), select, textarea')].filter(el => rendered(el) && !inInnerScroller(el))
     const last = controls[controls.length - 1]
     const lastBox = last?.getBoundingClientRect()
     const cut = []
@@ -280,17 +298,107 @@ async function runAxe(page, axePath) {
   }, AXE_TAGS)
 }
 
+/** Quanto esperar por imagem à vista que ainda está carregando antes de a sonda ler (servidor local lento ≠ imagem quebrada). */
+export const IMAGE_WAIT_MS = 1500
+
+/** Roda dentro da página: espera as imagens À VISTA ainda carregando (até `maxMs`). Devolve quantas esperou. */
+async function inPageWaitImages(maxMs) {
+  const inView = (el) => { const r = el.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.bottom > 0 && r.right > 0 && r.top < window.innerHeight && r.left < window.innerWidth }
+  const pending = [...document.images].filter(img => !img.complete && img.src !== '' && inView(img))
+  if (pending.length === 0) return 0
+  await Promise.race([
+    Promise.all(pending.map(img => new Promise((done) => { img.addEventListener('load', done, { once: true }); img.addEventListener('error', done, { once: true }) }))),
+    new Promise((done) => { setTimeout(done, maxMs) }),
+  ])
+  return pending.length
+}
+
+/** Roda dentro da página: as animações que estão RODANDO agora (CSS, transição e WAAPI; `document.getAnimations()` entra em shadow roots). */
+function inPageAnimations() {
+  const short = (text, max = 60) => String(text).replace(/\s+/gu, ' ').trim().slice(0, max)
+  const describeTarget = (el, pseudo) => {
+    if (!(el instanceof Element)) return '(sem alvo)'
+    const classes = typeof el.className === 'string' ? el.className.split(/\s+/u).filter(Boolean).slice(0, 2).map(name => `.${name}`).join('') : ''
+    return short(`${el.tagName.toLowerCase()}${el.id === '' ? '' : `#${el.id}`}${classes}${pseudo ? pseudo : ''}`)
+  }
+  // "steps": troca DISCRETA de frame (animation-timing-function: steps(...); o piscar e o rabo das figuras). O contador de GPU mediu 0,0% com foco: não é animação contínua (Keel 11/11 16:55).
+  // Num CSS animation a curva vive nas keyframes (o efeito fica "linear"); numa WAAPI (element.animate) vive no efeito: olha os dois.
+  const isSteps = (animation) => {
+    const effect = animation.effect
+    if (!effect) return false
+    const timing = typeof effect.getComputedTiming === 'function' ? effect.getComputedTiming() : null
+    const stepsEasing = (value) => String(value).startsWith('steps(')
+    if (timing !== null && stepsEasing(timing.easing)) return true
+    const inner = typeof effect.getKeyframes === 'function' ? effect.getKeyframes().slice(0, -1) : []
+    return inner.length > 0 && inner.every(frame => stepsEasing(frame.easing))
+  }
+  const all = document.getAnimations()
+  const running = all.filter(animation => animation.playState === 'running')
+  const describe = (animation) => {
+    const effect = animation.effect
+    const timing = effect && typeof effect.getComputedTiming === 'function' ? effect.getComputedTiming() : null
+    const iterations = timing === null ? null : Number.isFinite(timing.iterations) ? timing.iterations : 'Infinity'
+    const duration = timing === null || typeof timing.duration !== 'number' ? null : timing.duration
+    const name = animation.animationName ?? animation.transitionProperty ?? (animation.id !== '' ? animation.id : 'animação')
+    return { kind: animation.animationName !== undefined ? 'css' : animation.transitionProperty !== undefined ? 'transition' : 'waapi', name: short(name, 40), target: describeTarget(effect?.target ?? null, effect?.pseudoElement ?? ''), iterations, durationMs: duration, easing: isSteps(animation) ? 'steps' : 'continua' }
+  }
+  // Lista TODAS as que rodam (até 40): é o que o relatório agrupa. As contagens abaixo valem para todas, mesmo as que passarem do teto da lista.
+  const items = running.slice(0, 40).map(describe)
+  const infiniteAnimations = running.filter((animation) => {
+    const timing = animation.effect && typeof animation.effect.getComputedTiming === 'function' ? animation.effect.getComputedTiming() : null
+    return timing !== null && !Number.isFinite(timing.iterations)
+  })
+  const infinite = infiniteAnimations.length
+  const infiniteSteps = infiniteAnimations.filter(isSteps).length
+  return { count: running.length, infinite, infiniteSteps, total: all.length, items }
+}
+
+/**
+ * DESIGN-01 §2.7 regra 6 · o gate `preaccept-gpu`. Com a janela SEM FOCO (`window.dispatchEvent(new Event('blur'))`, como a regra manda)
+ * e, se `idleMs > 0`, depois desse tempo (16 000 na regra) sem mexer na página nem turno ativo, `document.getAnimations()` com
+ * `playState === 'running'` tem de ser 0. Devolve `{ focusedRunning, afterBlur: {count, items}, afterIdle?: {count, items, idleMs}, settleMs }`.
+ * Devolve a página como estava (um `focus` depois do `blur`): a próxima cena da régua não herda a pausa.
+ */
+export async function collectGpuIdle(page, { settleMs = GPU_SETTLE_MS, idleMs = 0 } = {}) {
+  const focused = await page.evaluate(inPageAnimations)
+  await page.evaluate(() => { window.dispatchEvent(new Event('blur')) })
+  await page.waitForTimeout(settleMs)
+  let afterBlur = await page.evaluate(inPageAnimations)
+  // Transição finita ainda em voo não é vazamento: espera acabar (até o prazo). Animação infinita ainda rodando é o erro, sem prazo.
+  const deadline = Date.now() + GPU_FINITE_GRACE_MS
+  while (afterBlur.count > 0 && afterBlur.items.length === afterBlur.count && afterBlur.items.every(item => item.iterations !== 'Infinity') && Date.now() < deadline) {
+    await page.waitForTimeout(100)
+    afterBlur = await page.evaluate(inPageAnimations)
+  }
+  await page.evaluate(() => { window.dispatchEvent(new Event('focus')) })
+  // QUAIS animações rodam COM foco (regra 5: no máximo 2 CONTÍNUAS infinitas simultâneas; as infinitas em `steps(...)` ficam de fora; passar disso é aviso, não reprova): `focusedItems` (cada uma com `easing`: 'steps' | 'continua'), `focusedInfinite`, `focusedSteps`, `focusedContinuous`.
+  const gpu = { focusedRunning: focused.count, focusedInfinite: focused.infinite, focusedSteps: focused.infiniteSteps, focusedContinuous: focused.infinite - focused.infiniteSteps, focusedItems: focused.items, afterBlur: { count: afterBlur.count, items: afterBlur.items }, settleMs }
+  if (idleMs > 0) {
+    await page.waitForTimeout(idleMs)
+    const idle = await page.evaluate(inPageAnimations)
+    gpu.afterIdle = { count: idle.count, items: idle.items, idleMs }
+  }
+  return gpu
+}
+
 /**
  * Colhe tudo de uma cena. `axePath` (axe.min.js) liga o axe; `consoleErrors` são os erros de console/página DESTA cena
  * (o chamador fatia o seu vetor desde a captura anterior); `focus: false` pula o Tab (cenas que o Tab estragaria).
+ * `gpu` (padrão ligado) roda o gate `preaccept-gpu` por ÚLTIMO (dispara blur/focus na janela): `gpu: false` pula; `gpu: { idleMs: 16000 }`
+ * também espera 16 s sem mexer (lento; use uma vez por régua, não por captura); `gpu: { settleMs }` muda o assentamento depois do blur.
  */
-export async function collectProbe(page, { axePath, consoleErrors = [], focus = true } = {}) {
+export async function collectProbe(page, { axePath, consoleErrors = [], focus = true, gpu = true } = {}) {
+  // A sonda lê DEPOIS do screenshot: imagem à vista ainda carregando ganha até 1,5 s (um erro de rede de verdade não "completa": cai em "sem pixels"/"não carregou" do mesmo jeito).
+  await page.evaluate(inPageWaitImages, IMAGE_WAIT_MS).catch(() => undefined)
   const base = await page.evaluate(inPageProbe)
   const probe = { version: PROBE_VERSION, ...base, consoleErrors: [...consoleErrors] }
   if (axePath !== undefined) {
     try { probe.axe = await runAxe(page, axePath) } catch (error) { probe.axeError = String(error).slice(0, 160) }
   }
   if (focus) probe.focus = probe.focusableCount === 0 ? { visible: true, none: true, element: '(nada focável na cena)' } : await probeFirstTab(page)
+  if (gpu !== false) {
+    try { probe.gpu = await collectGpuIdle(page, gpu === true ? {} : gpu) } catch (error) { probe.gpuError = String(error).slice(0, 160) }
+  }
   return probe
 }
 

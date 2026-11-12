@@ -1,0 +1,17 @@
+VEREDITO: AJUSTES
+
+1. **`saude-light/dark-1440x900.png`**
+   - **Problema:** (a) `youInSentence` roda antes de `splitTwoDayLabel` sobre `"Aprovações (Você)"`, produzindo o título de linha **`você · Aprovações`** com inicial minúscula. (b) A linha `Você · Aprovações` usa o ícone de IA (`BrandIcon name="equipe"`) em vez de avatar humano (`shape="person"`), e em `saude-dark` a tarefa `"Equipe! Preciso fechar a proposta de contratação até amanhã"` traz `(Luna)` no texto mas exibe o ícone genérico `equipe` em vez do retrato `32px` da Luna (estourando o título em 3 linhas).
+   - **Correção:** (a) Capitalizar a 1ª letra de `parts.name` em `splitTwoDayLabel` (`Você · Aprovações`). (b) Renderizar `<Avatar name="Você" size={32} shape="person" decorative />` na linha humana, resolver o retrato `32px` quando a linha referenciar uma persona da equipe e limitar `.rowName` a 2 linhas (`-webkit-line-clamp: 2`).
+
+2. **`saude-dark-1440x900.png`**
+   - **Problema:** Em `Governance.module.css:574`, `.slot` usa `border: 1.5px solid var(--persona-outline)` (`#120c18` preto sobre `#2a1e35`, contraste ~`1,25:1`), sumindo com o contorno tracejado de `Espera aprovação` (`data-outcome='waits'`) e apagando a separação visual das barras verdes (`runs`).
+   - **Correção:** Em `:global(body[data-ds-dark-theme='true'])`, aplicar bordas semânticas legíveis (`>= 3:1`) em `.slot` e nos quadrados da legenda: `color-mix(in srgb, var(--persona-success) 52%, var(--persona-card))` para `runs`, `color-mix(in srgb, var(--persona-warning) 58%, var(--persona-card))` (tracejada) para `waits` e `color-mix(in srgb, var(--persona-danger) 58%, var(--persona-card))` para `stops`.
+
+3. **`saude-light/dark-1440x900.png` (Alinhamento das linhas e repetição em `O que pede atenção`)**
+   - **Problema:** (a) Em linhas altas com subtítulo e botão (`Definir substituto` / `Definir dono da rotina`), `.timelineRow` e `.rowLabel` usam `align-items: center` (`Governance.module.css:514,537`), desalinhando o avatar `32px` e deixando as 4 barras flutuando no meio do vazio. (b) O 1º item de `O que pede atenção` (`"Tudo espera a sua aprovação."`) repete sem ação própria a frase já mostrada no cartão `76 NOTA DA EQUIPE`, empurrando o 2º item para sair serrado na dobra inferior.
+   - **Correção:** (a) Mudar `.timelineRow` e `.rowLabel` para `align-items: flex-start` (com `margin-top: 2px` nos `.slot` para alinhar à linha de `Avatar + Nome`). (b) Deduplicar em `O que pede atenção` o achado `single_point_of_failure` quando não houver ação própria além do veredito já exibido acima.
+
+4. **Todas as capturas `saude-teste-*` e `*-zoom200.png` (Capturas duplicadas sem provar o agrupamento `#15` nem a matriz a `200%` / `960px`)**
+   - **Problema:** `saude-teste-light/dark-1440x900.png` são idênticas a `saude-light/dark-1440x900.png`, e `saude-teste-*-zoom200.png` são idênticas a `saude-*-zoom200.png` (paradas no topo sem enquadrar `Teste dos 2 dias`). Nenhuma imagem mostra o bloco agrupado (`data-two-day-group`: rostos `28px` + chip `N colegas` + `Subir os {n} para "Decide o rotineiro"`), nem o veredito `Se você ficar 2 dias fora, {n} colegas param esperando a sua aprovação`, nem `960px`.
+   - **Correção:** Na reentrega: (a) usar cena de galeria/fixture tipada em `saude-teste-*` com `>= 2` personas no mesmo diagnóstico para comprovar visualmente `data-two-day-group`, o botão em lote e o veredito `{n} colegas param...`; (b) rolar `saude-teste-*-zoom200.png` até mostrar `Teste dos 2 dias` inteiro a `200%`; (c) incluir `960px` (claro/escuro).

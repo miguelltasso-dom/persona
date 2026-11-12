@@ -1,6 +1,6 @@
 /*
- * IV-10 · o cartão da pergunta estruturada no fio (Colheita Lodi A(1)). A forma é a do protótipo da Muse
- * (scripts/persona/muse-accept-gallery/lodi.tsx): cartão-sticker, chips em pílula, o escolhido âmbar com ✓.
+ * IV-10 · o cartão da pergunta estruturada no fio (Colheita A(1)). A forma é a do protótipo da Muse
+ * (scripts/persona/muse-accept-gallery/cartao-pergunta.tsx): cartão-sticker, chips em pílula, o escolhido âmbar com ✓.
  * Só tokens `--persona-*`; nada de cor ou raio inventado.
  */
 .row {
@@ -53,7 +53,7 @@
 
 .eyebrow {
   color: var(--persona-brand);
-  font: 800 11px/16px var(--persona-font-text);
+  font: 800 13px/18px var(--persona-font-text);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -94,7 +94,9 @@
 
 .button {
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  min-height: var(--control-h-m); /* a control: 40px of the 32/40/48 ruler, not the ~35px its text made */
+  border-color: var(--persona-outline-control); /* >= 3:1 on the card (the soft outline was ~1.35:1) */
+  transition: transform var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard);
 }
 
 .button:hover:not(:disabled) {
@@ -111,6 +113,19 @@
   background: var(--persona-accent);
   color: var(--persona-accent-ink);
   box-shadow: var(--persona-shadow-press);
+}
+
+/* Cartão "Continuar" (item 7): a ação que retoma é a principal (âmbar com relevo); "Parar por aqui" fica de contorno. */
+.primary {
+  border-color: var(--persona-outline);
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+  box-shadow: var(--persona-shadow-press);
+}
+
+/* O rosto de 32px no escuro: o contorno de controle (o `--persona-outline` some no fundo noturno). */
+.row .face {
+  border-color: var(--persona-outline-control);
 }
 
 /* Depois de respondida, as não escolhidas esmaecem. */

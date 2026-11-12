@@ -34,6 +34,10 @@ export const HARNESS_TOOLS = [
   'ask_colleague',
   'pass_forward',
   'review_verdict',
+  // Item 15: the six-digit code a site sent. The persona OPENS the request; the owner fills it and the digits never reach the model.
+  'ask_vault_code',
+  // COLHEITA 15b: type the Cofre password into the page of its own site. The value never reaches the model and never appears in the answer.
+  'browser_login',
 ] as const
 
 export type HarnessToolName = typeof HARNESS_TOOLS[number]
@@ -313,6 +317,46 @@ const DEFINITIONS: Readonly<Record<HarnessToolName, { description: string; input
             'type': 'string',
           },
           'description': 'With "changes": what to adjust',
+        },
+      },
+    },
+  },
+  ask_vault_code: {
+    description: 'Ask the owner for the six-digit code a site sent by SMS or WhatsApp. The card opens in Aprovações and she fills it there; '
+      + 'the code goes to the Cofre and never to you, so never ask her to type it in the chat and never wait for the digits in your answer. '
+      + 'Use it only when a login you are working on needs the second factor.',
+    inputSchema: {
+      'type': 'object',
+      'additionalProperties': false,
+      'required': [
+        'reason',
+      ],
+      'properties': {
+        'reason': {
+          'type': 'string',
+          'description': 'Why you need it, in one short sentence she reads on the card.',
+        },
+        'login': {
+          'type': 'string',
+          'description': 'Which login (site or service) the code is for, when it is not obvious.',
+        },
+      },
+    },
+  },
+  browser_login: {
+    description: 'Type a password the person keeps in the Cofre into the login page of its own site, in the browser of this turn. '
+      + 'Name the login as the person sees it in the Cofre (title, user or site). The password never reaches you and is never shown: '
+      + 'the answer only says whether it was typed. When the site then asks for a code, use ask_vault_code.',
+    inputSchema: {
+      'type': 'object',
+      'additionalProperties': false,
+      'required': [
+        'login',
+      ],
+      'properties': {
+        'login': {
+          'type': 'string',
+          'description': 'The Cofre login to use, as the person named it (title, user or site).',
         },
       },
     },

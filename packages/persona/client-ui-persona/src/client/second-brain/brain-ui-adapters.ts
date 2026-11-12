@@ -51,6 +51,21 @@ export function personaPortrait(persona: { readonly name: string; readonly avata
   return avatarForCharacterKey(normalizeCharacterId(persona.avatarRef) ?? normalizeCharacterId(persona.name))
 }
 
+/**
+ * Who signs the automatic updates of the Memória: the persona that holds the librarian role, else whoever does Pesquisa, else Coordenação.
+ * No such persona → undefined, and the screen says "Atualização automática da equipe" (a system actor, never a made-up name).
+ *
+ * @param personas The roster of the team.
+ * @returns The name of the persona that keeps the index, or undefined.
+ */
+export function indexKeeperName(
+  personas: readonly { readonly name: string; readonly title?: string | undefined; readonly systemRoles?: readonly string[] | undefined }[],
+): string | undefined {
+  const holding = (role: string) => personas.find(row => Array.isArray(row.systemRoles) && row.systemRoles.includes(role))
+  const research = personas.find(row => /^pesquisa/iu.test((row.title ?? '').trim()))
+  return (holding('librarian') ?? research ?? holding('coordination'))?.name
+}
+
 /** Human label + portrait for ChangeFeed rows (host stores `person:system` / `persona:id`). */
 export function feedEditorDisplay(
   dict: LocaleDict,

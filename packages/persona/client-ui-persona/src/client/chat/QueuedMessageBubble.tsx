@@ -108,7 +108,7 @@ export function QueuedMessageBubble({
             <>
               <Button
                 size="s"
-                variant="ghost"
+                variant="secondary"
                 onClick={() => { onSendNow(item.id) }}
                 aria-label={sendNowLabel}
               >
@@ -137,7 +137,7 @@ export function QueuedMessageBubble({
             <>
               <Button
                 size="s"
-                variant="ghost"
+                variant="secondary"
                 onClick={() => { onSendNow(item.id) }}
                 aria-label={sendNowLabel}
               >

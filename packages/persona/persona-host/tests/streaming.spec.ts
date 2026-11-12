@@ -11,24 +11,24 @@ const scope = { workspaceId: 'ws', projectId: 'pp' }
 
 // ---- ReplyStream (throttle, trailing write, stop) ------------------------------------------------------------
 
-it('ReplyStream opens at once, throttles the middle, flushes the last text, and ignores late pieces after stop', () => {
+it('ReplyStream opens at once, throttles the middle at 50 ms, flushes the last text, and ignores late pieces after stop', () => {
   let now = 0
   const log: string[] = []
-  const stream = new ReplyStream({ open: text => log.push(`open:${text}`), update: text => log.push(`update:${text}`) }, 100, () => now)
+  const stream = new ReplyStream({ open: text => log.push(`open:${text}`), update: text => log.push(`update:${text}`) }, 50, () => now)
   stream.push('')
   stream.push('   ')
   expect(log).toEqual([]) // nothing to show yet
   stream.push('Olá')
   expect(log).toEqual(['open:Olá'])
-  now = 30
+  now = 20
   stream.push('Olá, tudo')
-  now = 60
+  now = 40
   stream.push('Olá, tudo bem')
   expect(log).toEqual(['open:Olá']) // inside the window: held
-  now = 120
+  now = 50
   stream.push('Olá, tudo bem?')
   expect(log).toEqual(['open:Olá', 'update:Olá, tudo bem?'])
-  now = 130
+  now = 60
   stream.push('Olá, tudo bem? Aqui')
   stream.flush() // end of the turn: the last text is never left behind
   expect(log.at(-1)).toBe('update:Olá, tudo bem? Aqui')

@@ -52,6 +52,10 @@ export interface RemoteTeamPanelProps {
   readonly lastExchangeAt?: number | null | undefined
   /** "Abrir Ajuda" no estado de Cofre indisponível; sem ele o botão não aparece. */
   readonly onOpenHelp?: (() => void) | undefined
+  /** Título do cartão; o padrão é "Equipe remota". */
+  readonly title?: string | undefined
+  /** Estado calmo (Configurações › Conexões): enquanto a equipe não está ligada, o cofre indisponível vira texto neutro, sem alerta nem botão de ajuda. */
+  readonly calm?: boolean | undefined
   readonly onConnect: (edgeUrl: string, channelIds: readonly string[]) => void
   readonly onAccept: (edgeUrl: string, token: string) => void
   readonly onIssueInvite: (role: 'member' | 'guest') => void
@@ -80,6 +84,8 @@ export function RemoteTeamPanel({
   error,
   lastExchangeAt,
   onOpenHelp,
+  title,
+  calm = false,
   onConnect,
   onAccept,
   onIssueInvite,
@@ -123,7 +129,7 @@ export function RemoteTeamPanel({
 
   if (loading) {
     return (
-      <Card as="section" padding="m" title={t('remote.title')} data-persona-surface="remote-team" aria-busy="true">
+      <Card as="section" padding="m" title={title ?? t('remote.title')} data-persona-surface="remote-team" aria-busy="true">
         <Skeleton height={64} />
       </Card>
     )
@@ -206,19 +212,23 @@ export function RemoteTeamPanel({
       ? t('remote.body.offlineAt', { when: exchange })
       : status === 'revoked' && ownerName !== undefined
         ? t('remote.body.revokedBy', { name: ownerName })
-        : t(`remote.body.${statusKey}`)
+        : t(calm && status === 'vault_unavailable' ? 'remote.calm.body' : `remote.body.${statusKey}`)
   const behind = behindLine(status, state?.behindBy)
   const openInvites = invitesWithoutMembers(invites, members)
   const revokedArt = status === 'revoked' ? ILLUSTRATIONS['acesso-encerrado'] : undefined
   const revoking = confirmRevoke === null ? undefined : members?.find(member => member.inviteId === confirmRevoke)
 
   return (
-    <Card as="section" padding="m" title={t('remote.title')} data-persona-surface="remote-team" titleAs="h2">
+    <Card as="section" padding="m" title={title ?? t('remote.title')} data-persona-surface="remote-team" titleAs="h2">
       <p className={styles.subtitle}>{t('remote.subtitle')}</p>
 
       <div className={styles.status} role="status" aria-live="polite" data-status={status}>
-        <Chip tone={STATUS_TONE[status]} size="s" icon={statusIcon === null ? undefined : <UiIcon name={statusIcon} size={14} strokeWidth={2.4} />}>
-          {t(`remote.status.${statusKey}`)}
+        <Chip
+          tone={calm && status === 'vault_unavailable' ? 'neutral' : STATUS_TONE[status]}
+          size="s"
+          icon={statusIcon === null || (calm && status === 'vault_unavailable') ? undefined : <UiIcon name={statusIcon} size={14} strokeWidth={2.4} />}
+        >
+          {t(calm && status === 'vault_unavailable' ? 'remote.calm.status' : `remote.status.${statusKey}`)}
         </Chip>
         {state !== null && <Chip tone="neutral" size="s">{t(`remote.role.${state.role}`)}</Chip>}
         {revokedArt === undefined ? (
@@ -244,7 +254,7 @@ export function RemoteTeamPanel({
             {busy === 'sync' ? t('remote.sync.syncing') : t('remote.sync.retry')}
           </Button>
         )}
-        {status === 'vault_unavailable' && onOpenHelp !== undefined && (
+        {status === 'vault_unavailable' && calm !== true && onOpenHelp !== undefined && (
           <Button variant="secondary" size="s" onClick={onOpenHelp}>{t('remote.help.open')}</Button>
         )}
       </div>

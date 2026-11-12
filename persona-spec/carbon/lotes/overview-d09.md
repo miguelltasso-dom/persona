@@ -1,0 +1,17 @@
+VEREDITO: AJUSTES
+
+1. **`calmo-light-1440x900.png`, `calmo-dark-1440x900.png` e `ocupado-dark-1440x900.png`**
+   - **Problema:** Dois botões primários âmbar competem na mesma dobra (`+ Nova tarefa` no cabeçalho e `Ver no quadro` dentro do `MilestoneCard` `"Sua equipe entregou o primeiro trabalho!"`), quebrando a hierarquia de 1 único CTA âmbar por tela (e, em `ocupado-dark`, ofuscando `Precisa de você · Revisar`).
+   - **Correção:** Quando o `MilestoneCard` aparece dentro da `Visão geral`, usar `Button variant="secondary"` em `Ver no quadro`, reservando `variant="primary"` âmbar para `+ Nova tarefa` (ou para `Pedir a {Coordenação} agora` quando for a primeira ação sugerida).
+
+2. **`calmo-light/dark-1440x900.png` e `ocupado-light/dark-1440x900.png`**
+   - **Problema:** (a) `Enquanto você estava fora` duplica informação já aberta imediatamente acima na mesma coluna: em `calmo-light`, repete `Luna entregou "Primeira entrega"` abaixo do `MilestoneCard` da mesma entrega (duplicando também a ilustração de 3 animais); em `ocupado-light`, exibe um buraco branco de ~`90px` acima de `ESPERA VOCÊ · 1 coisa espera você · Ver em Precisa de você`, apontando para o cartão `Precisa de você` já visível a `16px` de distância. (b) Em `calmo-dark` e `ocupado-dark`, esse volume redundante faz `Enquanto você estava fora` sair cortado na borda inferior.
+   - **Correção:** (a) Deduplicar `Enquanto você estava fora` em `OverviewView`: omitir a seção `ESPERA VOCÊ` quando o cartão `Precisa de você` já está renderizado acima, omitir entregas já destacadas no `MilestoneCard` visível acima e não renderizar o cartão `Enquanto você estava fora` se sobrarem `0` itens inéditos. (b) Alinhar o conteúdo textual de `Enquanto você estava fora` ao topo (`align-self: start`), eliminando o vão vazio entre o título e a primeira seção.
+
+3. **`calmo-light/dark-1440x900.png` e `ocupado-light/dark-1440x900.png` (Banner `Nada esperando por você` e linha de rostos em `Agora`)**
+   - **Problema:** (a) O banner `Nada esperando por você` tem borda apagada sem o contorno nanquim dos cartões vizinhos, ficando lavado no claro e quase fundido ao `--persona-paper` no escuro. (b) Em `OverviewNowStrip.module.css:105`, `.face + .face { margin-left: -8px }` sobre retratos quadrados de `28px` tampa quase 30% do rosto vizinho (no escuro, o Bento perde leitura entre Nina e Atlas).
+   - **Correção:** (a) Aplicar no banner `border: var(--persona-border-width) solid var(--persona-outline)` (e `var(--persona-outline-control)` ou `--persona-shadow-sticker` leve no escuro, `background: var(--persona-card)`). (b) Reduzir a sobreposição em `OverviewNowStrip.module.css:105` para `margin-left: -4px` e garantir contorno legível nos avatares no escuro (`border-color: var(--persona-outline-control)`).
+
+4. **Pasta `.maestri/tmp/carbon-lotes/overview-d09` (Cobertura da tarefa sugerida, `960px` e `Agora` a `200%`)**
+   - **Problema:** Nenhuma captura mostra o cartão de **tarefa sugerida a partir do perfil da empresa** com o botão **`Pedir a {Coordenação} agora`** (`DESIGN-01-MUSE §1 Cena 01(c)` / `§5.2 #09`); faltam as capturas `960px`; e as 4 capturas `zoom200` mostram apenas o topo (`Olá!`), sem enquadrar o bloco `Agora`.
+   - **Correção:** Incluir na reentrega: (a) cena claro/escuro com perfil da empresa exibindo a tarefa sugerida + `Pedir a {Coordenação} agora`; (b) capturas `960px`; (c) captura `zoom200` rolada enquadrando `Agora`.

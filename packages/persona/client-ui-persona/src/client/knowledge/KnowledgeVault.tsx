@@ -1,4 +1,4 @@
-/** Company vault: records, documents, visibility, update proposals. */
+/** Documents and records of the company (the old "Cofre"): records, documents, visibility, update proposals. */
 
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { LocaleDict } from '../preview/locale-bind.ts'
@@ -26,6 +26,8 @@ export interface KnowledgeVaultProps {
   readonly onUploadDocument?: ((file: File) => Promise<void>) | undefined
   readonly onReplaceDocument?: ((documentId: string, file: File) => Promise<void>) | undefined
   readonly onDeleteDocument?: ((documentId: string) => Promise<void>) | undefined
+  /** Drawn inside another screen (Memória › Páginas): no screen of its own, no screen header, a section title instead. */
+  readonly embedded?: boolean | undefined
   /** Row actions of records and proposals. A missing one means no button. */
   readonly onEditRecord?: ((recordId: string) => void) | undefined
   readonly onApproveProposal?: ((proposalId: string) => void) | undefined
@@ -70,7 +72,14 @@ function VisibilityChip({
   return <Chip tone="neutral" size="s">{label}</Chip>
 }
 
-/** Cofre da empresa preview surface. */
+/** A screen of its own, or a section of Páginas (a stable component: the search box and the file inputs keep their state across renders). */
+function VaultShell({ embedded, children }: { readonly embedded: boolean; readonly children: ReactNode }): ReactNode {
+  return embedded
+    ? <div className={styles.embedded} data-persona-surface="knowledge-docs">{children}</div>
+    : <Screen className={styles.shell} data-persona-surface="knowledge">{children}</Screen>
+}
+
+/** Documents and records of the company. */
 export function KnowledgeVault({
   dict = defaultDict,
   records: sourceRecords = [],
@@ -83,6 +92,7 @@ export function KnowledgeVault({
   onUploadDocument,
   onReplaceDocument,
   onDeleteDocument,
+  embedded = false,
   onEditRecord,
   onApproveProposal,
   onDismissProposal,
@@ -103,7 +113,9 @@ export function KnowledgeVault({
       r.title.toLowerCase().includes(q) || r.excerpt.toLowerCase().includes(q))
   }, [query, sourceRecords])
 
-  const header = (
+  const header = embedded ? (
+    <h2 className={styles.embeddedTitle}>{t('title')}</h2>
+  ) : (
     <ScreenHeader
       icon="conhecimento-memoria"
       eyebrow={t('header.eyebrow')}
@@ -123,16 +135,16 @@ export function KnowledgeVault({
 
   if (surfaceState === 'loading') {
     return (
-      <Screen className={styles.shell} data-persona-surface="knowledge">
+      <VaultShell embedded={embedded}>
         {header}
         <PersonaSurfaceLoading dict={dict} messageKey="loading" skeletonColumns={3} />
-      </Screen>
+      </VaultShell>
     )
   }
 
   if (surfaceState === 'error') {
     return (
-      <Screen className={styles.shell} data-persona-surface="knowledge">
+      <VaultShell embedded={embedded}>
         {header}
         <PersonaSurfaceError
           dict={dict}
@@ -140,13 +152,43 @@ export function KnowledgeVault({
           retryKey="error.retry"
           onRetry={() => { onRemoteRetry?.() }}
         />
-      </Screen>
+      </VaultShell>
+    )
+  }
+
+  if (surfaceState === 'empty' && embedded) {
+    return (
+      <VaultShell embedded={embedded}>
+        {header}
+        <p className={styles.excerpt}>{t('embedded.empty')}</p>
+        <p className={styles.uploadRow}>
+          {onUploadDocument !== undefined && (
+            <label className={styles.uploadLabel}>
+              <input
+                type="file"
+                className={styles.uploadInput}
+                accept=".pdf,.docx,.md,.txt,.csv,application/pdf"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  e.target.value = ''
+                  if (file === undefined) return
+                  void onUploadDocument(file)
+                }}
+              />
+              <Button variant="secondary" size="s" type="button">{t('action.uploadDocument')}</Button>
+            </label>
+          )}
+          {onOpenImport !== undefined && (
+            <Button variant="ghost" size="s" onClick={() => { onOpenImport() }}>{t('action.import')}</Button>
+          )}
+        </p>
+      </VaultShell>
     )
   }
 
   if (surfaceState === 'empty') {
     return (
-      <Screen className={styles.shell} data-persona-surface="knowledge">
+      <VaultShell embedded={embedded}>
         {header}
         <PersonaSurfaceEmpty
           dict={dict}
@@ -156,7 +198,7 @@ export function KnowledgeVault({
           primaryKey="empty.action"
           {...(onDescribeCompany === undefined ? {} : { onPrimary: onDescribeCompany })}
         />
-      </Screen>
+      </VaultShell>
     )
   }
 
@@ -169,7 +211,7 @@ export function KnowledgeVault({
   ]
 
   return (
-    <Screen className={styles.shell} data-persona-surface="knowledge">
+    <VaultShell embedded={embedded}>
       {header}
       <Tabs
         items={tabItems}
@@ -317,6 +359,6 @@ export function KnowledgeVault({
           ))}
         </ul>
       )}
-    </Screen>
+    </VaultShell>
   )
 }

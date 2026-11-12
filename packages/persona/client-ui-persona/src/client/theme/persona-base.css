@@ -99,15 +99,19 @@
   border: 0;
 }
 
-/* UX-GUIDE §2.3: nothing animates while the window is hidden or unfocused (set by installPersonaColorScheme).
-   The selectors are not scoped to [data-persona-shell]: the onboarding scrim and the overlays live outside the shell and
-   are exactly what kept the compositor busy on the onboarding screen (49-61% of a core in the probe). */
-body[data-persona-hidden] *,
-body[data-persona-hidden] *::before,
-body[data-persona-hidden] *::after,
-body[data-persona-unfocused] *,
-body[data-persona-unfocused] *::before,
-body[data-persona-unfocused] *::after {
+/* DESIGN-01 §2.7 rule 3: nothing animates while the window is hidden, unfocused or idle without work (installPersonaColorScheme).
+   The selectors are not scoped to [data-persona-shell]: the onboarding scrim and the overlays live outside the shell. */
+body[data-persona-ambient-paused] *,
+body[data-persona-ambient-paused] *::before,
+body[data-persona-ambient-paused] *::after {
+  animation-play-state: paused !important;
+}
+
+/* A full-screen scrim (onboarding, modal) covers the shell: its loops are invisible, so the shell pauses and the cover's own
+   entrance animations keep running (the overlay is a shell.overlay slot, so the cover subtree is excluded). */
+body[data-persona-covered] [data-persona-shell] *:not([data-persona-cover], [data-persona-cover] *),
+body[data-persona-covered] [data-persona-shell] *:not([data-persona-cover], [data-persona-cover] *)::before,
+body[data-persona-covered] [data-persona-shell] *:not([data-persona-cover], [data-persona-cover] *)::after {
   animation-play-state: paused !important;
 }
 

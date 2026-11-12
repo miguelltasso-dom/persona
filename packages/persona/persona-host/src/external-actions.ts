@@ -7,7 +7,8 @@
  * Rules that fail closed:
  *  - pay and delete ALWAYS ask; only send/post may be waived ("Não perguntar de novo"), and only by that checkbox;
  *  - a preview that is cut or has a hidden part (\`truncated\`/\`masked\`) is NOT the thing that would be sent: it cannot be approved blind;
- *  - an approval is for those arguments only (the hash), once, and expires with the card (24 h);
+ *  - an approval is for those arguments only (the hash), once, and expires with the card (24 h); the card carries `expiresAt` (the deadline it
+ *    shows) and, once closed unanswered, `expired`: the person may ask again once (`retry`) and the persona opens a NEW card;
  *  - at most 2 attempts per Task and tool: a persona that keeps proposing something else is stopped, not obeyed.
  * Stored as screen documents (\`external_action\`), no migration. This module decides nothing about the gate or the runner: it owns the card
  * and the states; the wiring that reopens the Task is a port.
@@ -23,6 +24,8 @@ const EXPIRES_MS = 24 * 3_600_000
 /** Attempts per (Task, tool): the second is the last. */
 export const ACTION_MAX_ATTEMPTS = 2
 const CHOICES: readonly ActionChoice[] = ['send', 'edit', 'cancel']
+/** Why a card closed when nobody answered in time (`failureReason`): the one state "Pedir de novo" may reopen. */
+const EXPIRED_REASON = 'expirou'
 
 type Status = ActionPreviewView['status'] | 'approved'
 
@@ -57,7 +60,11 @@ export interface ExternalActionDoc extends ActionRequestInput {
   readonly edited?: string
   readonly sentAt?: string
   readonly failureReason?: string
+  /** The person asked again for this expired card: it no longer counts as an attempt and the same call may open a fresh card. */
+  readonly retried?: boolean
 }
+
+const isExpired = (doc: ExternalActionDoc): boolean => doc.status === 'cancelled' && doc.failureReason === EXPIRED_REASON
 
 /** Collaborators. */
 export interface ExternalActionsDeps {
@@ -105,9 +112,10 @@ export class ExternalActions {
    */
   record(input: ActionRequestInput): ExternalActionDoc | undefined {
     const mine = this.all(input.projectId).filter(row => row.ticketId === input.ticketId)
-    const existing = mine.find(row => row.tool === input.tool && row.argsHash === input.argsHash)
+    // A card the person asked to ask again (`retry`) is spent: the same call opens a fresh card and the retry is not a new attempt.
+    const existing = mine.find(row => row.tool === input.tool && row.argsHash === input.argsHash && row.retried !== true)
     if (existing !== undefined) return existing
-    const tries = mine.filter(row => row.tool === input.tool).length
+    const tries = mine.filter(row => row.tool === input.tool && row.retried !== true).length
     if (tries >= ACTION_MAX_ATTEMPTS) return undefined
     // An opaque id: the hash of the arguments never reaches a screen.
     const id = `action:${input.ticketId}:${String(mine.length + 1)}`
@@ -134,7 +142,7 @@ export class ExternalActions {
     let closed = 0
     for (const doc of this.all(projectId)) {
       if ((doc.status !== 'pending' && doc.status !== 'approved') || doc.expiresAt > now) continue
-      this.save({ ...doc, status: 'cancelled', decidedAt: now, failureReason: 'expirou' })
+      this.save({ ...doc, status: 'cancelled', decidedAt: now, failureReason: EXPIRED_REASON })
       this.deps.wake(projectId, doc.ticketId, 'O pedido para executar uma ação externa expirou sem resposta da pessoa; nada foi feito. Siga sem ela ou avise a pessoa.')
       closed += 1
     }
@@ -214,6 +222,7 @@ export class ExternalActions {
     this.expire(request.projectId)
     const doc = this.get(request.projectId, request.id)
     if (doc === undefined) throw new Error('approval-not-found')
+    if (request.choice === 'retry') return { card: this.retry(doc, actorId), approved: undefined }
     if (doc.status !== 'pending') return { card: this.cardOf(doc), approved: undefined }
     const choice: string = request.choice // a wire value
     if (!CHOICES.some(item => item === choice)) throw new RemoteFault('invalid-payload', 'Escolha enviar, editar ou cancelar.')
@@ -253,6 +262,18 @@ export class ExternalActions {
     return { card: this.cardOf(approved), approved }
   }
 
+  /**
+   * "Pedir de novo": only a card that expired unanswered can be asked again, once. The persona is told (data, not an instruction to send) and
+   * makes a NEW request, so the person sees and holds to approve the real content again; nothing is approved here.
+   */
+  private retry(doc: ExternalActionDoc, actorId: string): ApprovalView {
+    if (!isExpired(doc) || doc.retried === true) return this.cardOf(doc)
+    const asked: ExternalActionDoc = { ...doc, retried: true, decidedBy: actorId, decidedAt: this.deps.now() }
+    this.save(asked)
+    this.deps.wake(doc.projectId, doc.ticketId, 'A pessoa quer que você peça de novo a ação externa que venceu sem resposta; nada foi feito. Faça um novo pedido, ajustando o que mudou.')
+    return this.cardOf(asked)
+  }
+
   private save(doc: ExternalActionDoc): void {
     this.deps.screens.put(doc.projectId, KIND, doc.id, doc)
     this.deps.changed?.(doc)
@@ -287,6 +308,9 @@ export class ExternalActions {
       ...(doc.status === 'sent' && to !== undefined ? { sentTo: clip(to, 300) } : {}),
       ...(doc.sentAt === undefined ? {} : { sentAt: doc.sentAt }),
       ...(doc.failureReason === undefined ? {} : { failureReason: doc.failureReason }),
+      expiresAt: doc.expiresAt,
+      ...(isExpired(doc) ? { expired: true } : {}),
+      ...(doc.retried === true ? { retried: true } : {}),
     }
     const verbWord = doc.actionClass === 'pay' ? 'pagar' : doc.actionClass === 'delete' ? 'apagar' : doc.actionClass === 'post' ? 'publicar' : 'enviar'
     return {

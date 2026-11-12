@@ -94,3 +94,43 @@ Ele é o único dos três que serve uma feature central (Projetos/histórico pri
 - **Offline:** a feature de Git fica indisponível com a frase do §3 e o motivo; nada mais quebra.
 - **Ganho:** 329,6 → ~185 MiB de Setup (com LibreOffice + Python + pnpm já fora).
 - **Dono:** Cobalt (resolvedor) + Rivet (tirar do afterPack).
+
+### Launcher do pnpm (desenho fechado, 11/11)
+
+O plugin manager (core) recebe `packageManager` do perfil; para não tocar no core, o host passa um **launcher** do app:
+
+```js
+// pnpm-launcher.mjs (no runtime preparado; o host o usa como packageManager.command)
+// 1. lê DSH_COMPONENTS_MANIFEST + PERSONA_HOME
+// 2. ComponentManager({ root: <home>/runtime, manifest }).ensure('pnpm')
+// 3. exec: process.execPath --expose-internals <store>/pnpm/bin/pnpm.mjs <args recebidos>
+// 4. qualquer falha (sem manifesto, offline, checksum) cai no pnpm empacotado (DSH_PACKAGED_PNPM)
+```
+
+O `packageManager` do perfil vira `{ command: process.execPath, args: ['--expose-internals', <launcher>], env: { DSH_COMPONENTS_MANIFEST, DSH_PACKAGED_PNPM, ... } }`; o launcher repassa `process.argv.slice(2)` e o código de saída. O `prepare-dsh` escreve o launcher no runtime e o `files` do electron-builder já cobre `lib/**` (se ele for emitido pelo tsdown) ou o runtime (se for escrito no pack). Prova: instalar um plugin com o componente ausente → baixa e instala; offline → usa o empacotado.
+
+## 10. Estado da ligação (11/11, Cobalt)
+
+| componente | pacote/manifesto | chamador ligado | resolvedor |
+| --- | --- | --- | --- |
+| LibreOffice | `persona-components` + `prepare-components.ts` (arquivo + sha256 + `components.json`) | **sim** — `office-to-pdf` chama `ensure('libreoffice')` antes do `createConverter`; falha vira `unavailable` | **sim** — `installOfficeEngineResolution` cai para `<PERSONA_HOME>/runtime/libreoffice/<versão>` quando o kit empacotado não existe |
+| MinGit | idem (kind `mingit`) | **sim** — `persona-host` chama `ensure('mingit')` no primeiro review sem Git no PATH | **sim** — o `cmd/git.exe` do store vira o `bundledExecutable` do `resolveGitExecutable` |
+| Python | idem (kind `python`) | **sim** — `desktop-office` chama `ensure('python')` e passa o diretório do componente (runtime.json + dependencies/python) como `source` do `tool-workspace-dependencies`; o payload empacotado fica de fallback | **sim** — o store vira o `source` quando o componente está instalado |
+| pnpm | idem (kind `pnpm`) | **falta** — desenho: o `packageManager` do perfil passa a apontar para um launcher do app (`lib/pnpm-launcher.mjs`) que importa `@deepseek-ai/dsh-persona-components`, garante o componente e executa o pnpm do store repassando os argumentos; o plugin manager (core) não muda | **falta** — o launcher resolve o store e cai no pnpm empacotado se o componente não instalar |
+
+Os quatro estão no tree: LibreOffice (`f27ef9de67`), MinGit (`17771ddcd5`), Python (`72db7f4a68`) e pnpm (`7788e3bbee`, launcher no runtime). O empacotamento (`3620600ac0`) tira os componentes do instalador base quando `DSH_DESKTOP_COMPONENTS_BASE_URL` está setado: arquiva LibreOffice/Python, remove o kit, o Python e o pnpm da árvore base (depois do smoke primário) e pula o MinGit no afterPack. Esperado: ~1.112 → ~672 MB instalados, instalador ~185 MiB (alvo < 200 MiB).
+
+## 11. `components.json`: quem gera (Cobalt, 11/11)
+
+O manifesto é escrito por **`scripts/persona/gen-components-json.mjs`**, não pelo servidor e não à mão:
+
+```sh
+node scripts/persona/gen-components-json.mjs --print                       # inspecionar
+node scripts/persona/gen-components-json.mjs --out <raiz-do-build>/components.json
+node scripts/persona/gen-components-json.mjs --from <components.json do release> --out <raiz-do-build>/components.json
+```
+
+- **Entradas fixadas no gerador:** `stt` = `vosk-model-small-pt-0.3.tar.gz` publicado pelo projeto do vosk-browser (o mesmo runtime do Worker), 32.440.432 B, sha256 `49977153…887c`, `format: "tar.gz"` — o instalador guarda o arquivo como `model.tar.gz`, sem conversão zip→tar.gz. É a única fonte que o app baixa de um host de terceiros; URL, tamanho e hash nunca vêm da rede.
+- **Entradas do release:** LibreOffice, Python, MinGit e pnpm são arquivados a partir da árvore pelo empacotamento e entram por `--from`; o gerador valida cada uma (kind conhecido, URL https, sha256 hex, tamanho positivo) e **a entrada fixada vence** em caso de kind repetido.
+- **Saída:** `{ schemaVersion: 1, components: [...] }`, exatamente o que `parseComponentManifest` aceita. O `prepare-dsh` copia o arquivo para a raiz do build e o electron-builder o publica como `resources/components.json`; o main do desktop só passa `DSH_COMPONENTS_MANIFEST` quando ele existe (fora do release o plugin fica inerte).
+- **`stt` no host (item 20):** `ensureVoiceModel` (Remote) chama `ctx.personaComponents.ensure('stt')`, baixa o tar.gz fixado, guarda como `model.tar.gz` e o devolve; o renderer não baixa nada, só guarda o consentimento e os bytes em cache.

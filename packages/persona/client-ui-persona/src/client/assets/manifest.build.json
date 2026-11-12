@@ -1,10 +1,10 @@
 {
   "summary": {
-    "generatedAt": "2026-11-05T05:23:16.014Z",
+    "generatedAt": "2026-11-12T02:35:49.392Z",
     "source": "persona-assets",
     "output": "packages\\persona\\client-ui-persona\\src\\client\\assets",
-    "files": 745,
-    "totalBytes": 10235537,
+    "files": 792,
+    "totalBytes": 11483480,
     "withinBudget": true
   },
   "files": [
@@ -193,6 +193,10 @@
       "bytes": 449
     },
     {
+      "rel": "icons/ui/antes-depois-alca.svg",
+      "bytes": 309
+    },
+    {
       "rel": "icons/ui/assumir-controle.svg",
       "bytes": 400
     },
@@ -221,6 +225,10 @@
       "bytes": 389
     },
     {
+      "rel": "icons/ui/cursor-lapis.svg",
+      "bytes": 756
+    },
+    {
       "rel": "icons/ui/desfazer.svg",
       "bytes": 255
     },
@@ -239,6 +247,14 @@
     {
       "rel": "icons/ui/fila.svg",
       "bytes": 276
+    },
+    {
+      "rel": "icons/ui/giro-manha-claro.svg",
+      "bytes": 626
+    },
+    {
+      "rel": "icons/ui/giro-manha-noite.svg",
+      "bytes": 626
     },
     {
       "rel": "icons/ui/gostei.svg",
@@ -395,6 +411,10 @@
     {
       "rel": "accents/leaf-2.svg",
       "bytes": 274
+    },
+    {
+      "rel": "accents/patinhas-trilha-64.svg",
+      "bytes": 596
     },
     {
       "rel": "accents/paw-prints.svg",
@@ -605,6 +625,18 @@
       "bytes": 40522
     },
     {
+      "rel": "illustrations/rail-foliage-dark-off.webp",
+      "bytes": 39924
+    },
+    {
+      "rel": "illustrations/onboarding-porta-dia.webp",
+      "bytes": 115694
+    },
+    {
+      "rel": "illustrations/onboarding-porta-noite.webp",
+      "bytes": 103228
+    },
+    {
       "rel": "textures/paper-light.webp",
       "bytes": 22008
     },
@@ -717,6 +749,10 @@
       "bytes": 42628
     },
     {
+      "rel": "illustrations/ligar-ia-equipe.webp",
+      "bytes": 35438
+    },
+    {
       "rel": "illustrations/spot-limite.webp",
       "bytes": 7204
     },
@@ -813,6 +849,34 @@
       "bytes": 39772
     },
     {
+      "rel": "illustrations/empty-sem-arquivos.webp",
+      "bytes": 18994
+    },
+    {
+      "rel": "illustrations/empty-regras-da-casa.webp",
+      "bytes": 42736
+    },
+    {
+      "rel": "illustrations/empty-memoria-resumo.webp",
+      "bytes": 35084
+    },
+    {
+      "rel": "illustrations/empty-primeiro-projeto.webp",
+      "bytes": 39988
+    },
+    {
+      "rel": "illustrations/empty-uso-indisponivel.webp",
+      "bytes": 24766
+    },
+    {
+      "rel": "illustrations/empty-seus-numeros.webp",
+      "bytes": 31812
+    },
+    {
+      "rel": "illustrations/empty-conversa-tarefa.webp",
+      "bytes": 22890
+    },
+    {
       "rel": "illustrations/empty-dm-noite.webp",
       "bytes": 23418
     },
@@ -823,6 +887,54 @@
     {
       "rel": "illustrations/empty-geral-noite.webp",
       "bytes": 24692
+    },
+    {
+      "rel": "illustrations/empty-regras-da-casa-noite.webp",
+      "bytes": 35850
+    },
+    {
+      "rel": "illustrations/empty-kanban-noite.webp",
+      "bytes": 21888
+    },
+    {
+      "rel": "illustrations/empty-routines-noite.webp",
+      "bytes": 29498
+    },
+    {
+      "rel": "illustrations/empty-connections-noite.webp",
+      "bytes": 25666
+    },
+    {
+      "rel": "illustrations/empty-search-noite.webp",
+      "bytes": 21232
+    },
+    {
+      "rel": "illustrations/empty-sem-arquivos-noite.webp",
+      "bytes": 19676
+    },
+    {
+      "rel": "illustrations/empty-primeiro-projeto-noite.webp",
+      "bytes": 18610
+    },
+    {
+      "rel": "illustrations/empty-equipe-remota-noite.webp",
+      "bytes": 41984
+    },
+    {
+      "rel": "illustrations/empty-uso-indisponivel-noite.webp",
+      "bytes": 30964
+    },
+    {
+      "rel": "illustrations/empty-memoria-resumo-noite.webp",
+      "bytes": 32178
+    },
+    {
+      "rel": "illustrations/empty-seus-numeros-noite.webp",
+      "bytes": 30722
+    },
+    {
+      "rel": "illustrations/stamp-primeira-entrega.webp",
+      "bytes": 7544
     },
     {
       "rel": "illustrations/channel-marketing.webp",
@@ -961,8 +1073,16 @@
       "bytes": 5514
     },
     {
+      "rel": "stickers/capivara-boa-ideia.webp",
+      "bytes": 6948
+    },
+    {
       "rel": "stickers/capivara-bom-dia.webp",
       "bytes": 6030
+    },
+    {
+      "rel": "stickers/capivara-combinado.webp",
+      "bytes": 6308
     },
     {
       "rel": "stickers/capivara-comemorando.webp",
@@ -981,12 +1101,20 @@
       "bytes": 5440
     },
     {
+      "rel": "stickers/capivara-obrigada.webp",
+      "bytes": 5744
+    },
+    {
       "rel": "stickers/capivara-pensando.webp",
       "bytes": 6538
     },
     {
       "rel": "stickers/capivara-rindo.webp",
       "bytes": 6622
+    },
+    {
+      "rel": "stickers/capivara-uau.webp",
+      "bytes": 6294
     },
     {
       "rel": "stickers/cervo-ate-amanha.webp",
@@ -2057,6 +2185,10 @@
       "bytes": 22386
     },
     {
+      "rel": "poses/capivara-comemorando.webp",
+      "bytes": 24084
+    },
+    {
       "rel": "poses/capivara-descansando.webp",
       "bytes": 48000
     },
@@ -2075,6 +2207,14 @@
     {
       "rel": "poses/capivara-erro.webp",
       "bytes": 22854
+    },
+    {
+      "rel": "poses/capivara-fora-ate-candidato.webp",
+      "bytes": 24426
+    },
+    {
+      "rel": "poses/capivara-fora-ate.webp",
+      "bytes": 21948
     },
     {
       "rel": "poses/capivara-offline.webp",
@@ -2111,6 +2251,10 @@
     {
       "rel": "poses/cervo-aguardando-resposta.webp",
       "bytes": 27436
+    },
+    {
+      "rel": "poses/cervo-comemorando.webp",
+      "bytes": 31014
     },
     {
       "rel": "poses/cervo-descansando.webp",
@@ -2169,6 +2313,10 @@
       "bytes": 22048
     },
     {
+      "rel": "poses/coelho-comemorando.webp",
+      "bytes": 25626
+    },
+    {
       "rel": "poses/coelho-descansando.webp",
       "bytes": 40664
     },
@@ -2223,6 +2371,10 @@
     {
       "rel": "poses/coruja-aguardando-resposta.webp",
       "bytes": 24160
+    },
+    {
+      "rel": "poses/coruja-comemorando.webp",
+      "bytes": 26652
     },
     {
       "rel": "poses/coruja-descansando.webp",
@@ -2281,6 +2433,10 @@
       "bytes": 24434
     },
     {
+      "rel": "poses/guaxinim-comemorando.webp",
+      "bytes": 26540
+    },
+    {
       "rel": "poses/guaxinim-descansando.webp",
       "bytes": 39826
     },
@@ -2337,6 +2493,10 @@
       "bytes": 22624
     },
     {
+      "rel": "poses/lobo-guara-comemorando.webp",
+      "bytes": 27334
+    },
+    {
       "rel": "poses/lobo-guara-descansando.webp",
       "bytes": 52142
     },
@@ -2391,6 +2551,10 @@
     {
       "rel": "poses/lontra-aguardando-resposta.webp",
       "bytes": 21330
+    },
+    {
+      "rel": "poses/lontra-comemorando.webp",
+      "bytes": 24056
     },
     {
       "rel": "poses/lontra-descansando.webp",
@@ -2521,6 +2685,10 @@
       "bytes": 30704
     },
     {
+      "rel": "poses/mico-leao-dourado-comemorando.webp",
+      "bytes": 31218
+    },
+    {
       "rel": "poses/mico-leao-dourado-descansando.webp",
       "bytes": 35150
     },
@@ -2649,6 +2817,10 @@
       "bytes": 27656
     },
     {
+      "rel": "poses/ourico-comemorando.webp",
+      "bytes": 27718
+    },
+    {
       "rel": "poses/ourico-descansando.webp",
       "bytes": 46736
     },
@@ -2705,6 +2877,10 @@
       "bytes": 18920
     },
     {
+      "rel": "poses/panda-comemorando.webp",
+      "bytes": 21688
+    },
+    {
       "rel": "poses/panda-descansando.webp",
       "bytes": 35566
     },
@@ -2759,6 +2935,10 @@
     {
       "rel": "poses/raposa-aguardando-resposta.webp",
       "bytes": 26686
+    },
+    {
+      "rel": "poses/raposa-comemorando.webp",
+      "bytes": 30768
     },
     {
       "rel": "poses/raposa-descansando.webp",
@@ -2889,6 +3069,10 @@
       "bytes": 21526
     },
     {
+      "rel": "poses/tamandua-comemorando.webp",
+      "bytes": 23798
+    },
+    {
       "rel": "poses/tamandua-descansando.webp",
       "bytes": 46914
     },
@@ -2943,6 +3127,10 @@
     {
       "rel": "poses/tucano-aguardando-resposta.webp",
       "bytes": 21972
+    },
+    {
+      "rel": "poses/tucano-comemorando.webp",
+      "bytes": 26500
     },
     {
       "rel": "poses/tucano-descansando.webp",

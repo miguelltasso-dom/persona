@@ -13,7 +13,17 @@ import type { HireActivity } from './harness-hiring.ts'
 import type { HarnessPorts } from './harness-ports.ts'
 import type { SchedulePreset } from './rrule-lite.ts'
 
-export type AnyActivity = BoardActivity | HarnessActivity | HireActivity
+export type AnyActivity = BoardActivity | HarnessActivity | HireActivity | LoginActivity
+
+/** COLHEITA 15b: a Cofre login typed into the page; the book keeps which login, never the value. */
+export interface LoginActivity {
+  readonly verb: 'browser_login'
+  readonly target: { readonly kind: 'cofre-login'; readonly id: string; readonly title: string }
+  readonly initiator: HarnessIdentity['initiator']
+  readonly status: 'done'
+  readonly undoable: false
+  readonly at: string
+}
 
 export interface HarnessDispatchOptions {
   /** A change was made (or refused). The feed of the activity records it. */
@@ -64,7 +74,7 @@ function scheduleOf(value: unknown): SchedulePreset | undefined {
  * @param options - Where the activity goes.
  */
 export function harnessMcpPorts(harness: HarnessPorts, options: HarnessDispatchOptions = {}): HarnessMcpPorts {
-  const tools: HarnessToolName[] = [...BOARD_TOOLS, ...(harness.routines === undefined ? [] : ROUTINE_TOOLS), ...(harness.hiring === undefined ? [] : HIRE_TOOLS), ...(options.opinion === undefined ? [] : OPINION_TOOLS)]
+  const tools: HarnessToolName[] = [...BOARD_TOOLS, ...(harness.routines === undefined ? [] : ROUTINE_TOOLS), ...(harness.hiring === undefined ? [] : HIRE_TOOLS), ...(options.opinion === undefined ? [] : OPINION_TOOLS), ...(harness.vaultCode === undefined ? [] : ['ask_vault_code'] as const), ...(harness.browserLogin === undefined ? [] : ['browser_login'] as const)]
   return {
     tools,
     call: (input: HarnessCall): Promise<string> => Promise.resolve(run(harness, options, input)),
@@ -189,6 +199,36 @@ function run(harness: HarnessPorts, options: HarnessDispatchOptions, input: Harn
       // The team tools need the RUN's Task (identity of the asker), which `who` does not carry: they are composed in `withTeamTools`
       // (harness-team.ts) in front of this dispatch, like the opinion tool. Reaching here means the host did not compose them.
       return refuse('unavailable', 'O trabalho em equipe ainda não está ligado aqui.')
+    case 'ask_vault_code': {
+      if (harness.vaultCode === undefined) return refuse('unavailable', 'Pedir o código de 6 dígitos ainda não está ligado aqui.')
+      const reason = text(args, 'reason')
+      if (reason === undefined || reason.trim() === '') return refuse('invalid', 'Diga em uma frase para que serve o código.')
+      const result = harness.vaultCode.open(who, {
+        reason,
+        ...(text(args, 'login') === undefined ? {} : { login: text(args, 'login')! }),
+        ticketId: input.run.ticketId,
+      })
+      if (!result.ok) return refuse(result.code, result.message)
+      return say({
+        ok: true,
+        requestId: result.requestId,
+        expiresAt: result.expiresAt,
+        message: 'Pedi o código ao dono; ele preenche no cartão e o código vai direto para o Cofre. Nunca peça o código no chat.',
+      })
+    }
+    case 'browser_login': {
+      if (harness.browserLogin === undefined) return refuse('unavailable', 'Entrar com um login do Cofre ainda não está ligado aqui.')
+      const login = text(args, 'login')
+      if (login === undefined || login.trim() === '') return refuse('invalid', 'Diga qual login do Cofre usar.')
+      return harness.browserLogin.open(who, { login, ticketId: input.run.ticketId }).then((result) => {
+        if (!result.ok) return refuse(result.code, result.message)
+        // The book keeps WHICH login was used, never the value; there is no inverse (the page stays as it is).
+        return done(
+          { verb: 'browser_login', target: { kind: 'cofre-login', id: login, title: login }, initiator: who.initiator, status: 'done', undoable: false, at: new Date().toISOString() },
+          { typed: result.typed, message: result.message },
+        )
+      })
+    }
     case 'routine_pause': {
       const id = text(args, 'id')
       if (harness.routines === undefined) return refuse('invalid', 'Rotinas não estão disponíveis.')

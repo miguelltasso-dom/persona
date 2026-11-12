@@ -140,6 +140,11 @@ export function withInfraRecovery(inner: Runner, options: InfraRecoveryOptions =
       }
       if (input.permissionMode !== undefined) nextInput.permissionMode = input.permissionMode
       if (input.history !== undefined) nextInput.history = input.history
+      // The retry stays in the same conversation. A dead process is reattached to its own CLI session (`--resume`); any other
+      // failure starts a fresh one under the same thread, which is what the handoff prompt is for (a full context must not be
+      // reopened). Without the thread key the retry would open a process of its own, outside the conversation.
+      if (input.threadKey !== undefined) nextInput.threadKey = input.threadKey
+      if (kind === 'process_dead' && input.resumeSessionId !== undefined) nextInput.resumeSessionId = input.resumeSessionId
       const next = remember(await inner.start(nextInput), nextInput)
       current = next
     }
@@ -154,6 +159,7 @@ export function withInfraRecovery(inner: Runner, options: InfraRecoveryOptions =
     stream: play,
     events: play,
     cancel: handle => inner.cancel(handle),
+    ...(inner.steer === undefined ? {} : { steer: (handle: RunHandle, requestId: string, text: string) => inner.steer!(handle, requestId, text) }),
     resume: async input => remember(await inner.resume(input), input),
     usage: handle => inner.usage(handle),
     ...(inner.prime === undefined ? {} : { prime: (input: StartTurnInput) => inner.prime!(input) }),

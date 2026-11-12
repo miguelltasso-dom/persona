@@ -46,6 +46,8 @@ export interface DraftFile {
   readonly path: string
   readonly size: number
   readonly sha: string | null
+  /** The content of a small text file (svg/md/txt, up to `MAX_TEXT_BYTES`): D-100 compares the art's own text with the text Bia delivered. Absent for anything else. */
+  readonly text?: string
 }
 
 /** The DRAFT directory of one Task (`<home>/worktrees/<project>/<ticketId>`) and what is in it now (P0-1: what the worker really finds). */
@@ -231,6 +233,8 @@ export function leaksIn(visible: string, options: { readonly ownWords?: boolean 
 
 const MAX_HASHED_BYTES = 4 * 1024 * 1024
 const MAX_DRAFT_FILES = 400
+const MAX_TEXT_BYTES = 256 * 1024
+const TEXT_FILE = /\.(?:svg|md|txt)$/iu
 
 /** The files of one directory, recursively, relative with `/`; never follows a link outside, never reads a file above `MAX_HASHED_BYTES`. */
 function walkDraft(root: string): DraftFile[] {
@@ -247,7 +251,11 @@ function walkDraft(root: string): DraftFile[] {
       else if (entry.isFile()) {
         try {
           const size = statSync(full).size
-          out.push({ path: relative, size, sha: size <= MAX_HASHED_BYTES ? createHash('sha256').update(readFileSync(full)).digest('hex') : null })
+          const bytes = size <= MAX_HASHED_BYTES ? readFileSync(full) : undefined
+          out.push({
+            path: relative, size, sha: bytes === undefined ? null : createHash('sha256').update(bytes).digest('hex'),
+            ...(bytes !== undefined && size <= MAX_TEXT_BYTES && TEXT_FILE.test(entry.name) ? { text: bytes.toString('utf8') } : {}),
+          })
         } catch { /* a file that vanished while reading proves nothing */ }
       }
     }

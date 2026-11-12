@@ -23,6 +23,7 @@ import type { TurnContextUi } from './turn-context-ui.ts'
 import type { DmView, FirstDeliveryView, OverviewView as HostOverviewView, PersonaTenantScope, TeamView } from './persona-remote-types.ts'
 import type { PersonaNowSnapshot } from '../team/persona-work-state.ts'
 import type { ChannelPersonaMember } from '../team/persona-work-state.ts'
+import { markReviewing } from '../team/persona-reviewing.ts'
 import type { AutonomyLevel } from '../persona-editor/persona-draft.ts'
 import { patchAutonomyMode } from '../persona-editor/autonomy-map.ts'
 import type { AttachmentView } from '@deepseek-ai/dsh-persona-host/types'
@@ -56,6 +57,7 @@ import { mapConversationSubjectsBundle, type MappedConversationSubjects } from '
 import { PersonaRemoteError } from './persona-remote-unwrap.ts'
 import { mapUsedContextRecord } from './map-used-context.ts'
 import { mapTurnActivityFolds, type TurnActivityGroupWire } from './map-turn-activity-folds.ts'
+import { mapReplyActivity, type ReplyActivityUi } from './map-reply-activity.ts'
 import {
   DEFAULT_CONVERSATION_SUBJECT_ID,
   DEFAULT_CONVERSATION_SUBJECTS,
@@ -133,6 +135,8 @@ export interface PersonaLiveSnapshot {
   /** First actionable task for post-onboarding / overview card (C8). */
   readonly suggestedTask: { readonly id: string; readonly title: string } | null
   readonly turnContext: TurnContextUi | null
+  /** COLHEITA §6 (Quill): atividade de cada resposta de persona, por id da mensagem respondida (só as que usaram ferramenta). */
+  readonly replyActivity?: Readonly<Record<string, ReplyActivityUi>>
   readonly error: string | null
   readonly gestorPlansById: Readonly<Record<string, GestorPlanView>>
   /** Client UX after "Ajustar" until host RPC `commentGestorPlan` (Anvil). */
@@ -178,6 +182,7 @@ const EMPTY: PersonaLiveSnapshot = {
   dmUnreadByPersonaId: {},
   suggestedTask: null,
   turnContext: null,
+  replyActivity: {},
   error: null,
   gestorPlansById: {},
   gestorPlanAdjustingIds: {},
@@ -215,7 +220,7 @@ export interface PersonaLiveStore {
   /** D-084 / HT-7: "Desfazer" de uma ação que a persona fez direto (`undoPersonaAction({ activityId })`); recarrega depois. */
   undoPersonaAction?(activityId: string): Promise<void>
   /** D-084 / HT-9: a decisão da pessoa sobre o cartão de prévia de ação externa (`decideApproval({ kind: 'action', … })`); recarrega depois. */
-  decideActionApproval?(decision: { approvalId: string; choice: 'send' | 'edit' | 'cancel'; edited?: { subject?: string; body?: string }; remember?: boolean }): Promise<void>
+  decideActionApproval?(decision: { approvalId: string; choice: 'send' | 'edit' | 'cancel' | 'retry'; edited?: { subject?: string; body?: string }; remember?: boolean }): Promise<void>
   /** IV-6: `/lado` — a pergunta guardada já volta com `status: 'asking'`; nada vai para o fio. */
   openAsideAsk?(personaId: string, subjectId: string, question: string): Promise<AsideAskView>
   /** IV-6: `/resumo` — a persona resume a conversa; lê-se como um `/lado` (`getAsideAsk`). */
@@ -234,6 +239,8 @@ export interface PersonaLiveStore {
   openPersonaDm(personaId: string): Promise<void>
   openFirstAvailableDm(): Promise<void>
   loadTurnContext(ticketId: string): Promise<void>
+  /** COLHEITA §6 (Quill): pede a atividade de uma resposta (uma vez por resposta). */
+  loadReplyActivity?(subjectId: string): Promise<void>
   postDmMessage(body: string, attachmentIds?: readonly string[]): Promise<void>
   toggleMessageReaction(
     streamKind: 'channel' | 'dm',
@@ -807,12 +814,15 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
           /* unread best-effort */
         }
       }
+      const kanbanCardsNow = enrichKanbanCardsFromHost(tasks, projects, nowRows, channelSubjects)
+      const reviewingFlagged = markReviewing(nowRows, stripMembers, kanbanCardsNow)
       store.set({
         ready: true,
         tenant,
         team,
-        nowRows,
-        stripMembers,
+        // "Revisando" is read from the board once, so the stage, "Agora" and the rail agree (team/persona-reviewing.ts).
+        nowRows: reviewingFlagged.rows,
+        stripMembers: reviewingFlagged.members,
         awayEvents,
         // The same window stays hidden after "Entendi" until the host starts a new one (its `since` changes).
         away: awayHiddenSince === awayLive.since || (awayLive.done.length === 0 && awayLive.waiting.length === 0) ? null : awayLive,
@@ -824,7 +834,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         selectedDmId,
         dmMessages,
         projects,
-        kanbanCards: enrichKanbanCardsFromHost(tasks, projects, nowRows, channelSubjects),
+        kanbanCards: kanbanCardsNow,
         dmUnreadByPersonaId,
         suggestedTask,
         turnContext: prior.turnContext,
@@ -1029,6 +1039,29 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     startDmStream(dmId)
   }
 
+  // COLHEITA §6 (Quill): a atividade de UMA resposta de persona (turno de conversa; `subjectId` = id da mensagem respondida).
+  // Pede uma vez por resposta. Turno sem ferramenta não guarda nada: sem resumo.
+  const replyActivityAsked = new Set<string>()
+  const loadReplyActivity = async (subjectId: string): Promise<void> => {
+    if (tenant === null || remote.listTurnActivity === undefined) return
+    if (replyActivityAsked.has(subjectId)) return
+    replyActivityAsked.add(subjectId)
+    let groups: readonly import('@deepseek-ai/dsh-persona-host/types').ActivityGroupView[] = []
+    try {
+      groups = await Promise.resolve(remote.listTurnActivity({ workspaceId: tenant.workspaceId, projectId: tenant.projectId, subjectId }))
+    } catch {
+      replyActivityAsked.delete(subjectId)
+      return
+    }
+    const mapped = mapReplyActivity(groups.map(group => ({
+      moreCount: group.moreCount,
+      items: group.items.map(item => ({ id: item.id, kind: item.kind, title: item.title, status: item.status, at: item.at })),
+    })))
+    if (mapped === undefined) return
+    const current = store.getSnapshot()
+    store.set({ ...current, replyActivity: { ...current.replyActivity, [subjectId]: mapped } })
+  }
+
   const loadTurnContext = async (ticketId: string): Promise<void> => {
     if (tenant === null || remote.getTurnContext === undefined) return
     try {
@@ -1052,6 +1085,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
             kind: item.kind,
             title: item.title,
             status: item.status,
+            ...(item.at === undefined ? {} : { at: item.at }),
           })),
         })))
       const [row, wireFolds] = await Promise.all([rowPromise, foldsPromise])
@@ -1252,7 +1286,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   }
 
   const decideActionApproval = async (
-    decision: { approvalId: string; choice: 'send' | 'edit' | 'cancel'; edited?: { subject?: string; body?: string }; remember?: boolean },
+    decision: { approvalId: string; choice: 'send' | 'edit' | 'cancel' | 'retry'; edited?: { subject?: string; body?: string }; remember?: boolean },
   ): Promise<void> => {
     if (tenant === null || typeof remote.decideApproval !== 'function') throw new Error('action: unavailable')
     // O contrato do HT-9 estende o `decideApproval` com `kind: 'action'` (connector-grants.md); a forma tipada de hoje só tem os 4 tipos antigos.
@@ -1897,6 +1931,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     openPersonaDm,
     openFirstAvailableDm,
     loadTurnContext,
+    loadReplyActivity,
     postDmMessage,
     toggleMessageReaction,
     commitOnboardingRoster,

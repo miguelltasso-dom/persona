@@ -1,5 +1,12 @@
 /* AboutPersona (Muse, kit de lançamento). */
 
+/* Dentro de Configurações › Sobre (cena 24 da Muse, correção da revisão do Carbon): a grade da página, sem a coluna de 560 px centralizada. */
+.about.inline {
+  max-width: none;
+  margin: 0;
+  box-shadow: var(--persona-shadow-sticker);
+}
+
 .about {
   display: grid;
   gap: var(--persona-space-3);

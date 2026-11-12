@@ -173,3 +173,104 @@ describe('INST-3: o apresentador do host não derruba o escuro do Persona', () =
     expect(document.body.hasAttribute(DARK_THEME_ATTRIBUTE)).toBe(false)
   })
 })
+
+describe('pausa tripla dos loops ambientes (DESIGN-01 §2.7 regra 3)', () => {
+  it('pausa sem foco, retoma no foco, pausa após 15 s ocioso e não pausa com trabalho ativo', () => {
+    vi.useFakeTimers()
+    stubMatchMedia(false)
+    const focus = vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    install()
+    expect(document.body.hasAttribute('data-persona-ambient-paused')).toBe(false)
+    // O gate do preaccept dispara um `blur` sintético sem mexer em document.hasFocus(): o evento manda.
+    window.dispatchEvent(new Event('blur'))
+    expect(document.body.hasAttribute('data-persona-ambient-paused')).toBe(true)
+    expect(focus()).toBe(true)
+    window.dispatchEvent(new Event('focus'))
+    expect(document.body.hasAttribute('data-persona-ambient-paused')).toBe(false)
+    vi.advanceTimersByTime(16_000)
+    expect(document.body.hasAttribute('data-persona-ambient-paused')).toBe(true)
+    window.dispatchEvent(new Event('pointermove'))
+    vi.advanceTimersByTime(1_000)
+    expect(document.body.hasAttribute('data-persona-ambient-paused')).toBe(false)
+    const streaming = document.createElement('div')
+    streaming.setAttribute('data-streaming', '')
+    document.body.append(streaming)
+    vi.advanceTimersByTime(20_000)
+    expect(document.body.hasAttribute('data-persona-ambient-paused')).toBe(false)
+    streaming.remove()
+    vi.advanceTimersByTime(20_000)
+    expect(document.body.hasAttribute('data-persona-ambient-paused')).toBe(true)
+    vi.useRealTimers()
+  })
+
+  it('pausa as animações WAAPI que o animation-play-state não alcança e retoma só as que pausou', () => {
+    stubMatchMedia(false)
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const running: { playState: string; pause: ReturnType<typeof vi.fn>; play: ReturnType<typeof vi.fn> } = { playState: 'running', pause: vi.fn(), play: vi.fn() }
+    const finished: { playState: string; pause: ReturnType<typeof vi.fn>; play: ReturnType<typeof vi.fn> } = { playState: 'finished', pause: vi.fn(), play: vi.fn() }
+    Object.defineProperty(document, 'getAnimations', {
+      configurable: true,
+      value: () => [running, finished],
+    })
+    install()
+    window.dispatchEvent(new Event('blur'))
+    expect(running.pause).toHaveBeenCalledTimes(1)
+    expect(finished.pause).not.toHaveBeenCalled()
+    running.playState = 'paused'
+    window.dispatchEvent(new Event('focus'))
+    expect(running.play).toHaveBeenCalledTimes(1)
+    expect(finished.play).not.toHaveBeenCalled()
+    Reflect.deleteProperty(document, 'getAnimations')
+    vi.unstubAllGlobals()
+  })
+
+  it('com um scrim de tela cheia, pausa só o shell (a entrada do scrim segue) e retoma ao fechar', () => {
+    vi.useFakeTimers()
+    stubMatchMedia(false)
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    const shell = document.createElement('div')
+    shell.setAttribute('data-persona-shell', '')
+    const inside = document.createElement('span')
+    shell.append(inside)
+    document.body.append(shell)
+    const cover = document.createElement('div')
+    cover.setAttribute('data-persona-cover', '')
+    document.body.append(cover)
+    const animationStub = (target: Element) => {
+      const stub: { playState: string; pause: ReturnType<typeof vi.fn>; play: ReturnType<typeof vi.fn>; effect: { target: Element } } = {
+        playState: 'running',
+        effect: { target },
+        pause: vi.fn(function (this: { playState: string }) { this.playState = 'paused' }),
+        play: vi.fn(function (this: { playState: string }) { this.playState = 'running' }),
+      }
+      return stub
+    }
+    const shellAnimation = animationStub(inside)
+    const coverAnimation = animationStub(cover)
+    Object.defineProperty(document, 'getAnimations', { configurable: true, value: () => [shellAnimation, coverAnimation] })
+    install()
+    vi.advanceTimersByTime(1_000)
+    expect(document.body.hasAttribute('data-persona-covered')).toBe(true)
+    expect(document.body.hasAttribute('data-persona-ambient-paused')).toBe(false)
+    expect(shellAnimation.pause).toHaveBeenCalledTimes(1)
+    expect(coverAnimation.pause).not.toHaveBeenCalled()
+    cover.remove()
+    vi.advanceTimersByTime(1_000)
+    expect(document.body.hasAttribute('data-persona-covered')).toBe(false)
+    expect(shellAnimation.play).toHaveBeenCalledTimes(1)
+    Reflect.deleteProperty(document, 'getAnimations')
+    shell.remove()
+    vi.useRealTimers()
+    vi.unstubAllGlobals()
+  })
+
+  it('pausa quando o documento fica escondido', () => {
+    stubMatchMedia(false)
+    const hidden = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true)
+    vi.spyOn(document, 'hasFocus').mockReturnValue(true)
+    install()
+    expect(document.body.hasAttribute('data-persona-ambient-paused')).toBe(true)
+    hidden.mockRestore()
+    vi.unstubAllGlobals()
+  })
+})

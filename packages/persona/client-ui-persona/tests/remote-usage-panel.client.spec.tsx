@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
-import { cleanup, render, screen } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { RemoteUsagePanel } from '../src/client/data/lumen-remote-panels.tsx'
 import type { PersonaRemoteClient } from '../src/client/data/lumen-inject.ts'
@@ -31,6 +31,34 @@ function shellHarness(): ReturnType<typeof bindObservableForTest<ReturnType<Retu
   return bindObservableForTest(store)
 }
 
+function usagePersona(extra: Record<string, unknown> = {}): PersonaRemoteClient {
+  return {
+    getUsage: vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        period: { from: '2026-11-01T00:00:00.000Z', to: '2026-11-30T23:59:59.999Z' },
+        folds: [],
+        tokens: 0,
+        runs: 0,
+        origin: 'measured' as const,
+        originLabel: 'Medido',
+      },
+    })),
+    getOfficialQuota: vi.fn(async () => ({
+      ok: true as const,
+      value: [{
+        provider: 'openrouter',
+        origin: 'official' as const,
+        windows: [{ id: 'month', origin: 'official' as const, usedPercent: 12 }],
+      }],
+    })),
+    listMemory: vi.fn(async () => ({ ok: true as const, value: [] })),
+    listSkills: vi.fn(async () => ({ ok: true as const, value: [] })),
+    listConnectionAccounts: vi.fn(async () => ({ ok: true as const, value: { accounts: [] } })),
+    ...extra,
+  } as unknown as PersonaRemoteClient
+}
+
 describe('RemoteUsagePanel (OPT-7 / D5b)', () => {
   it('renders token panel from getUsagePanel', async () => {
     const getUsagePanel = vi.fn(async () => ({
@@ -43,31 +71,7 @@ describe('RemoteUsagePanel (OPT-7 / D5b)', () => {
         byKind: [],
       },
     }))
-    const persona = {
-      getUsage: vi.fn(async () => ({
-        ok: true as const,
-        value: {
-          period: { from: '2026-11-01T00:00:00.000Z', to: '2026-11-30T23:59:59.999Z' },
-          folds: [],
-          tokens: 0,
-          runs: 0,
-          origin: 'measured' as const,
-          originLabel: 'Medido',
-        },
-      })),
-      getOfficialQuota: vi.fn(async () => ({
-        ok: true as const,
-        value: [{
-          provider: 'openrouter',
-          origin: 'official' as const,
-          windows: [{ id: 'month', origin: 'official' as const, usedPercent: 12 }],
-        }],
-      })),
-      listMemory: vi.fn(async () => ({ ok: true as const, value: [] })),
-      listSkills: vi.fn(async () => ({ ok: true as const, value: [] })),
-      listConnectionAccounts: vi.fn(async () => ({ ok: true as const, value: { accounts: [] } })),
-      getUsagePanel,
-    } as unknown as PersonaRemoteClient
+    const persona = usagePersona({ getUsagePanel })
 
     render(
       <PreviewFrame brandLabel="Persona">
@@ -84,5 +88,72 @@ describe('RemoteUsagePanel (OPT-7 / D5b)', () => {
     expect(screen.getByRole('heading', { name: usagePt['title'] })).toBeTruthy()
     expect(getUsagePanel).toHaveBeenCalled()
     expect(screen.getByText(/42 tokens por tarefa concluída/u)).toBeTruthy()
+  })
+
+  it('shows the reserve of the last 5% and spends it with “Continuar agora”', async () => {
+    const getWindowReserve = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        state: 'reserve' as const,
+        provider: 'claude',
+        windowId: '5h',
+        usedPercent: 96,
+        resetsAt: '2026-11-11T20:00:00.000Z',
+        queued: 2,
+        overridden: false,
+      },
+    }))
+    const continueWindowNow = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        state: 'reserve' as const,
+        provider: 'claude',
+        windowId: '5h',
+        usedPercent: 96,
+        queued: 0,
+        overridden: true,
+      },
+    }))
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <RemoteUsagePanel
+          persona={usagePersona({ getWindowReserve, continueWindowNow })}
+          useTenant={tenantHarness()}
+          useShell={shellHarness()}
+        />
+      </PreviewFrame>,
+    )
+
+    expect(await screen.findByText(/A janela de 5 h está em 96%/u)).toBeTruthy()
+    expect(screen.getByText(/2 conversas esperando/u)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: usagePt['window.continue'] }))
+    expect(continueWindowNow).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'proj' })
+    expect(await screen.findByText(usagePt['window.overridden'])).toBeTruthy()
+  })
+
+  it('writes the reserve in the singular when only one conversation waits', async () => {
+    const getWindowReserve = vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        state: 'reserve' as const,
+        provider: 'claude',
+        windowId: '5h',
+        usedPercent: 96,
+        resetsAt: '2026-11-11T20:00:00.000Z',
+        queued: 1,
+        overridden: false,
+      },
+    }))
+    render(
+      <PreviewFrame brandLabel="Persona">
+        <RemoteUsagePanel
+          persona={usagePersona({ getWindowReserve })}
+          useTenant={tenantHarness()}
+          useShell={shellHarness()}
+        />
+      </PreviewFrame>,
+    )
+    expect(await screen.findByText(/1 conversa esperando/u)).toBeTruthy()
+    expect(screen.queryByText(/1 conversas/u)).toBeNull()
   })
 })

@@ -27,6 +27,11 @@ export interface SubjectBarProps extends PropsLocale<'persona.chat'> {
   readonly panelId?: string | undefined
   readonly onCompleteSubject?: ((subjectId: string) => void) | undefined
   readonly onSnoozeSubject?: ((subjectId: string, kind: '3h' | 'tomorrow' | 'monday') => void) | undefined
+  /**
+   * DM (Muse, tickets de leigo): with ONE subject the "Geral" chip says nothing and makes a layperson think the message goes to #geral, so
+   * the chip is not drawn; the "+" and the menu stay. It appears when there is more than one subject.
+   */
+  readonly hideSingleTab?: boolean | undefined
 }
 
 const NAME_MAX = 24
@@ -66,6 +71,7 @@ export function SubjectBar({
   panelId,
   onCompleteSubject,
   onSnoozeSubject,
+  hideSingleTab = false,
 }: SubjectBarProps): ReactNode {
   const tabsRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<MenuButtonHandle>(null)
@@ -171,51 +177,53 @@ export function SubjectBar({
 
   return (
     <div className={styles.bar}>
-      <div
-        ref={tabsRef}
-        className={styles.tabs}
-        data-overflow={overflow ? '' : undefined}
-        role="tablist"
-        aria-label={t('subjects.barLabel')}
-      >
-        {subjects.map((subject, index) => {
-          const selected = subject.id === activeSubjectId
-          const name = subjectDisplayName(t, subject)
-          const working = subject.working === true
-          const workingText = working
-            ? t('subjects.working', { name: subject.workingName ?? t('subjects.someone') })
-            : undefined
-          const unread = !selected && subject.unreadCount > 0
-          return (
-            <button
-              key={subject.id}
-              type="button"
-              role="tab"
-              id={`persona-subject-${subject.id}`}
-              aria-selected={selected}
-              aria-controls={panelId}
-              aria-keyshortcuts={selected && menuItems.length > 0 ? 'Shift+F10' : undefined}
-              tabIndex={selected ? 0 : -1}
-              className={styles.tab}
-              data-unread={unread ? '' : undefined}
-              style={{ ['--subject-tint' as string]: `var(--persona-subject-${subject.colorIndex}-tint)` }}
-              title={workingText ?? name}
-              onClick={() => { onSelect(subject.id) }}
-              onKeyDown={(event) => { onKeyDown(event, index) }}
-            >
-              <SubjectDot colorIndex={subject.colorIndex} working={working} />
-              <span className={styles.label}>{name}</span>
-              {unread && (
-                <>
-                  <span className={styles.unread} aria-hidden="true">{subject.unreadCount > 9 ? '9+' : subject.unreadCount}</span>
-                  <span className={styles.srOnly}>{t('subjects.unread', { count: String(subject.unreadCount) })}</span>
-                </>
-              )}
-              {workingText !== undefined && <span className={styles.srOnly}>{workingText}</span>}
-            </button>
-          )
-        })}
-      </div>
+      {!(hideSingleTab && subjects.length === 1) && (
+        <div
+          ref={tabsRef}
+          className={styles.tabs}
+          data-overflow={overflow ? '' : undefined}
+          role="tablist"
+          aria-label={t('subjects.barLabel')}
+        >
+          {subjects.map((subject, index) => {
+            const selected = subject.id === activeSubjectId
+            const name = subjectDisplayName(t, subject)
+            const working = subject.working === true
+            const workingText = working
+              ? t('subjects.working', { name: subject.workingName ?? t('subjects.someone') })
+              : undefined
+            const unread = !selected && subject.unreadCount > 0
+            return (
+              <button
+                key={subject.id}
+                type="button"
+                role="tab"
+                id={`persona-subject-${subject.id}`}
+                aria-selected={selected}
+                aria-controls={panelId}
+                aria-keyshortcuts={selected && menuItems.length > 0 ? 'Shift+F10' : undefined}
+                tabIndex={selected ? 0 : -1}
+                className={styles.tab}
+                data-unread={unread ? '' : undefined}
+                style={{ ['--subject-tint' as string]: `var(--persona-subject-${subject.colorIndex}-tint)` }}
+                title={workingText ?? name}
+                onClick={() => { onSelect(subject.id) }}
+                onKeyDown={(event) => { onKeyDown(event, index) }}
+              >
+                <SubjectDot colorIndex={subject.colorIndex} working={working} />
+                <span className={styles.label}>{name}</span>
+                {unread && (
+                  <>
+                    <span className={styles.unread} aria-hidden="true">{subject.unreadCount > 9 ? '9+' : subject.unreadCount}</span>
+                    <span className={styles.srOnly}>{t('subjects.unread', { count: String(subject.unreadCount) })}</span>
+                  </>
+                )}
+                {workingText !== undefined && <span className={styles.srOnly}>{workingText}</span>}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {editingSubject !== undefined ? (
         <form className={styles.rename} onSubmit={(event) => { event.preventDefault(); finishRename(true) }}>

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 // CV-9 (CONVERSAS-SPEC §CV-9): o fio em BALÕES. A pessoa em lilás à direita; a persona em creme à esquerda com o rosto e "Nome · função
-// · hora" só no 1º do grupo; agrupamento por autor em < 5 min; a folhinha no 1º balão; os cartões estruturados ficam FORA do balão;
+// · hora" só no 1º do grupo; agrupamento por autor em < 5 min; sem folhinha (saiu em DESIGN-01 #04); os cartões estruturados ficam FORA do balão;
 // tabela e código dentro do balão largo. O jsdom não calcula layout: aqui ficam provados a estrutura e os textos; as medidas e as cores,
 // na captura no shell real.
 import { cleanup, render, screen } from '@testing-library/react'
@@ -120,20 +120,17 @@ describe('o agrupamento por autor (< 5 min)', () => {
     expect(container.querySelectorAll('[class*="gutter"] time')).toHaveLength(2)
   })
 
-  it('a folhinha só no 1º balão do grupo da persona (aria-hidden, fora do texto)', () => {
+  it('DESIGN-01 #04: a folhinha SAIU dos balões comuns (era repetida em todo grupo da persona); o balão tem só o texto', () => {
     const { container } = list(run)
-    const sprigs = container.querySelectorAll('[data-persona-sprig]')
-    expect(sprigs).toHaveLength(1)
-    expect(sprigs[0]?.getAttribute('aria-hidden')).toBe('true')
-    expect(bubbles(container)[0]?.contains(sprigs[0] as Element)).toBe(true)
-    expect(bubbles(container)[0]?.textContent).toBe('Achei 3 concorrentes.') // a folhinha não entra no texto
+    expect(container.querySelectorAll('[data-persona-sprig]')).toHaveLength(0)
+    expect(bubbles(container)[0]?.textContent).toBe('Achei 3 concorrentes.')
   })
 
-  it('5 minutos ou mais: grupo novo (rosto, nome e folhinha de novo)', () => {
+  it('5 minutos ou mais: grupo novo (rosto e nome de novo, sem folhinha)', () => {
     const { container } = list([run[0] as ChannelMessageUi, msg('b', 'nina', '14:11', 'Outra coisa.')])
     expect(bubbles(container).map(b => b.getAttribute('data-position'))).toEqual(['single', 'single'])
     expect(metaLines(container)).toHaveLength(2)
-    expect(container.querySelectorAll('[data-persona-sprig]')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-persona-sprig]')).toHaveLength(0)
   })
 
   it('intercalado com a pessoa: cada bloco da persona é um grupo', () => {
@@ -250,7 +247,7 @@ describe('MUSE 04:01: um cartão, uma linha de evento ou uma linha de equipe QUE
     ])
     expect(bubbles(container).map(b => b.getAttribute('data-position'))).toEqual(['single', 'single'])
     expect(metaLines(container)).toHaveLength(2)
-    expect(container.querySelectorAll('[data-persona-sprig]')).toHaveLength(2)
+    expect(container.querySelectorAll('[data-persona-sprig]')).toHaveLength(0)
   })
 
   it('o cartão no meio de duas mensagens do mesmo autor: as duas têm cabeçalho (a de depois não se junta à de antes)', () => {

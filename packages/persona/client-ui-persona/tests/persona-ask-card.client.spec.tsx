@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// IV-10 · a pergunta estruturada no fio (Colheita Lodi A(1); contracts/structured-question.md): os chips (única: o toque responde; várias:
+// IV-10 · a pergunta estruturada no fio (Colheita A(1); contracts/structured-question.md): os chips (única: o toque responde; várias:
 // marcam e "Enviar {k}"), só leitura depois de respondida, a falha com "Tentar de novo", o teclado e a flag.
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'

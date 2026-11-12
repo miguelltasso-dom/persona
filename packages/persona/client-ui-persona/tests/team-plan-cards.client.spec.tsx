@@ -225,7 +225,7 @@ describe('o cartão de entrega', () => {
     expect(screen.getByText('Arte (Teo)')).toBeTruthy()
     expect(screen.getByText('Posts (Caio)')).toBeTruthy()
     expect(screen.getByText('Revisado por Lia')).toBeTruthy()
-    fireEvent.click(screen.getByRole('button', { name: 'Revisar' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Revisar e aplicar' })) // DESIGN-01 (Fio real d): o botão diz o que faz
     expect(open).toHaveBeenCalledWith('approval-77')
   })
 
@@ -258,7 +258,7 @@ describe('no MessageList: flag persona.flag.teamwork e "nenhum autor com :"', ()
     expect((document.querySelector('[data-team-plan]') as HTMLElement).tagName).toBe('LI')
     const delivery = document.querySelector('[data-delivery-card]') as HTMLElement
     expect(delivery.tagName).toBe('LI')
-    fireEvent.click(within(delivery).getByRole('button', { name: 'Revisar' }))
+    fireEvent.click(within(delivery).getByRole('button', { name: 'Revisar e aplicar' }))
     expect(open).toHaveBeenCalledWith('approval-77')
     expect(screen.queryByText('Dividi assim:')).toBeNull()
   })

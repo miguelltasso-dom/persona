@@ -37,8 +37,8 @@ export interface LitRect {
 export const FOLIAGE_V2_SIZE = { width: 544, height: 520 } as const
 /** O centro da luminária na arte v2 (Muse): 66,5% × 75,1% da imagem. */
 export const FOLIAGE_LAMP_CENTER = { x: 0.665, y: 0.751 } as const
-/** Lado do quadrado do halo (raio ~45 px a 1×). */
-export const HALO_SIZE = 90
+/** Lado do quadrado do halo (raio ~60 px a 1×; o gradiente `closest-side` chega a alfa 0 na borda). */
+export const HALO_SIZE = 120
 
 export function isFoliageV2(natural: { readonly width: number; readonly height: number }): boolean {
   return natural.width === FOLIAGE_V2_SIZE.width && natural.height === FOLIAGE_V2_SIZE.height

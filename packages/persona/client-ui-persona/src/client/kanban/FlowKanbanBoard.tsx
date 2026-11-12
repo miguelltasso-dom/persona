@@ -36,6 +36,8 @@ export interface FlowKanbanBoardProps {
   readonly onOpenReview?: (ticketId: string) => void
   readonly onRetry?: () => void
   readonly onAddTask?: () => void
+  /** Shown above the (empty) columns while the project has no task at all (DESIGN-01 #10: empty columns + one invitation). */
+  readonly emptyInvite?: ReactNode
   readonly freshApprovalStampIds?: ReadonlySet<string>
   readonly celebrationNode?: ReactNode
   readonly personaCard?: PersonaCardShellBridge | undefined
@@ -128,6 +130,7 @@ export function FlowKanbanBoard({
   onOpenReview,
   onRetry,
   onAddTask,
+  emptyInvite,
   freshApprovalStampIds,
   celebrationNode,
   personaCard,
@@ -240,10 +243,14 @@ export function FlowKanbanBoard({
   }
 
   const firstTodoColumnId = columns.find(column => column.category === 'todo')?.id
+  // The picture of an empty column is drawn once per category: three "Em andamento" columns side by side do not repeat the same dog.
+  const artShown = new Set<string>()
 
   return (
     <>
-      <p className={styles.stateHint}>{t('drag.hint')}</p>
+      {cards.length === 0 && emptyInvite}
+      {/* Nothing to drag in a project with no task. */}
+      {cards.length > 0 && <p className={styles.stateHint}>{t('drag.hint')}</p>}
       <div ref={boardRef} className={styles.flowBoardCelebrate}>
         {celebrationNode}
         <BoardColumns label={t('a11y.boardRegion')}>
@@ -251,6 +258,11 @@ export function FlowKanbanBoard({
             const columnCards = grouped.get(column.id) ?? []
             const count = columnCards.length
             const isFirstTodo = column.id === firstTodoColumnId
+            let hideArt = false
+            if (count === 0) {
+              hideArt = artShown.has(column.category)
+              artShown.add(column.category)
+            }
             return (
               <div
                 key={column.id}
@@ -266,6 +278,7 @@ export function FlowKanbanBoard({
                   {...(column.wip === undefined ? {} : { wipLimit: column.wip })}
                   emptyLabel={columnEmptyLabel(dict, column.category)}
                   dropTarget={dropColumnId === column.id}
+                  hideArt={hideArt}
                   {...(isFirstTodo && onAddTask !== undefined
                     ? {
                       emptyAction: (

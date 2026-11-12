@@ -46,6 +46,28 @@
   --persona-radius-xl: 24px;
   --persona-radius-pill: 999px;
 
+  /* ── Controls (COLHEITA §14): a régua 32/40/48 vale para todo controle clicável ── */
+  --control-h-s: 32px;
+  --control-h-m: 40px;
+  --control-h-l: 48px;
+  --control-r-s: var(--persona-radius-s);
+  --control-r-m: 12px;
+  --control-r-l: var(--persona-radius-m);
+
+  /* ── Aliases de uso (Quill, pedido do Keel 22:44; valores a confirmar pela Muse) ── */
+  --persona-brand-strong: var(--persona-lilac-800);
+  --persona-focus-ring: var(--persona-lilac-700);
+  --persona-focus: var(--persona-focus-ring);
+  --persona-link: var(--persona-brand);
+  --persona-plum: var(--persona-plum-900);
+  --persona-danger-ink: var(--persona-danger);
+  --persona-danger-fg: var(--persona-on-brand);
+  --persona-on-accent: var(--persona-accent-ink);
+  --persona-border-subtle: var(--persona-outline-soft);
+  --persona-surface-raised: var(--persona-card);
+  /* borda de controle (3:1, WCAG 1.4.11): usada pelo EmailRule */
+  --persona-line: var(--persona-lilac-500);
+
   /* ── Space (4/8 grid) ───────────────────────────────────── */
   --persona-space-1: 4px;
   --persona-space-2: 8px;
@@ -58,17 +80,26 @@
   --persona-space-12: 48px;
   --persona-space-16: 64px;
 
-  /* ── Motion (UX-GUIDE §2) ───────────────────────────────── */
-  --motion-instant: 80ms;
-  --motion-fast: 140ms;
-  --motion-base: 220ms;
-  --motion-slow: 360ms;
-  --motion-character: 700ms;
-  --motion-reduced-fade: 120ms;
-  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
-  --ease-enter: cubic-bezier(0, 0, 0.2, 1);
+  /* ── Motion (UX-GUIDE §2 · DESIGN-01 §2.2–2.3 as closed in DESIGN-01-MUSE §2, 11/11) ── */
+  --motion-instant: 90ms;          /* press / check / key focus */
+  --motion-fast: 150ms;            /* hover, menu open, switch pin, tooltip */
+  --motion-panel: 160ms;           /* route/panel change in .main (no blocking fade-out) */
+  --motion-message: 180ms;         /* a message or card arriving in the thread */
+  --motion-base: 220ms;            /* persona pose change, accordion, strip collapse (modal/indicator use 200ms) */
+  --motion-slow: 360ms;            /* persona carrying a card */
+  --motion-celebrate: 320ms;       /* ApprovedStamp */
+  --motion-celebrate-burst: 680ms; /* PawBurst / ConfettiMoment: iterations 1, 3 s cooldown */
+  --motion-character: 700ms;       /* onboarding entrance only */
+  --motion-reduced-fade: 100ms;    /* reduced motion: opacity only, linear */
+  --ease-press: cubic-bezier(0.2, 0, 0, 1);
+  --ease-standard: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-exit: cubic-bezier(0.4, 0, 1, 1);
-  --ease-spring: cubic-bezier(0.34, 1.25, 0.64, 1);
+  --ease-spring: cubic-bezier(0.32, 1.14, 0.54, 1);
+  --ease-carry: cubic-bezier(0.25, 0.9, 0.3, 1);
+  /* Light warming up (lamp on, uau 5): symmetric in-out, so the glow grows through the whole duration instead of snapping on
+     in the first 100 ms like --ease-enter (Prism measured 0.19 left at 100 ms of 420). */
+  --ease-glow: cubic-bezier(0.45, 0, 0.55, 1);
   --persona-motion-ease: var(--ease-standard);
 
   /* Paper grain (feTurbulence) — applied to paper + rail only */
@@ -126,7 +157,7 @@ body:not([data-ds-dark-theme='true']),
   --persona-info-chip: var(--persona-info-tint);
   --persona-danger-tint: #f8e1e3;
   --persona-info-tint: #e3ecf7;
-  --persona-scrim: rgb(52 36 63 / 0.42);
+  --persona-scrim: rgb(36 22 48 / 0.56);
   --persona-focus-halo: rgb(232 175 84 / 0.5);
   --persona-shadow-press: 0 3px 0 0 var(--persona-outline);
   --persona-shadow-press-hover: 0 4px 0 0 var(--persona-outline);
@@ -145,6 +176,20 @@ body:not([data-ds-dark-theme='true']),
   --persona-scene-hill-near: #d9caee;
   --persona-scene-ground: #ece0f5;
   --persona-scene-shadow: rgb(103 82 144 / 0.22);
+
+  /* ── Aliases de uso (Quill, pedido do Keel 22:44; valores a confirmar pela Muse) ── */
+  --persona-brand-strong: var(--persona-lilac-800);
+  --persona-focus-ring: var(--persona-lilac-700);
+  --persona-focus: var(--persona-focus-ring);
+  --persona-link: var(--persona-brand);
+  --persona-plum: var(--persona-plum-900);
+  --persona-danger-ink: var(--persona-danger);
+  --persona-danger-fg: var(--persona-on-brand);
+  --persona-on-accent: var(--persona-accent-ink);
+  --persona-border-subtle: var(--persona-outline-soft);
+  --persona-surface-raised: var(--persona-card);
+  /* borda de controle (3:1, WCAG 1.4.11): usada pelo EmailRule */
+  --persona-line: var(--persona-lilac-500);
 }
 
 /* ── Dark scheme: deep plum night, never grey ───────────────
@@ -201,7 +246,7 @@ body[data-ds-dark-theme='true'],
   --persona-info-chip: #3c3852;
   --persona-danger-tint: rgb(241 154 165 / 0.16);
   --persona-info-tint: rgb(157 191 234 / 0.16);
-  --persona-scrim: rgb(8 4 12 / 0.6);
+  --persona-scrim: rgb(8 4 12 / 0.72);
   --persona-focus-halo: rgb(232 175 84 / 0.45);
   --persona-shadow-press: 0 3px 0 0 var(--persona-outline);
   --persona-shadow-press-hover: 0 4px 0 0 var(--persona-outline);
@@ -219,6 +264,20 @@ body[data-ds-dark-theme='true'],
   --persona-scene-hill-near: #3f2f58;
   --persona-scene-ground: #352849;
   --persona-scene-shadow: rgb(8 4 12 / 0.45);
+
+  /* ── Aliases de uso no escuro (Quill, pedido do Keel 22:44; valores a confirmar pela Muse) ── */
+  --persona-brand-strong: var(--persona-lilac-100);
+  --persona-focus-ring: var(--persona-lilac-200);
+  --persona-focus: var(--persona-focus-ring);
+  --persona-link: var(--persona-brand);
+  --persona-plum: var(--persona-lilac-300);
+  --persona-danger-ink: var(--persona-danger);
+  --persona-danger-fg: var(--persona-on-brand);
+  --persona-on-accent: var(--persona-accent-ink);
+  --persona-border-subtle: var(--persona-outline-soft);
+  --persona-surface-raised: var(--persona-card);
+  /* borda de controle (3:1, WCAG 1.4.11): usada pelo EmailRule */
+  --persona-line: var(--persona-lilac-500);
 }
 
 /* ── Stage categories (PROJECT-BOARDS §1): custom columns map to these; color is never the only cue ── */
@@ -274,6 +333,21 @@ body[data-ds-dark-theme='true'] {
   --persona-subject-6-tint: #352c40;
 }
 
+/* ── Persona state vocabulary (DESIGN-01-MUSE §0.2, 11/11): ONE color per state everywhere (rail, strip, cards, org chart,
+   DM). Aliases of scheme tokens, so they follow light/dark by themselves. Active states draw a filled dot; idle states draw
+   a ring (border-color = the token); offline draws a dashed ring. Text on --persona-state-waiting uses --persona-accent-ink. ── */
+body {
+  --persona-state-working: var(--persona-success);
+  --persona-state-reviewing: var(--persona-success);
+  --persona-state-waiting: var(--persona-accent);
+  --persona-state-draft: var(--persona-brand);
+  --persona-state-stuck: var(--persona-danger);
+  --persona-state-available: var(--persona-lilac-400);
+  --persona-state-resting: var(--persona-lilac-300);
+  --persona-state-paused: var(--persona-ink-soft);
+  --persona-state-offline: var(--persona-ink-soft);
+}
+
 /* ── Compatibility aliases (existing Prism/Lumen code + DSW primitives) ── */
 body {
   --persona-active-rail: var(--persona-rail);
@@ -324,5 +398,9 @@ html body[data-ds-dark-theme] {
     --motion-base: var(--motion-reduced-fade);
     --motion-slow: var(--motion-reduced-fade);
     --motion-character: var(--motion-reduced-fade);
+    --motion-panel: var(--motion-reduced-fade);
+    --motion-message: var(--motion-reduced-fade);
+    --motion-celebrate: var(--motion-reduced-fade);
+    --motion-celebrate-burst: 0ms;
   }
 }

@@ -7,7 +7,7 @@ import { bindLocale } from '../preview/locale-bind.ts'
 import { Button, Card, Chip, Screen, ScreenHeader, type ChipTone } from '../primitives/index.ts'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './Usage.module.css'
-import type { ActivationFunnelView } from '@deepseek-ai/dsh-persona-host/types'
+import type { ActivationFunnelView, WindowReserveView } from '@deepseek-ai/dsh-persona-host/types'
 import type { PersonaImpactUi } from '../data/adapters/insights.ts'
 import type { UsageLimitNotice, UsageMeter, UsageOrigin } from './mock-data.ts'
 import type { UsageProviderPoolUi } from '../data/adapters/usage-pooled.ts'
@@ -35,6 +35,10 @@ export interface UsageLimitsProps {
   readonly onEmptyPrimary?: (() => void) | undefined
   /** OPT-7 token ledger fold (null = hide section). */
   readonly tokenPanel?: UsageTokenPanelUi | null
+  /** Harvest 10: the last 5% of the official window (null = not read). */
+  readonly windowReserve?: WindowReserveView | null
+  /** “Continuar agora”: spend the last 5% of this window cycle. */
+  readonly onContinueWindow?: (() => void) | undefined
 }
 
 function originChipTone(origin: UsageOrigin): ChipTone {
@@ -97,6 +101,8 @@ export function UsageLimits({
   insightsImpacts = [],
   onEmptyPrimary,
   tokenPanel = null,
+  windowReserve = null,
+  onContinueWindow,
 }: UsageLimitsProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [surfaceState, setSurfaceState] = useState(initialState)
@@ -169,6 +175,30 @@ export function UsageLimits({
         }}
         {...(onLimitAction === undefined ? {} : { onAction: () => { onLimitAction() } })}
       />
+      {windowReserve !== null && windowReserve.state !== 'ok' && (
+        <Card padding="m" className={styles.notice} tone="accent">
+          <p>
+            {windowReserve.state === 'exhausted'
+              ? t('window.exhausted', {
+                window: reserveWindowName(t, windowReserve.windowId),
+                percent: Math.round(windowReserve.usedPercent ?? 0),
+                count: windowReserve.queued,
+              })
+              : t(windowReserve.queued === 1 ? 'window.reserve.one' : 'window.reserve', {
+                window: reserveWindowName(t, windowReserve.windowId),
+                percent: Math.round(windowReserve.usedPercent ?? 0),
+                count: windowReserve.queued,
+              })}
+          </p>
+          {reserveClock(windowReserve.resetsAt) !== '' && (
+            <p>{t('window.until', { when: reserveClock(windowReserve.resetsAt) })}</p>
+          )}
+          {windowReserve.state === 'reserve' && !windowReserve.overridden && onContinueWindow !== undefined && (
+            <Button variant="secondary" size="s" onClick={onContinueWindow}>{t('window.continue')}</Button>
+          )}
+          {windowReserve.overridden && <p>{t('window.overridden')}</p>}
+        </Card>
+      )}
       {showLimitNotice && limitNotice !== null && (
         <Card padding="m" className={styles.notice} tone="accent">
           <p>{t('limit.contextual', { connection: limitNotice.connection, percent: limitNotice.percent })}</p>
@@ -206,4 +236,19 @@ export function UsageLimits({
       )}
     </Screen>
   )
+}
+
+/** Human name of the official window in the reserve card ("de 5 h", "semanal"). */
+function reserveWindowName(t: (key: string) => string, windowId: string | undefined): string {
+  if (windowId === undefined) return t('window.nameSubscription')
+  if (/5h|five/iu.test(windowId)) return t('window.nameFiveHour')
+  if (/week|semana|7d/iu.test(windowId)) return t('window.nameWeek')
+  return t('window.nameSubscription')
+}
+
+/** Local `HH:MM` of the reset, or `''` when the vendor gave no clock. */
+function reserveClock(resetsAt: string | undefined): string {
+  if (resetsAt === undefined) return ''
+  const at = new Date(resetsAt)
+  return Number.isNaN(at.getTime()) ? '' : at.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })
 }

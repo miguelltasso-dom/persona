@@ -73,6 +73,8 @@ export class BoardsHost {
   readonly goals: MemoryGoalBoard = new MemoryGoalBoard()
   /** TEAM-1/6: what a card carries of the team (the request chip, "Revisando", the seal); the host sets it with `Config.teamwork`; absent = never. */
   teamworkOf?: (projectId: string, ticketId: string) => Partial<Pick<BoardCardView, 'handoff' | 'reviewing' | 'reviewedBy'>> | undefined
+  /** Item 18: what a card carries of the conversation of its Task (topic, messages, unread, last seq); absent = no thread information. */
+  threadOf?: (projectId: string, ticketId: string) => Partial<Pick<BoardCardView, 'threadTopicId' | 'threadCount' | 'threadUnread' | 'threadLastSeq'>> | undefined
 
   /**
    * @param product - Projects.
@@ -116,7 +118,9 @@ export class BoardsHost {
         this.pendingDelivery(projectId, ticket), this.collaboratorsOf(projectId, ticket.id),
       )
       const team = this.teamworkOf?.(projectId, ticket.id)
-      return team === undefined ? card : { ...card, ...team }
+      const thread = this.threadOf?.(projectId, ticket.id)
+      const withTeam = team === undefined ? card : { ...card, ...team }
+      return thread === undefined ? withTeam : { ...withTeam, ...thread }
     })
     const current = this.board.current(projectId)
     return {

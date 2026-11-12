@@ -194,7 +194,8 @@ export function consolidationPrompt(input: { question: string; draftText?: strin
  */
 export function parseConsolidation(raw: string): { text: string; after?: string } {
   const text = raw.trim()
-  const split = /^\s*NOVA\s+VERS[ÃA]O\s*:\s*/imu.exec(text)
+  // D-100: the marker cuts the sentence wherever the model puts it (start of a line, or after a sentence on the same line); it is never shown.
+  const split = /(?<![\p{L}\p{N}])NOVA\s+VERS[ÃA]O\s*:\s*/iu.exec(text)
   if (split === null) return { text }
   const after = text.slice(split.index + split[0].length).trim()
   const lead = text.slice(0, split.index).trim()
@@ -460,7 +461,9 @@ export class TeamOpinions {
       // The asker goes on herself with the replies she has (the tool hands them back); the thread says nothing false.
       return { state: 'partial', replies: ordered, noVision: [...blind], ignoredAttachmentIds }
     }
-    const version = after === undefined || draftText === undefined ? undefined : { k: input.round, before, after: { text: after } }
+    // The same words as the draft (only the spacing differs) are not a new version: no Antes · Depois of nothing.
+    const squash = (value: string): string => value.replace(/\s+/gu, ' ').trim()
+    const version = after === undefined || draftText === undefined || squash(after) === squash(draftText) ? undefined : { k: input.round, before, after: { text: after } }
     if (line(consolidatedId, asker.id, consolidation)) {
       deps.flag(input.projectId, consolidatedId, { kind: 'consolidated', ...common, ...(version === undefined ? {} : { version }) })
     }

@@ -15,7 +15,8 @@ import { describe, expect, it } from 'vitest'
 import { cleanChildEnv } from '../src/clean-env.ts'
 import { fakeRunnerSignature } from '../src/ledger-evidence.ts'
 import { ARTIFACTS_DIR, REPO_ROOT } from '../src/paths.ts'
-import { ART_FILE, ATTACHMENT_NAME, CAST, DELIVERY_END, PreflightRefusal, runTeamRound, type TeamRoundResult } from '../src/team-round-driver.ts'
+import { evaluatePadariaRound } from '../src/eval-padaria.ts'
+import { ART_FILE, ATTACHMENT_NAME, CAST, DELIVERY_END, PreflightRefusal, REQUEST_TEXT, runTeamRound, type TeamRoundResult } from '../src/team-round-driver.ts'
 import { ledgerWarnings } from '../src/team-round-guard.ts'
 import { describeBehaviors } from '../src/team-round-verdict.ts'
 import { gitCommit, libHash, manifestChanges, treeFingerprint, treeManifest, type TreeManifest } from '../src/tree-fingerprint.ts'
@@ -73,7 +74,9 @@ describe('TEAM-10 ensaio com o fake — mesma configuração da rodada real (0 I
     mkdirSync(TEAM10_DIR, { recursive: true })
     const run = `fake-${stamp()}`
     const outDir = join(TEAM10_DIR, run)
-    const result = await runTeamRound({ engine: 'fake', outDir, home: join(TEAM10_DIR, 'homes', run), cap: 14, deadlineMs: 8 * 60_000, quietMs: 30_000 })
+    // PERSONA_TEAM10_CHOREOGRAPHY=d100: the stub makes no hand-off of its own (the host's D-100 flow does the work) — the configuration the real round runs once harvest items 1–4 are in.
+    const choreography = process.env.PERSONA_TEAM10_CHOREOGRAPHY === 'd100' ? 'd100' as const : undefined
+    const result = await runTeamRound({ engine: 'fake', outDir, home: join(TEAM10_DIR, 'homes', run), cap: 14, deadlineMs: 8 * 60_000, quietMs: 30_000, ...(choreography === undefined ? {} : { choreography }) })
     writeFileSync(join(outDir, 'proof.json'), JSON.stringify(summarize(result), null, 2))
 
     const problems: string[] = []
@@ -126,6 +129,11 @@ describe('TEAM-10 ensaio com o fake — mesma configuração da rodada real (0 I
     //   P0-3 jargon / PNG  — no "ferramenta de shell", nobody asks anybody to export a PNG, and the persona is TOLD the app makes the PNG of an SVG by itself.
     const p0Problems = (result.verdict?.harnessProblems ?? []).filter(problem => /^P0-/u.test(problem))
     problems.push(...p0Problems, ...(result.stubProof?.problems ?? []))
+    // COLHEITA item 14 / PLAN D100-3: the eval of the Padaria Lua round = the D-100 gate (<= 6 turns, <= 120 mil raw input, ONE art with Bia's exact text, Lia reviews it and seals it, 0 leak) plus
+    // false "Pronto!", silly questions and jargon in the thread. RECORDED in the proof always; it FAILS this rehearsal only with PERSONA_TEAM10_D100=1 (turn it on for the real round once harvest
+    // items 1–4 are integrated: until then the stub's old script — pass_forward to Bia, help from Lia — is expected to be RED on it). The repeatable version is `scripts/persona/eval-padaria.mjs`.
+    const padariaEval = result.transcript === undefined ? undefined : evaluatePadariaRound(result.transcript, { request: REQUEST_TEXT })
+    if (process.env.PERSONA_TEAM10_D100 === '1') problems.push(...(padariaEval?.problems ?? ['EVAL: no transcript to evaluate']))
     if (result.stubProof === undefined) problems.push('the stub proof (P0-1 cwd look, tool calls, tool catalog) was not collected')
     // The opinion of the team (behavior 4) must be exercised: the request asks for it in plain words and the rehearsal must show the round.
     // (Keel 17:24) a stub cannot call ask_team_opinion (a tool of the model): behavior 4 is proven by Forge's dry with the REAL CLI + a fake endpoint on this same fingerprint, recorded in the proof, not here.
@@ -170,6 +178,7 @@ describe('TEAM-10 ensaio com o fake — mesma configuração da rodada real (0 I
       verdictOnFake: result.verdict?.problems ?? null, behaviorsOnFake: result.verdict?.behaviors ?? null, reviewsOnFake: result.transcript?.reviews ?? null,
       draftProof: result.draftProof ?? null, fullDeliveryInReview: wholeDelivery, reviewTasks: reviewTexts.length, fullNoteRequired: process.env.PERSONA_TEAM10_FULL_NOTE === '1',
       p0: { problems: [...p0Problems, ...(result.stubProof?.problems ?? [])], stub: result.stubProof ?? null, textRules: 'src/team-p0-rules.ts', filesRules: 'src/team-draft-checks.ts' },
+      eval: padariaEval === undefined ? null : { ok: padariaEval.ok, required: process.env.PERSONA_TEAM10_D100 === '1', problems: padariaEval.problems, metrics: padariaEval.metrics },
     }, null, 2))
     expect(problems, `see ${outDir}`).toEqual([])
   }, 12 * 60_000)

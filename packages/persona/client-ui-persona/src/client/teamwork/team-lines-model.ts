@@ -13,6 +13,8 @@ export interface TeamPersonaUi {
   readonly name: string
   /** O retrato do elenco; sem ele o avatar cai nas iniciais. */
   readonly characterId?: string
+  /** O tom (0 a 6) da ORDEM DE CONTRATAÇÃO: o anel de cor do rosto na linha de passagem (`personaTintIndex`); sem ele, sem anel. */
+  readonly tint?: number
 }
 
 export type HandoffMode = 'handoff' | 'help'

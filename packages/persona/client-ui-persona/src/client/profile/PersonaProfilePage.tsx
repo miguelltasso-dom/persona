@@ -7,6 +7,8 @@ import { AVATAR_96, ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { poseUrl, type PersonaCharacterId, type PersonaPoseState } from '../assets/asset-url.ts'
 import { Avatar, BrandIcon, Button, Card, Chip, EmptyState, NOW_POSE, Screen, ScreenHeader, Tabs, UiIcon } from '../primitives/index.ts'
 import { MemoryPanel, type MemoryActions } from '../memory/MemoryPanel.tsx'
+import { PlaybookPanel, type PlaybookActions, type PlaybookSurfaceState } from '../playbook/PlaybookPanel.tsx'
+import type { PlaybookNoteView } from '@deepseek-ai/dsh-persona-host/types'
 import { SkillsPanel, type SkillsPanelProps } from '../skills/SkillsPanel.tsx'
 import { PersonaSurfaceEmpty, PersonaSurfaceError, PersonaSurfaceLoading } from '../kanban/PersonaSurface.tsx'
 import styles from './ProfileScreen.module.css'
@@ -23,7 +25,7 @@ import { liveStateToNowKind, PersonaInfoFacts, type PersonaCardInfo } from './Pe
 import { cardSystemRoles } from './card-system-roles.ts'
 
 export type ProfileSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
-type ProfileTab = 'overview' | 'memory' | 'skills'
+type ProfileTab = 'overview' | 'memory' | 'playbook' | 'skills'
 
 function stateLabelKey(state: PersonaLiveState): string {
   return `state.${state}`
@@ -55,6 +57,11 @@ export interface PersonaProfilePageProps {
   readonly memoryRows?: readonly MemoryRow[]
   /** What the Memory tab can really do (approve / edit / forget). A missing one means no button. */
   readonly memoryActions?: MemoryActions | undefined
+  /** Tab "Jeito de trabalhar" (item 16): what she learned about how she works. Absent = the tab is not offered (a host without the playbook). */
+  readonly playbookRows?: readonly PlaybookNoteView[] | undefined
+  readonly playbookState?: PlaybookSurfaceState | undefined
+  readonly playbookActions?: PlaybookActions | undefined
+  readonly onPlaybookRetry?: (() => void) | undefined
   readonly skillRecords?: readonly SkillRecord[]
   /** Row actions of the Skills tab (activate / back to candidate / share / review). A missing one means no button. */
   readonly skillActions?: Pick<SkillsPanelProps, 'onActivate' | 'onRollback' | 'onShare' | 'onReview'>
@@ -99,6 +106,10 @@ export function PersonaProfilePage({
   onRemoteRetry,
   memoryRows,
   memoryActions,
+  playbookRows,
+  playbookState,
+  playbookActions,
+  onPlaybookRetry,
   skillRecords,
   skillActions,
   onMessage,
@@ -217,6 +228,8 @@ export function PersonaProfilePage({
         items={[
           { id: 'overview' as const, label: t('tab.overview') },
           { id: 'memory' as const, label: t('tab.memory') },
+          // Overview · Memória · Jeito de trabalhar · Skills: what she knows → how she does it → what became a skill (Muse §16b)
+          ...(playbookRows === undefined ? [] : [{ id: 'playbook' as const, label: t('tab.playbook') }]),
           { id: 'skills' as const, label: t('tab.skills') },
         ]}
       />
@@ -299,6 +312,16 @@ export function PersonaProfilePage({
             initialState={memoryRows !== undefined && memoryRows.length === 0 ? 'empty' : 'ready'}
             actions={memoryActions}
             {...(onEdit === undefined ? {} : { onEmptyPrimary: onEdit })}
+          />
+        )}
+        {tab === 'playbook' && playbookRows !== undefined && (
+          <PlaybookPanel
+            personaName={persona.name}
+            rows={playbookRows}
+            {...(playbookState === undefined ? {} : { initialState: playbookState })}
+            actions={playbookActions}
+            {...(onMessage === undefined ? {} : { onMessage })}
+            {...(onPlaybookRetry === undefined ? {} : { onRetry: onPlaybookRetry })}
           />
         )}
         {tab === 'skills' && (

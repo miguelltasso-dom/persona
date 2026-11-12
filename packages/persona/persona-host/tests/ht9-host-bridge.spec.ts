@@ -197,6 +197,20 @@ it('(4) pay and delete ALWAYS come with a preview, even with the broadest "Sempr
   expect(waitingFor(rig.h)).toBe(true)
 })
 
+it('a Task started by a received e-mail never sends on its own: the same waiver that sends elsewhere stops at the person card', async () => {
+  const rig = open({ send: 'never' }) // the broadest "não perguntar de novo" for sends: a normal Task would send
+  rig.plan([{ tool: SEND, input: MAIL_A }])
+  say(rig.h, 'u1', '@Nina envie um email para a Ana com a confirmação dos bolos')
+  const trigger = rig.h.orchestration.runtime('pp').repo.triggers.get('u1')
+  expect(trigger).toBeDefined()
+  // The e-mail source marks the Trigger it received; the host reads it when arming the gate.
+  rig.h.orchestration.runtime('pp').repo.triggers.save({ ...trigger!, viaEmail: true })
+  await rig.h.orchestration.flush('pp')
+  expect(rig.executed).toEqual([]) // nothing left: a received e-mail never approves a send
+  expect(cards(rig.h)).toHaveLength(1)
+  expect(waitingFor(rig.h)).toBe(true)
+})
+
 it('a Task on a CLI that cannot stop a call has NO gate: its connector loads read-only and nothing is asked in the name of a hook that does not exist', async () => {
   const rig = open()
   rig.h.connectorPorts = { ...PORTS, permissionRequests: () => 'none' }

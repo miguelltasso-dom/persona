@@ -19,7 +19,7 @@ import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import { pt as kanbanDict } from '../locale/kanban/locales.ts'
 import { MOVE_UNDO_MS, undoableMove, type UndoableMove } from '../kanban/move-undo.ts'
-import { ProjectFlowBoard } from '../kanban/ProjectFlowBoard.tsx'
+import { ProjectFlowBoard, type ProjectBoardSwitcher } from '../kanban/ProjectFlowBoard.tsx'
 import { SprintPlanningView } from '../kanban/SprintPlanningView.tsx'
 import { sprintDatesFromDraft, useSprintPlanningState } from '../kanban/use-sprint-planning-state.ts'
 import type { KanbanSurfaceState } from '../kanban/types.ts'
@@ -48,10 +48,14 @@ export interface ConnectedProjectFlowBoardProps {
   readonly persona: PersonaRemoteClient
   readonly scope: ProjectScopeRequest
   readonly projectHint?: string
-  readonly onBack: () => void
   readonly onMutate: () => void
+  /** Which view of the project is open: the board, the sprint planning or the history (the tabs Quadro · Arquivos · Canvas belong to the shell's place). */
   readonly workspaceTab?: ProjectWorkspaceTab
   readonly onWorkspaceTabChange?: (tab: ProjectWorkspaceTab) => void
+  /** The header title becomes the "Pessoal ▾" switcher (DESIGN-01 #10). */
+  readonly switcher?: ProjectBoardSwitcher | undefined
+  /** "+ Novo projeto" in the header. */
+  readonly onNewProject?: (() => void) | undefined
   readonly personaCard?: PersonaCardShellBridge | undefined
   readonly openPersonaProfile?: ((personaId: string) => void) | undefined
   readonly channelSubjects?: readonly ConversationSubjectUi[]
@@ -71,7 +75,6 @@ function boardLoadKey(scope: ProjectScopeRequest, reloadToken: number): string {
 export function ConnectedProjectFlowBoard({
   persona,
   scope,
-  onBack,
   onMutate,
   workspaceTab = 'board',
   onWorkspaceTabChange,
@@ -80,6 +83,8 @@ export function ConnectedProjectFlowBoard({
   openPersonaProfile,
   channelSubjects = [],
   onNewTask,
+  switcher,
+  onNewProject,
 }: ConnectedProjectFlowBoardProps): ReactNode {
   const [reloadToken, setReloadToken] = useState(0)
   /** New copy: the same words if this build's generated locale does not carry the keys yet. */
@@ -418,11 +423,10 @@ export function ConnectedProjectFlowBoard({
           cards: [],
         }}
         surfaceState={surfaceState}
-        workspaceTab={workspaceTab}
-        onBack={onBack}
         onRetry={reload}
         onNewTask={onNewTask}
-        {...(onWorkspaceTabChange !== undefined ? { onWorkspaceTabChange } : {})}
+        switcher={switcher}
+        onNewProject={onNewProject}
         {...(personaCard === undefined ? {} : { personaCard })}
         {...(openPersonaProfile === undefined ? {} : { openPersonaProfile })}
       />
@@ -436,9 +440,10 @@ export function ConnectedProjectFlowBoard({
           dict={kanbanDict}
           flow={flow}
           surfaceState={surfaceState}
-          workspaceTab={workspaceTab}
           {...(sprint !== undefined ? { currentSprint: sprint } : {})}
-          onBack={onBack}
+          switcher={switcher}
+          onNewProject={onNewProject}
+          {...(onWorkspaceTabChange === undefined ? {} : { onOpenHistory: () => { onWorkspaceTabChange('history') } })}
           onMoveCard={(ticketId, columnId) => { void onMoveCard(ticketId, columnId) }}
           onOpenReview={(ticketId) => {
             const card = flow.cards.find(row => row.id === ticketId)
@@ -479,7 +484,6 @@ export function ConnectedProjectFlowBoard({
               },
             }
             : {})}
-          {...(onWorkspaceTabChange !== undefined ? { onWorkspaceTabChange } : {})}
           freshApprovalStampIds={freshApprovalIds}
           celebrationNode={paw.node}
           {...(proposeEnabled

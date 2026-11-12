@@ -70,6 +70,7 @@ export function PersonaEngineOverlay({
   const [connections, setConnections] = useState<readonly ConnectionView[]>([])
   const [runners, setRunners] = useState<readonly RunnerOptionUi[]>([])
   const [selected, setSelected] = useState<string>('dsh')
+  const [personaName, setPersonaName] = useState<string | null>(null)
   const [selectedModel, setSelectedModel] = useState<string | null>(null)
   const [selectedEffort, setSelectedEffort] = useState<EffortName | null>(null)
   const [snappedNotice, setSnappedNotice] = useState<SnappedNotice | null>(null)
@@ -77,6 +78,7 @@ export function PersonaEngineOverlay({
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(false)
   const modelListRef = useRef<HTMLDivElement>(null)
+  const effortListRef = useRef<HTMLDivElement>(null)
   const snapNoticeRef = useRef<HTMLParagraphElement>(null)
 
   const loadRunners = useCallback(async (targetPersonaId: string): Promise<void> => {
@@ -95,7 +97,9 @@ export function PersonaEngineOverlay({
       if ('listPersonas' in persona && typeof persona.listPersonas === 'function') {
         try {
           const teamPersonas = await unwrapRemote(await persona.listPersonas(tenant) as Parameters<typeof unwrapRemote>[0]) as PersonaView[]
-          storedChoice = teamPersonas.find(row => row.id === targetPersonaId)?.engine
+          const row = teamPersonas.find(candidate => candidate.id === targetPersonaId)
+          storedChoice = row?.engine
+          setPersonaName(typeof row?.name === 'string' && row.name.trim() !== '' ? row.name.trim() : null)
         } catch {
           storedChoice = undefined
         }
@@ -230,6 +234,13 @@ export function PersonaEngineOverlay({
     })()
   }
 
+  // Carbon (fio-d103 #6): ao abrir, a opção ATIVA do esforço ("high") fica à vista, não escondida sob o fade do fim da lista.
+  useEffect(() => {
+    if (!open || loading) return
+    const active = effortListRef.current?.querySelector('[data-checked="true"]')
+    if (active instanceof HTMLElement && typeof active.scrollIntoView === 'function') active.scrollIntoView({ block: 'nearest' })
+  }, [open, loading, personaId])
+
   if (!open) return null
 
   return (
@@ -248,6 +259,8 @@ export function PersonaEngineOverlay({
         </>
       )}
     >
+      {/* DESIGN-01 #03: a escolha vale para o que a persona fizer daqui para a frente, não para uma mensagem só. */}
+      <p className={styles.appliesNext} data-engine-applies-next="">{personaName === null ? t('engine.appliesNext.generic') : t('engine.appliesNext', { name: personaName })}</p>
       {error && <p className={styles.error}>{t('engine.error')}</p>}
       <div className={styles.layout}>
         <section className={styles.section} aria-label={t('engine.listLabel')}>
@@ -308,7 +321,7 @@ export function PersonaEngineOverlay({
               {allowedEfforts.length === 0 ? (
                 <p className={styles.effortNone} data-effort-none="">{t('engine.effortNone')}</p>
               ) : (
-                <div role="radiogroup" aria-labelledby="persona-engine-effort-heading" className={styles.modelList}>
+                <div ref={effortListRef} role="radiogroup" aria-labelledby="persona-engine-effort-heading" className={styles.modelList}>
                   {effortChoices.map((choiceId) => {
                     const checked = currentEffortChoice === choiceId
                     const level = choiceId === ENGINE_DEFAULT_ID ? null : choiceId

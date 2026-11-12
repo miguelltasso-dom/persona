@@ -11,13 +11,16 @@ describe('sortPersonasForUi', () => {
     expect(sorted.map(row => row.name)).toEqual(['Atlas', 'Zara'])
   })
 
-  it('orders coordination first, watchdog last, then name', () => {
+  it('orders coordination first, watchdog last, and everyone else in hiring (host) order, never by name', () => {
+    const view = (id: string, name: string, systemRoles: readonly string[]) => ({ id, name, title: 'T', description: '', workspaceId: 'w', projectId: 'p', avatarKind: 'gallery' as const, avatarRef: id, systemRoles: systemRoles as never, canRecruit: false })
     const sorted = sortPersonasForUi([
-      { id: 'l', name: 'Luna', title: 'Vigia', description: '', workspaceId: 'w', projectId: 'p', avatarKind: 'gallery', avatarRef: 'luna', systemRoles: ['watchdog'], canRecruit: false },
-      { id: 'b', name: 'Bento', title: 'Eng', description: '', workspaceId: 'w', projectId: 'p', avatarKind: 'gallery', avatarRef: 'bento', systemRoles: [], canRecruit: false },
-      { id: 'a', name: 'Atlas', title: 'Coord', description: '', workspaceId: 'w', projectId: 'p', avatarKind: 'gallery', avatarRef: 'atlas', systemRoles: ['coordination'], canRecruit: true },
+      view('l', 'Luna', ['watchdog']),
+      view('z', 'Zeca', []),
+      view('b', 'Bento', []),
+      view('a', 'Atlas', ['coordination']),
+      view('n', 'Nina', []),
     ])
-    expect(sorted.map(row => row.name)).toEqual(['Atlas', 'Bento', 'Luna'])
+    expect(sorted.map(row => row.name)).toEqual(['Atlas', 'Zeca', 'Bento', 'Nina', 'Luna'])
   })
 })
 

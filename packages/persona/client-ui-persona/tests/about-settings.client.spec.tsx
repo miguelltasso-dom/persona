@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-// Muse (rodapé): "Sobre e atualizações" é a última aba de Configurações e abre o modal do DSW por um botão (Ctrl+, segue).
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+// Muse (cena 24) + revisão do Carbon (item 1): "Sobre" é a última aba de Configurações e mostra o AboutPersona direto sob o cabeçalho.
+// Sem o cartão legado "Versão e avisos", sem o botão do modal do DSW e sem o atalho.
+import { cleanup, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { AboutSettingsPanel } from '../src/client/shell/AboutSettingsPanel.tsx'
 import { NAV_PLACES, placeOfPanel } from '../src/client/shell/nav-places.ts'
@@ -35,34 +36,25 @@ describe('ponte do launcher', () => {
   })
 })
 
-describe('aba "Sobre e atualizações"', () => {
+describe('aba "Sobre"', () => {
   it('é a última aba do lugar Configurações, com o id de painel `about`', () => {
     const settings = NAV_PLACES.find(place => place.id === 'settings')!
     expect(settings.tabs.at(-1)?.panel).toBe('about')
     expect(placeOfPanel('about')?.id).toBe('settings')
-    expect(shellPt[settings.tabs.at(-1)!.labelKey]).toBe('Sobre e atualizações')
-    expect(shellEn[settings.tabs.at(-1)!.labelKey]).toBe('About and updates')
+    expect(shellPt[settings.tabs.at(-1)!.labelKey]).toBe('Sobre')
+    expect(shellEn[settings.tabs.at(-1)!.labelKey]).toBe('About')
   })
 
-  it('o botão abre o modal do DSW', () => {
-    const open = vi.fn()
-    setOpenSettings(open)
-    render(<AboutSettingsPanel t={t} />)
-    fireEvent.click(screen.getByRole('button', { name: 'Abrir Sobre e atualizações' }))
-    expect(open).toHaveBeenCalledTimes(1)
-  })
-
-  it('sem launcher o botão fica desabilitado e a linha do porquê aparece (nunca botão morto sem motivo)', () => {
-    render(<AboutSettingsPanel t={t} />)
-    const button = screen.getByRole('button', { name: 'Abrir Sobre e atualizações' }) as HTMLButtonElement
-    expect(button.disabled).toBe(true)
-    expect(screen.getByText(shellPt['about.unavailable'])).toBeTruthy()
-    expect(button.getAttribute('aria-describedby')).toBe('persona-about-why')
-  })
-
-  it('o atalho aparece em chips de tecla (Ctrl e vírgula), não por extenso', () => {
+  it('mostra o AboutPersona direto sob o cabeçalho, sem o cartão legado, o botão do DSW nem o atalho', () => {
     const { container } = render(<AboutSettingsPanel t={t} />)
-    expect([...container.querySelectorAll('kbd')].map(node => node.textContent)).toEqual(['Ctrl', ','])
-    expect(document.body.textContent).not.toMatch(/vírgula/iu)
+    expect(screen.getByRole('heading', { name: 'Sobre a Persona' })).toBeTruthy()
+    expect(screen.queryByRole('button', { name: 'Abrir Sobre e atualizações' })).toBeNull()
+    expect(container.querySelectorAll('kbd')).toHaveLength(0)
+    expect(document.body.textContent).not.toMatch(/Versão e avisos/u)
+  })
+
+  it('sem versão não mostra a linha "Versão" (a ponte de versão chega num item próprio)', () => {
+    render(<AboutSettingsPanel t={t} />)
+    expect(screen.queryByText(/^Versão /u)).toBeNull()
   })
 })

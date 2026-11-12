@@ -60,10 +60,12 @@ describe('Pode salvar arquivos no rascunho — painel', () => {
     const row = container.querySelector<HTMLElement>('li[data-persona-id="p-luna"]')!
     const toggle = within(row).getByRole('switch') as HTMLInputElement
     expect(toggle.disabled).toBe(true)
-    const phrase = within(row).getByText(NO_FOLDER)
-    expect(toggle.getAttribute('aria-describedby')).toBe(phrase.id)
+    // Cena 16 (Muse): o aviso de pasta aparece uma vez, no topo da lista; o interruptor da linha aponta para ele.
+    const banner = container.querySelector<HTMLElement>('#persona-no-folder-banner')!
+    expect(toggle.getAttribute('aria-describedby')).toBe('persona-no-folder-banner')
+    expect(within(banner).getByText(NO_FOLDER)).toBeTruthy()
     expect(within(row).queryByText(HINT)).toBeNull()
-    fireEvent.click(within(row).getByRole('button', { name: 'Escolher pasta' }))
+    fireEvent.click(within(banner).getByRole('button', { name: 'Escolher pasta' }))
     expect(onChooseFolder).toHaveBeenCalledTimes(1)
     expect(onChangeCanSaveFiles).not.toHaveBeenCalled()
   })

@@ -72,6 +72,19 @@ medidos pelo `perf-probe-visible.mjs` no mesmo artefato. O artefato do corte **a
   `connection`/`api-remotes` aceitam transporte tardio (a primeira chamada espera o ready). O ready do main vira `{ window, staticShell }` e o do
   host continua o mesmo — nenhuma linha do perfil é mutilada (o caminho que falhou no `authenticatedUrl`). Medição: shell < 2,5 s com o host ainda
   subindo; o custo do host deixa de estar no caminho da primeira tela.
+- **API exata do índice estático (Zinc, 11/11; testado no cliente: boot 13/13, connection 23/23):** `bootInjections(graph)` em
+  `packages/client/modules/src/index.ts` (fila inline do `__ModuleLoader__` + preloads + scripts de bootstrap + global `__DSH_BOOT__`) e
+  `renderIndexInjections(html, rows)` em `packages/host/webserver/src/injections.ts`, sobre o `dsh-web-frontend/dist/index.html` (1.008 B);
+  o graph é o `ClientModuleRegistry.graph()` composto do bundle empacotado; o `__DSH_BOOT_READY__` é resolvido no tail; as linhas por
+  Peer/acesso ficam para o ready do host. O transporte (`__DSH_TRANSPORT__` com `streamBaseUrl` `dsh-app://app/api` + `ownsHost`) é
+  instalado antes do apply.
+- **Injeções do boot medidas (11/11, `dump-injections.mjs`):** o `dshDesktopBoot.ready()` entrega **9 rows** — 1 `style`, 2 `script-src`
+  (`/__persona-boot__/0.js`, `/1.js`), 1 `script-preload` com a lista de módulos do cliente, 1 `script-src` do `client-modules`, e 4
+  `global` (`__DSH_BOOT__` 10 KB com o manifesto, `__DSH_SHORTCUTS_CONFIG__`, `__DSH_REMOTE_ACCESS__`, `__DSH_CONNECTION_RECOVERY__`).
+  São **dados puros** (o `IndexInjection` já é JSON-serializável): o pack pode gerá-los e o main servi-los sem o host. O que muda no estático:
+  as URLs `plugins/??…` (servidas pelo web server do host) viram caminhos do `dsh-app://` para os bundles que já estão no asar
+  (`client-ui-persona/lib/client.js` + os `dsh-*/client.js`), e o `__DSH_BOOT__` é congelado no pack. O `streamBaseUrl` continua vindo do host
+  depois (o transporte tardio do item 3).
 - Alternativa mais barata, se o gate não puder mudar agora: **pré-aquecer o bundle do cliente** no main antes do host (request HTTP local ao próprio
   web server quando ele subir) — não resolve o gate, só tira o `request do bundle 520 ms` do caminho depois do ready.
 

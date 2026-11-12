@@ -20,6 +20,7 @@ import type { HarnessCall, HarnessMcpPorts, HarnessToolName } from '@deepseek-ai
 import type { Ticket } from '@deepseek-ai/dsh-persona-engine'
 import type { ProductRepos, StoredPersona } from '@deepseek-ai/dsh-persona-store'
 import type { Handoffs, TeamworkLimits } from './handoffs.ts'
+import { trackedParagraph } from './handoff-track.ts'
 import type { HarnessPorts } from './harness-ports.ts'
 
 /** The tools this file serves (the opinion tool is composed by `withOpinionTool`). */
@@ -35,14 +36,36 @@ type TeamTool = typeof TEAM_TOOLS[number]
 export const TEAM_GUIDANCE_CORE = 'Terminar bem esta tarefa inclui usar a equipe, e isso vale mais que as normas de dono acima: o que é da função de outro colega, passe a ele (pass_forward) em vez de fazer sozinha; quando travar, peça ajuda (ask_colleague); com dúvida de gosto, peça a opinião do time (ask_team_opinion). Um pedido com várias partes (texto e arte, por exemplo) não é só uma resposta em texto: faça a sua parte e passe o resto a quem é da função. Arte vai como SVG no rascunho: o app a converte em PNG sozinho, então nunca peça PNG a ninguém. Se algo não der, diga em palavras simples o que falta, sem falar de shell nem de ferramenta.'
 
 /**
+ * D-100: the orientation of a Task that is ONE PART of a request the host already split (texto, arte, posts…). Every other part is in the host's plan and starts by itself in its
+ * turn, with what the one before it delivered: the model is NOT told to pass the rest on (that is what made a second art), only to ask for help and opinion, and to deliver
+ * its own part whole (the next one is handed the whole result by the app).
+ */
+export const TEAM_GUIDANCE_PLANNED = 'Terminar bem esta tarefa inclui usar a equipe, e isso vale mais que as normas de dono acima: quando travar, peça ajuda (ask_colleague); com dúvida de gosto, peça a opinião do time (ask_team_opinion). As outras partes deste pedido JÁ ESTÃO no plano do app e cada uma começa sozinha, na sua vez, com o que a anterior entregou: não use pass_forward para elas nem faça a parte delas; entregue a sua por inteiro, com o resultado completo na sua resposta. Arte vai como SVG no rascunho: o app a converte em PNG sozinho, então nunca peça PNG a ninguém. Se algo não der, diga em palavras simples o que falta, sem falar de shell nem de ferramenta.'
+
+/** A part of the same request, already in the host's plan. */
+export interface PlannedPart {
+  readonly personaId: string
+  readonly name: string
+  /** What she does, in the person's words ("arte"). */
+  readonly label: string
+  readonly delivered: boolean
+}
+
+/**
  * The paragraph of ONE worker: who is on the team (the colleagues she may call, at most 8) and the orientation.
  * @param colleagues - The other people of the project.
+ * @param planned - The other parts of the request this Task is a part of, when the host already split it: they are never to be passed work (D-100).
  */
-export function teamGuidance(colleagues: readonly { readonly name: string; readonly title: string }[]): string {
+export function teamGuidance(colleagues: readonly { readonly name: string; readonly title: string; readonly access?: string }[], planned: readonly Pick<PlannedPart, 'name' | 'label'>[] = []): string {
   // By name, so the paragraph (and the warm session that carries it) does not change with the order the store lists people in.
-  const shown = [...colleagues].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).slice(0, 8).map(row => `${row.name} (${row.title})`)
+  // Item 16: what a colleague can reach rides on her entry ("Nina (Mídia, acesso: Instagram)"): a lack is asked of whoever has it, not of the owner.
+  const shown = [...colleagues].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).slice(0, 8)
+    .map(row => `${row.name} (${row.title}${row.access === undefined || row.access === '' ? '' : `, acesso: ${row.access}`})`)
   const more = colleagues.length > shown.length ? ` e mais ${String(colleagues.length - shown.length)}` : ''
-  return `Você trabalha numa equipe. Equipe: ${shown.join(', ')}${more}.\n${TEAM_GUIDANCE_CORE}`
+  const team = `Você trabalha numa equipe. Equipe: ${shown.join(', ')}${more}.`
+  if (planned.length === 0) return `${team}\n${TEAM_GUIDANCE_CORE}`
+  const parts = [...planned].sort((a, b) => a.name.localeCompare(b.name, 'pt-BR')).map(row => `${row.name} (${row.label})`).join(', ')
+  return `${team}\nOutras partes deste pedido, já no plano do app: ${parts}.\n${TEAM_GUIDANCE_PLANNED}`
 }
 
 /** What the tools need from the host. */
@@ -51,9 +74,13 @@ export interface TeamToolsDeps {
   readonly enabled: () => boolean
   readonly product: Pick<ProductRepos, 'listPersonas'>
   readonly harness: Pick<HarnessPorts, 'identityOf'>
-  readonly handoffs: Pick<Handoffs, 'ask' | 'verdict' | 'isReviewTask'>
+  readonly handoffs: Pick<Handoffs, 'ask' | 'verdict' | 'isReviewTask'> & Partial<Pick<Handoffs, 'trackedOf'>>
   readonly limitsOf: (projectId: string, personaId: string) => TeamworkLimits
   readonly ticketOf: (projectId: string, ticketId: string) => Ticket | undefined
+  /** D-100: the other parts of the plan a Task is one of (a request split by function). Absent or empty = the Task is not part of a plan. */
+  readonly plannedFor?: (projectId: string, ticketId: string) => readonly PlannedPart[]
+  /** Item 16: what one persona can reach ("Instagram, Gmail (só leitura)"), from the grants the owner gave; empty or absent = nothing to say. */
+  readonly accessLabelOf?: (projectId: string, personaId: string) => string
 }
 
 function say(value: unknown): string {
@@ -131,7 +158,13 @@ export class TeamTools {
    */
   guidanceFor(projectId: string, persona: StoredPersona, ticketId: string): string | undefined {
     if (!this.toolsFor(projectId, persona, ticketId).includes('ask_colleague')) return undefined
-    return teamGuidance(this.deps.product.listPersonas(projectId).filter(row => row.id !== persona.id))
+    const team = teamGuidance(
+      this.deps.product.listPersonas(projectId).filter(row => row.id !== persona.id).map(row => ({ name: row.name, title: row.title, access: this.deps.accessLabelOf?.(projectId, row.id) ?? '' })),
+      this.deps.plannedFor?.(projectId, ticketId) ?? [],
+    )
+    // Item 1: what she already handed to colleagues in this Task (tracked by the app, it comes back by itself) — only when she handed something, after the fixed paragraph.
+    const handed = trackedParagraph(this.deps.handoffs.trackedOf?.(projectId, ticketId) ?? [])
+    return handed === undefined ? team : `${team}\n${handed}`
   }
   /**
    * One call of a team tool.
@@ -172,6 +205,13 @@ export class TeamTools {
     if (found === undefined) {
       return refuse(ambiguous ? 'ambiguous-colleague' : 'unknown-colleague',
         `${ambiguous ? 'Mais de uma pessoa responde por' : 'Não achei'} “${asked.slice(0, 60)}” na equipe. Quem está aqui: ${rosterOf(people)}. Use o nome.`)
+    }
+
+    // D-100 (the hard guard): the work is never passed to a colleague who already has her part in the host's plan — her part starts by itself in its turn, and a second one
+    // of the same function is what made two arts. The model reads why, in words, and finishes its own part.
+    const planned = tool === 'pass_forward' ? this.deps.plannedFor?.(projectId, input.run.ticketId).find(part => part.personaId === found.id) : undefined
+    if (planned !== undefined) {
+      return refuse('planned', `${found.name} já tem a parte dela (${planned.label}) no plano deste pedido${planned.delivered ? ' e já entregou' : ' e começa sozinha quando chegar a vez dela, com o que a anterior entregar'}: não passe o trabalho a ${found.name}. Entregue a sua parte por inteiro.`)
     }
 
     const result = this.deps.handoffs.ask({

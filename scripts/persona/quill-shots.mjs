@@ -149,6 +149,9 @@ const AXE_SCOPE = {
   savefiles: ['[data-persona-settings]'],
   effortreal: ['[data-persona-settings]', '[data-persona-engine-overlay]', '[role="dialog"]'],
   effortcodex: ['[data-persona-settings]', '[data-persona-engine-overlay]', '[role="dialog"]'],
+  settings: ['main'],
+  membros: ['main'],
+  membrosligada: ['main'],
 }
 
 /** QUILL_AXE=<axe.min.js>: A/AA violations of the current page, split in mine / outside (null = skipped). */
@@ -176,8 +179,12 @@ const overflowProbe = page => page.evaluate(() => {
   }
 })
 
+/** QUILL_SKIP_STATES=2b-figurinhas,3b-sobre-inline: estados que não entram na recaptura (o pedido do Keel escolhe quais). */
+const SKIP_STATES = (process.env.QUILL_SKIP_STATES ?? '').split(',').filter(state => state !== '')
+
 function shooter(page, scheme, viewport) {
   return async (state) => {
+    if (SKIP_STATES.includes(state)) return
     const file = `${outDir}/${scenario}-${state}-${scheme}-${viewport.tag}.png`
     await page.waitForSelector('[data-persona-shell]', { timeout: 15_000 })
     await page.screenshot({ path: file })
@@ -396,6 +403,15 @@ SCENARIOS.personas = async function personas(page, shot) {
   await page.locator('[data-persona-settings="personas"]').waitFor({ timeout: 20_000 })
   await page.waitForTimeout(800)
   await shot('1-panel')
+  // Revisão do Carbon (quill-b8-lote2): uma linha aberta, com os selects do DS e o interruptor sem pasta desligado.
+  const firstToggle = page.locator('[data-persona-settings="personas"] li[data-persona-id] button[aria-expanded]').first()
+  if (await firstToggle.count() > 0) {
+    await firstToggle.click()
+    await page.waitForTimeout(600)
+    await shot('1b-open')
+    await firstToggle.click()
+    await page.waitForTimeout(300)
+  }
   // Keel (01:58): the team controls (help between colleagues, review before delivery) sit below the fold: capture them too.
   const helpControl = page.getByText('Pode pedir ajuda a colegas', { exact: false }).first()
   if (await helpControl.count() > 0) {
@@ -429,6 +445,97 @@ const FAKE_CLAUDE_MODELS = [
   { id: 'opus', label: 'Opus', effortLevels: ['low', 'medium', 'high', 'xhigh', 'max'] },
 ]
 const FAKE_CLAUDE_DEFAULT_LEVELS = ['low', 'medium', 'high', 'xhigh', 'max']
+
+/** Cenas 16-24 da Muse (lote 1 do #08 + #20): Configurações com as abas novas; Conexões leva o cartão Equipe à distância; Aparência traz as figurinhas; Sobre inline. */
+SCENARIOS.settings = async function settings(page, shot) {
+  await page.waitForSelector('[data-persona-shell]', { timeout: 30_000 })
+  await page.waitForTimeout(2000)
+  await nav(page, 'Conexões')
+  await page.locator('[data-persona-surface="connections"]').first().waitFor({ timeout: 20_000 }).catch(() => undefined)
+  await page.waitForTimeout(800)
+  console.log(`[settings tabs] ${JSON.stringify(await page.getByRole('tab').allInnerTexts())}`)
+  await shot('1-conexoes')
+  const card = page.getByRole('heading', { name: 'Equipe à distância', exact: true }).first()
+  if (await card.count() > 0) {
+    await card.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(300)
+    await shot('1b-equipe-distancia')
+  }
+  const appearance = page.getByRole('tab', { name: 'Aparência', exact: true }).first()
+  if (await appearance.count() > 0) await appearance.click()
+  await page.waitForTimeout(900)
+  await shot('2-aparencia')
+  const stickers = page.getByRole('heading', { name: 'Figurinhas', exact: true }).first()
+  if (await stickers.count() > 0) {
+    await stickers.scrollIntoViewIfNeeded()
+    // Revisão do Carbon (item 3): o estado DESLIGADO também é capturado; o interruptor é desligado antes da foto.
+    const toggle = page.getByRole('switch', { name: 'Figurinhas das personas' }).first()
+    if (await toggle.count() > 0 && (await toggle.getAttribute('aria-checked')) === 'true') {
+      await toggle.click()
+      await page.waitForTimeout(400)
+    }
+    await page.waitForTimeout(300)
+    await shot('2b-figurinhas')
+  }
+  const about = page.getByRole('tab', { name: 'Sobre', exact: true }).first()
+  if (await about.count() > 0) await about.click()
+  await page.waitForTimeout(900)
+  await shot('3-sobre')
+  const inline = page.getByRole('heading', { name: 'Sobre a Persona', exact: true }).first()
+  if (await inline.count() > 0) {
+    await inline.scrollIntoViewIfNeeded()
+    await page.waitForTimeout(300)
+    await shot('3b-sobre-inline')
+  }
+}
+
+/** Cena 20 (Muse) com a flag remoteTeamTab LIGADA: a aba Membros de Configurações (dono neste computador, sem o e-mail placeholder). */
+SCENARIOS.membros = async function membros(page, shot) {
+  await page.evaluate(() => { localStorage.setItem('persona.flag.remoteTeamTab', '1') })
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForSelector('[data-persona-shell]', { timeout: 30_000 })
+  await page.waitForTimeout(2000)
+  await nav(page, 'Membros')
+  await page.waitForTimeout(900)
+  console.log(`[membros tabs] ${JSON.stringify(await page.getByRole('tab').allInnerTexts())}`)
+  await shot('1-membros')
+}
+
+/** Cena 20 com a equipe remota LIGADA (opcional do Carbon): o host responde "conectada" com o cofre disponível; a Membros mostra o convite e a seção remota. */
+SCENARIOS.membrosligada = async function membrosligada(page, shot) {
+  await page.route('**/api/persona/getRemoteTeamAvailability', async route => {
+    const upstream = await route.fetch()
+    const text = await upstream.text()
+    let body
+    try { body = JSON.parse(text) } catch { await route.fulfill({ status: upstream.status(), headers: upstream.headers(), body: text }); return }
+    await route.fulfill({ status: upstream.status(), headers: upstream.headers(), body: JSON.stringify({ ...body, result: { value: { ok: true, value: { vault: 'available' } } } }) })
+  })
+  await page.route('**/api/persona/getRemoteTeamState', async route => {
+    const upstream = await route.fetch()
+    const text = await upstream.text()
+    let body
+    try { body = JSON.parse(text) } catch { await route.fulfill({ status: upstream.status(), headers: upstream.headers(), body: text }); return }
+    const state = {
+      workspaceId: 'ws-quill',
+      projectId: 'pj-quill',
+      edgeUrl: 'http://127.0.0.1:8791',
+      actorId: 'a1',
+      role: 'owner',
+      channelIds: ['geral'],
+      status: 'connected',
+      cursors: {},
+      errorCode: '',
+    }
+    await route.fulfill({ status: upstream.status(), headers: upstream.headers(), body: JSON.stringify({ ...body, result: { value: { ok: true, value: state } } }) })
+  })
+  await page.evaluate(() => { localStorage.setItem('persona.flag.remoteTeamTab', '1') })
+  await page.reload({ waitUntil: 'load' })
+  await page.waitForSelector('[data-persona-shell]', { timeout: 30_000 })
+  await page.waitForTimeout(2000)
+  await nav(page, 'Membros')
+  await page.waitForTimeout(2500)
+  await shot('1-membros-ligada')
+}
 
 async function fakeClaudeEngine(page) {
   await page.route('**/api/persona/listConnections', async route => {

@@ -71,7 +71,7 @@ describe('Quadros hub (BOARDS-SPEC §1)', () => {
         />
       </PreviewFrame>,
     )
-    fireEvent.click(screen.getByRole('tab', { name: pt['boards.filter.needsYou'] }))
+    fireEvent.click(screen.getByRole('button', { name: pt['boards.filter.needsYou'] }))
     expect(screen.getByText('Contratação — Designer')).toBeTruthy()
     expect(screen.queryByText('Site da agência')).toBeNull()
   })

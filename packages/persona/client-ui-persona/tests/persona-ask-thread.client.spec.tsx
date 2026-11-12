@@ -125,7 +125,7 @@ describe('o Remote do host (persona-asks-remote)', () => {
       answerAttention,
     })!
     const states = await listAskStates(remote, TENANT)
-    expect(states).toEqual({ a: { status: 'answered', optionIds: ['x'], text: 'oi' }, b: { status: 'open', optionIds: [], text: '' } })
+    expect(states).toEqual({ a: { status: 'answered', optionIds: ['x'], text: 'oi', answeredAt: 'agora' }, b: { status: 'open', optionIds: [], text: '' } })
     expect(await answerAskChoices(remote, TENANT, 'tk-1', ['x', 'y'])).toBe(false)
     expect(answerAttention).toHaveBeenCalledWith({ workspaceId: 'ws', projectId: 'proj', ticketId: 'tk-1', text: '', optionIds: ['x', 'y'] })
   })

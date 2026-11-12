@@ -1,0 +1,189 @@
+/* Item 13 (COLHEITA-MUSE §13): a faixa da Visão geral e o modal "Ligar a IA para a equipe toda". Só tokens que já existem: nenhum ms ou curva solta, nenhum fundo
+   translúcido, nenhum backdrop-filter, texto de interface >= 13 px, controles nas alturas 32/40/48 (os do Button). */
+
+/* 1. A faixa: borda de cartão normal, SEM cor de alerta. */
+.banner {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-4);
+  min-height: 72px;
+  padding: var(--persona-space-4) 20px;
+  background: var(--persona-card);
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-l);
+  box-shadow: var(--persona-shadow-sticker);
+}
+
+.bannerText {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  font: 600 17px/24px var(--persona-font-display);
+  color: var(--persona-ink);
+}
+
+/* 2. O modal. */
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-4);
+}
+
+.art {
+  display: block;
+  align-self: center;
+  width: 240px;
+  height: 140px;
+  max-width: 100%;
+  object-fit: contain;
+}
+
+.done {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-2);
+  margin: 0;
+  font: 600 15px/22px var(--persona-font-display);
+  color: var(--persona-ink);
+}
+
+.doneSeal {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-success-tint);
+  color: var(--persona-success);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-height: 40px;
+}
+
+/* O anel do avatar: tracejado = "Sem motor" (estado offline); lavanda cheio = `Disponível` (o estado que a persona ganha ao conectar). */
+.ring {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex-shrink: 0;
+  padding: 2px;
+  border-radius: var(--persona-radius-s);
+  border: 2px dashed var(--persona-state-offline);
+}
+
+.ring[data-status='conectando'] {
+  border-color: var(--persona-state-working);
+}
+
+.ring[data-status='conectada'] {
+  border-style: solid;
+  border-color: var(--persona-state-available);
+  animation: team-ring-pose var(--motion-slow) var(--ease-spring);
+}
+
+.check {
+  position: absolute;
+  right: -6px;
+  bottom: -6px;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: var(--persona-radius-pill);
+  background: var(--persona-state-available);
+  color: var(--persona-ink);
+}
+
+.name {
+  flex: 1;
+  min-width: 0;
+  font: 600 15px/22px var(--persona-font-display);
+  color: var(--persona-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status {
+  font: 500 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-muted);
+}
+
+.row[data-status='nao_conectou'] .status {
+  color: var(--persona-ink);
+}
+
+/* 3. A escolha da conta: as que já existem, por folga; sem selo "Recomendado", sem dinheiro. */
+.accounts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-1);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.legend {
+  padding: 0;
+  margin-bottom: var(--persona-space-2);
+  font: 600 13px/18px var(--persona-font-text);
+  color: var(--persona-ink-muted);
+}
+
+.account {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+  min-height: 40px;
+  font: 500 15px/22px var(--persona-font-text);
+  color: var(--persona-ink);
+  cursor: pointer;
+}
+
+.account input {
+  width: var(--control-h-s);
+  height: var(--control-h-s);
+  margin: 0;
+  accent-color: var(--persona-ink);
+}
+
+.refused {
+  margin: 0;
+  font: 500 13px/18px var(--persona-font-text);
+  color: var(--persona-ink);
+}
+
+@keyframes team-ring-pose {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* Reduced motion: toda transição vira um fade de `--motion-reduced-fade`. */
+@media (prefers-reduced-motion: reduce) {
+  .ring[data-status='conectada'] {
+    animation: team-ring-fade var(--motion-reduced-fade) linear;
+  }
+}
+
+@keyframes team-ring-fade {
+  from {
+    opacity: 0;
+  }
+}

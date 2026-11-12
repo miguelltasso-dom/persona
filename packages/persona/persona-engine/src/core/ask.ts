@@ -13,7 +13,7 @@ export const ASK_MIN_OPTIONS = 2
 export const ASK_MAX_OPTIONS = 8
 /** Longest chip label and longest question, in characters. */
 export const ASK_LABEL_MAX = 60
-export const ASK_QUESTION_MAX = 500
+export const ASK_QUESTION_MAX = 300
 
 /** Why a structured question or answer was refused. The message is Portuguese and safe to hand back to the model or the person. */
 export type AskFailure =
@@ -62,7 +62,7 @@ function normalizeQuestion(input: AskQuestionInput, index: number): AskQuestion 
   const question = flat(input.question)
   const where = `Pergunta ${String(index + 1)}`
   if (question === '') throw new AskError('empty_question', `${where}: escreva a pergunta.`)
-  if (question.length > ASK_QUESTION_MAX) throw new AskError('question_too_long', `${where}: a pergunta passa de ${String(ASK_QUESTION_MAX)} caracteres.`)
+  if (question.length > ASK_QUESTION_MAX) throw new AskError('question_too_long', `${where}: a pergunta passa de ${String(ASK_QUESTION_MAX)} caracteres. Explique no texto da mensagem e deixe aqui só a pergunta curta.`)
   const multiple = input.multiple === true
   if (input.options === undefined) {
     if (multiple) throw new AskError('too_few_options', `${where}: escolha múltipla precisa de opções.`)

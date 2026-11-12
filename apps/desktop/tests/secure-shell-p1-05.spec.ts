@@ -1,6 +1,7 @@
 /**
  * COLHEITA-S1 · P1-05 (Carbon) · D-114: a CSP do desktop libera só o que o transcritor de voz local (Vosk em Worker) precisa, e nada mais.
- * Autorizado pelo Miguel (12/11 10:00; desenho do Atlas 04:00): worker-src 'self' blob:; script-src + 'wasm-unsafe-eval'; media-src + blob:; connect-src + blob:.
+ * Autorizado pelo Miguel (12/11 10:00; desenho do Atlas 04:00): worker-src 'self' blob:; script-src + 'wasm-unsafe-eval';
+ * media-src + blob:; connect-src + blob:.
  * NUNCA 'unsafe-eval' nem 'unsafe-inline' em script, e nenhum host novo. O teste do TEXTO EXATO abaixo quebra qualquer afrouxamento futuro.
  */
 import { describe, expect, it } from 'vitest'

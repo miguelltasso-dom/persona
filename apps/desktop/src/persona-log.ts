@@ -43,7 +43,7 @@ export function personaLogsDir(home: string): string {
 }
 
 export interface PersonaLogger {
-  write(scope: 'main' | 'host' | 'runners', line: string): Promise<void>
+  write(scope: 'main' | 'host' | 'runners' | 'boot', line: string): Promise<void>
   rotate(): Promise<void>
 }
 

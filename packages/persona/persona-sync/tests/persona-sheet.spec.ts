@@ -27,7 +27,7 @@ describe('the sheet the owner signed', () => {
 
   it('does not depend on the order of keys, of the set-like lists, or on `undefined` fields', () => {
     const shuffled = sheet({
-      runner: { model: 'default', cli: 'claude', kind: 'cli' }, tools: { web: 'none', files: 'read' }, skills: ['cardapio', 'atendimento'], reportsTo: undefined,
+      runner: { model: 'default', cli: 'claude', kind: 'cli', effort: undefined }, tools: { web: 'none', files: 'read' }, skills: ['cardapio', 'atendimento'], // (an `undefined` inside the runner is dropped, like an absent key)
     })
     expect(sheetDigest(shuffled)).toBe(sheetDigest(sheet()))
     expect(checkSheet(shuffled, signed(), OWNER)).toBe('ok')

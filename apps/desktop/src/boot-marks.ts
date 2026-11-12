@@ -25,7 +25,7 @@ export interface BootMarks {
  * @param now - Milliseconds since the process started (`performance.now()` in the Electron main process).
  */
 export function createBootMarks(
-  write: (scope: string, line: string) => Promise<unknown>,
+  write: (scope: 'boot', line: string) => Promise<unknown>,
   now: () => number = () => performance.now(),
 ): BootMarks {
   const marks: BootMark[] = []

@@ -370,6 +370,8 @@
   "teamAi.refused.noAccount": "Entre em uma conta do Claude ou do Codex e tente de novo.",
   "teamAi.refused.noOne": "Agora todas as pessoas da equipe têm IA.",
   "teamAi.refused.failed": "Não consegui ligar agora. Tente de novo.",
+  "teamAi.dialog.noAccount.text": "Ainda não há nenhuma assinatura de IA ligada neste computador. Entre na sua conta do Claude, do Codex ou de outro motor em Conexões e volte aqui: a equipe toda liga de uma vez.",
+  "teamAi.dialog.noAccount.action": "Abrir Conexões",
   "rail.ai.unconfirmed": "{engine} · não consegui conferir",
   "rail.ai.retry": "Tentar de novo"
 }

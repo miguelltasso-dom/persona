@@ -162,13 +162,30 @@ export class PersonaStore {
   }
 
   /**
+   * Carbon P0-09: run `work` with `secure_delete` ON, so what it erases (a connector token, a webhook secret) is zeroed in the freed page at once. The pragma is NOT left on: with it on for every
+   * write, the whole database pays (the scale spec's p95 went over 100 ms), so only the erasure of a secret turns it on, and the previous value comes back when it ends.
+   * @param work - The erasure (it may run its own transaction).
+   * @returns Whatever `work` returns.
+   */
+  withSecureDelete<T>(work: () => T): T {
+    this.assertOpen()
+    const before = Number((this.db.prepare('PRAGMA secure_delete').get() as { secure_delete?: number } | undefined)?.secure_delete ?? 0)
+    this.db.exec('PRAGMA secure_delete = ON')
+    try {
+      return work()
+    } finally {
+      this.db.exec(`PRAGMA secure_delete = ${String(before)}`)
+    }
+  }
+
+  /**
    * Carbon P0-09: rows erased BEFORE `secure_delete` was on (or still in the WAL) leave their text in the file: rebuild the main database (`VACUUM`) and truncate the WAL so the
    * old bytes are gone for good. No-op on `:memory:`. Never runs inside a transaction.
    */
   compactSecrets(): void {
     this.assertOpen()
     if (this.path === ':memory:') return
-    this.db.exec('VACUUM')
+    this.withSecureDelete(() => { this.db.exec('VACUUM') }) // with the pragma on, the pages the rebuild frees are zeroed too (a plain VACUUM left the old text in the file)
     this.checkpointWal()
     try { writeFileSync(this.#compactionMarker(), `${new Date().toISOString()}\n`, { mode: 0o600 }) } catch { /* the marker only saves a later rebuild: never a failure */ }
   }
@@ -380,8 +397,6 @@ function configurePragmas(db: DatabaseSync, path: string, busyTimeoutMs: number)
   db.exec('PRAGMA foreign_keys = ON')
   db.exec(`PRAGMA busy_timeout = ${Math.trunc(busyTimeoutMs)}`)
   if (path !== ':memory:') db.exec('PRAGMA journal_mode = WAL')
-  // Carbon P0-09: a deleted row must not keep its text in the freed page (a connector token, a webhook secret): every deletion zeroes what it frees.
-  db.exec('PRAGMA secure_delete = ON')
 }
 
 function readUserVersion(db: DatabaseSync): number {

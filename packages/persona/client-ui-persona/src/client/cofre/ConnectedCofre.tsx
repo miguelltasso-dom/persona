@@ -12,6 +12,7 @@ import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
 import { useRemoteProjectScope } from '../data/use-remote-project-scope.ts'
 import type { RemoteTenantGate } from '../data/use-remote-tenant-gate.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
+import type { LocalePanelProps } from '../locale/panel-dicts.ts'
 import { pt as cofreDict, type CofreKey } from '../locale/cofre/locales.ts'
 import { CofreScreen } from './CofreScreen.tsx'
 import { cofreGroups, type HostCofreEntry } from './cofre-wire.ts'
@@ -29,7 +30,7 @@ export function isVaultUnavailable(failure: unknown): boolean {
   return failure instanceof Error && /vault_unavailable|cofre.*indispon|vault.*unavailable/iu.test(failure.message)
 }
 
-export function ConnectedCofre({ persona, useTenant, useShell }: LumenRemotePanelProps): ReactNode {
+export function ConnectedCofre({ persona, useTenant, useShell, dicts }: LumenRemotePanelProps & LocalePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
@@ -56,7 +57,7 @@ export function ConnectedCofre({ persona, useTenant, useShell }: LumenRemotePane
     return value
   }, [persona, workspaceId, projectId])
 
-  const t = (key: CofreKey, params?: Readonly<Record<string, string | number>>): string => bindLocale(cofreDict, key, params)
+  const t = (key: CofreKey, params?: Readonly<Record<string, string | number>>): string => bindLocale(dicts?.cofre ?? cofreDict, key, params)
   // A save or a removal answers with nothing the screen needs (it reads the list again): the handlers return void.
   const quiet = async <T,>(call: () => Promise<T>): Promise<void> => { await act(call) }
   const actions = scope === null ? {} : {

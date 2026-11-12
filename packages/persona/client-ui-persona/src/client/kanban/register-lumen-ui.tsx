@@ -82,6 +82,11 @@ import {
   de as cofreDe, en as cofreEn, es as cofreEs, fr as cofreFr, ja as cofreJa, COFRE_NS,
   pt as cofrePt, ru as cofreRu, zh as cofreZh, type CofreKey,
 } from '../locale/cofre/locales.ts'
+import { BROWSER_NS } from '../locale/browser/locales.ts'
+import { EMAIL_RULE_NS } from '../locale/email-rule/locales.ts'
+import { STATION_NS } from '../locale/station/locales.ts'
+import type { LocalePanelProps, PanelDicts } from '../locale/panel-dicts.ts'
+import { localeBindAsDict } from '../preview/locale-bind.ts'
 import {
   de as toolsDe, en as toolsEn, es as toolsEs, fr as toolsFr, ja as toolsJa, TOOLS_NS,
   pt as toolsPt, ru as toolsRu, zh as toolsZh, type ToolsKey,
@@ -262,8 +267,16 @@ export function registerLumenUi(ctx: Context, live: PersonaLiveStore, shell?: Lu
     { key: 'cofre', locale: COFRE_NS, Panel: SettingsCofreTab },
   ] as const
 
+  // P2-01 parte B (Keel 05:53): cada slot recebe os dicionários do ctx.locale (localeBindAsDict(ctx.locale.bind(NS))); sem eles o painel cai no pt.
+  const panelDicts: PanelDicts = {
+    browser: localeBindAsDict((key, params) => ctx.locale.bind(BROWSER_NS)(key as never, params as never)),
+    station: localeBindAsDict((key, params) => ctx.locale.bind(STATION_NS)(key as never, params as never)),
+    cofre: localeBindAsDict((key, params) => ctx.locale.bind(COFRE_NS)(key as never, params as never)),
+    emailRule: localeBindAsDict((key, params) => ctx.locale.bind(EMAIL_RULE_NS)(key as never, params as never)),
+  }
+  const injectWithDicts = (): LumenRemoteInjected & LocalePanelProps => ({ ...lumenInject(), dicts: panelDicts })
   for (const { key, locale, Panel } of panels) {
-    ctx.slots.register({ name: 'main', key, locale, inject: lumenInject }, Panel)
+    ctx.slots.register({ name: 'main', key, locale, inject: injectWithDicts }, Panel)
   }
 
   const openTeamSetup = (): void => { shell?.openTeamSetup() }

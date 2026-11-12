@@ -33,6 +33,7 @@ export function IndicatorCard({ card, now = new Date(), onRefresh, onUnpin }: In
     <li
       className={`${styles.card} ${card.alert !== undefined ? styles.alert : ''}`}
       data-indicator={card.id}
+      tabIndex={-1} /* "Ver o número" puts the focus here; it is not a tab stop */
       data-indicator-kind={card.data.kind}
       data-indicator-status={card.status}
       data-indicator-alert={card.alert === undefined ? undefined : 'true'}

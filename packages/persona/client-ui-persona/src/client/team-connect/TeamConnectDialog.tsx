@@ -17,6 +17,8 @@ export interface TeamConnectDialogProps extends PropsLocale<'persona.shell'> {
   readonly onStart: () => void
   readonly onRetryOne: (personaId: string) => void
   readonly onClose: () => void
+  /** Carbon P1-09: with no account to wake them with, the way to Configurações › Conexões. Absent = no guided state (the old, disabled button). */
+  readonly onOpenConnections?: (() => void) | undefined
 }
 
 type T = TeamConnectDialogProps['t']
@@ -46,7 +48,7 @@ function statusText(t: T, status: TeamRowUi['status']): string {
  * (as que já existem, por folga; a 1ª já marcada, sem selo). Ligando: uma persona por vez, na ordem em que cada uma conecta (o host manda; nada é encenado); o anel
  * tracejado vira o anel lavanda de `Disponível` com o check. Uma que falha fica "Não conectou · Tentar de novo" e as outras seguem. Fim: "Pronto: a equipe toda tem IA."
  */
-export function TeamConnectDialog({ t, open, ai, connect, accountId, starting, refused, onChooseAccount, onStart, onRetryOne, onClose }: TeamConnectDialogProps): ReactNode {
+export function TeamConnectDialog({ t, open, ai, connect, accountId, starting, refused, onChooseAccount, onStart, onRetryOne, onClose, onOpenConnections }: TeamConnectDialogProps): ReactNode {
   const live = connect.state !== 'idle'
   const rows: readonly (TeamRowUi | (TeamPersonUi & { readonly status: 'esperando' }))[] = live
     ? connect.rows
@@ -55,6 +57,8 @@ export function TeamConnectDialog({ t, open, ai, connect, accountId, starting, r
   const total = ai.without.length
   const running = connect.state === 'running' || starting
   const ended = connect.state === 'done' || connect.state === 'partial'
+  // Carbon P1-09: somebody is without AI but there is no account signed in to wake them with: the modal says so and takes the person to Conexões instead of a blank list and a dead button.
+  const guided = !live && total >= 1 && ai.choices.length === 0 && onOpenConnections !== undefined
 
   let footer: ReactNode
   if (ended) {
@@ -62,6 +66,8 @@ export function TeamConnectDialog({ t, open, ai, connect, accountId, starting, r
   } else if (running) {
     // Sem os pontinhos animados do `loading`: o progresso é a lista andando (informação), não um enfeite que gira sem parar (Muse §rule 5; pré-aceite `gpu`).
     footer = <Button variant="primary" size="l" disabled>{t('teamAi.starting')}</Button>
+  } else if (guided) {
+    footer = <Button variant="primary" size="l" onClick={onOpenConnections}>{t('teamAi.dialog.noAccount.action')}</Button>
   } else {
     footer = (
       <Button variant="primary" size="l" disabled={total < 1 || accountId === undefined} onClick={onStart}>
@@ -95,6 +101,7 @@ export function TeamConnectDialog({ t, open, ai, connect, accountId, starting, r
             </li>
           ))}
         </ul>
+        {guided && <p className={styles.guide} role="status">{t('teamAi.dialog.noAccount.text')}</p>}
         {!live && ai.choices.length > 0 && (
           <fieldset className={styles.accounts}>
             <legend className={styles.legend}>{t('teamAi.account.legend')}</legend>

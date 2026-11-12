@@ -12,8 +12,8 @@ import {
   type DevHarnessSeedRemote,
   type OnboardingRosterPerson,
 } from './seed-default-team.ts'
-import type { CompleteOnboardingRequest } from '@deepseek-ai/dsh-persona-host/types'
-import { writeOnboardingCacheComplete } from '../shell/onboarding-persistence.ts'
+import type { ChannelLayoutView, CompleteOnboardingRequest } from '@deepseek-ai/dsh-persona-host/types'
+import { writeOnboardingCacheComplete, writeOnboardingDisplayName } from '../shell/onboarding-persistence.ts'
 import { applyMessageStreamFrame, type MessageStreamFrame } from './apply-message-stream.ts'
 import { enrichKanbanCardsFromHost } from './map-host-ui.ts'
 import type { KanbanCardModel } from '../kanban/types.ts'
@@ -120,6 +120,8 @@ export interface PersonaLiveSnapshot {
   readonly ready: boolean
   /** Item 22 (behind `persona.flag.channelSections`): the channel being read and written; `null`/absent = the tenant's own (#geral), as ever. */
   readonly selectedChannelId?: string | null | undefined
+  /** Item 22 (same flag): the sidebar as the host arranges it (`getChannelLayout`: channels with no section, then one section per equipe); absent = never read. */
+  readonly channelLayout?: ChannelLayoutView | undefined
   readonly tenant: PersonaTenantScope | null
   readonly team: TeamView | null
   readonly nowRows: readonly PersonaNowSnapshot[]
@@ -241,6 +243,10 @@ export interface PersonaLiveStore {
   uploadChannelAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
   uploadDmAttachment(file: File): Promise<{ readonly id: string; readonly name: string }>
   selectDm(dmId: string | null): Promise<void>
+  /** Item 22 (behind `persona.flag.channelSections`): opens another channel (reads, follows and writes there); `null` = the tenant's own #geral. No-op with the flag off. */
+  selectChannel?(channelId: string | null): Promise<void>
+  /** Item 22 (same flag): reads the sidebar layout from the host into `channelLayout`; the sidebar keeps what it had if the host does not answer. */
+  refreshChannelLayout?(): Promise<void>
   openPersonaDm(personaId: string): Promise<void>
   openFirstAvailableDm(): Promise<void>
   loadTurnContext(ticketId: string): Promise<void>
@@ -339,6 +345,7 @@ type PersonaRemote = Omit<TenantBootstrapRemote, 'listProjects'> & {
     readonly id: string
   }): unknown
   listDms?(request: PersonaTenantScope): readonly DmView[]
+  getChannelLayout?(request: PersonaTenantScope): ChannelLayoutView
   createDm?(request: {
     id: string
     workspaceId: string
@@ -870,6 +877,9 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
         arrivingHostPersonaIds,
         channelSubjects,
         firstDelivery: overview.firstDelivery ?? null,
+        // Item 22: the open channel and the sidebar layout belong to the person's navigation, not to what the host answered: a refresh never drops them.
+        selectedChannelId: store.getSnapshot().selectedChannelId,
+        channelLayout: store.getSnapshot().channelLayout,
       })
       await publishHostOnboardingState()
     } catch (error) {
@@ -1062,6 +1072,21 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
       dmUnreadByPersonaId: nextUnread,
     })
     startDmStream(dmId)
+  }
+
+  // Item 22 (behind `persona.flag.channelSections`): another channel is read, followed and written through `channelOf`, which reads `selectedChannelId`.
+  const selectChannel = async (channelId: string | null): Promise<void> => {
+    if (!isChannelSectionsEnabled() || tenant === null) return
+    if ((store.getSnapshot().selectedChannelId ?? null) === channelId) return
+    store.set({ ...store.getSnapshot(), selectedChannelId: channelId, messages: [] }) // the old channel's lines leave the screen first
+    await refresh()
+    startMessageStream()
+  }
+  const refreshChannelLayout = async (): Promise<void> => {
+    if (!isChannelSectionsEnabled() || tenant === null || remote.getChannelLayout === undefined) return
+    try {
+      store.set({ ...store.getSnapshot(), channelLayout: await Promise.resolve(remote.getChannelLayout(tenant)) })
+    } catch (error) { void error } // the sidebar keeps what it had
   }
 
   // COLHEITA §6 (Quill): a atividade de UMA resposta de persona (turno de conversa; `subjectId` = id da mensagem respondida).
@@ -1475,6 +1500,7 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
   ): Promise<void> => {
     if (tenant === null) return
     writeOnboardingCacheComplete()
+    writeOnboardingDisplayName(displayName)
     if (remote.completeOnboarding !== undefined) {
       try {
         const onboardingRaw = await Promise.resolve(remote.getOnboarding({
@@ -1991,6 +2017,8 @@ export function createPersonaLiveStore(rawRemote: PersonaRemote): PersonaLiveSto
     uploadChannelAttachment,
     uploadDmAttachment,
     selectDm,
+    selectChannel,
+    refreshChannelLayout,
     openPersonaDm,
     openFirstAvailableDm,
     loadTurnContext,

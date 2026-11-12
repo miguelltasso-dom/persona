@@ -5,22 +5,24 @@ import { z } from 'zod'
 import { RemoteFault } from './remote-guard.ts'
 import type { Actor, ChannelSealedPayload, SyncEnvelope } from '@deepseek-ai/dsh-persona-core'
 import {
-  ChannelCryptoError, ChannelKeyring, HttpTransport, MemoryIdentityStore, SyncClient, SyncTransportError, createRequestSigner, fingerprint, loadOrCreateIdentity,
-  newChannelKey, openChannel, publicIdentity, sealChannel, unwrapChannelKey, wrapChannelKey,
+  ChannelCryptoError, ChannelKeyring, HttpTransport, MemoryIdentityStore, SyncClient, SyncTransportError, createRequestSigner, fingerprint, inviteLinkOf, loadOrCreateIdentity,
+  newChannelKey, openChannel, parseInviteLink, publicIdentity, sealChannel, unwrapChannelKey, wrapChannelKey,
   type Identity, type RequestSigner,
 } from '@deepseek-ai/dsh-persona-sync'
 import { SqliteSyncLog, type EventRepos, type PersonaStore, type ScreenRepos, type StoredEvent } from '@deepseek-ai/dsh-persona-store'
 import type {
   AcceptRemoteInviteRequest, ConnectRemoteTeamRequest, RemoteTeamState,
-  InviteView, IssueInviteRequest, ProjectScopeRequest,
+  InviteLinkView, InvitePreview, InviteView, IssueInviteRequest, JoinStatus, ProjectScopeRequest,
   RemoteMemberView,
 } from './types.ts'
 
 const KIND = 'remote_team'
 const PENDING = 'remote_team_pending'
 const INVITES = 'remote_team_invite'
+/** An invitation link is good for one person and 7 days ("Vale por 7 dias, para 1 pessoa."). */
+const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000
 const InviteResponse = z.object({ invite: z.object({
-  id: z.string(), workspaceId: z.string(), expiresAt: z.number(), usedAt: z.number().optional(), revokedAt: z.number().optional(),
+  id: z.string(), workspaceId: z.string(), expiresAt: z.number(), usedAt: z.number().optional(), revokedAt: z.number().optional(), teamName: z.string().optional(),
   grant: z.object({ workspaceRole: z.enum(['member', 'guest']), projectIds: z.array(z.string()), channelIds: z.array(z.string()) }),
 }) })
 const MessagePayload = z.object({
@@ -52,6 +54,7 @@ const JoinRequests = z.object({ requests: z.array(z.object({
   id: z.string(), actorId: z.string(), displayName: z.string().optional(), requestedAt: z.number(),
   keys: z.object({ signing: z.string(), agreement: z.string() }),
 })) })
+const MyJoinRequest = z.object({ request: z.object({ status: z.enum(['pending', 'approved', 'denied', 'cancelled']) }) })
 const RemoteMembers = z.object({ members: z.array(z.object({
   actor: z.object({ id: z.string(), workspaceId: z.string(), workspaceRole: z.enum(['owner', 'member', 'guest']) }),
   displayName: z.string().optional(), joinedAt: z.number(), revokedAt: z.number().optional(), inviteId: z.string().optional(),
@@ -179,7 +182,7 @@ export class RemoteTeamHost {
     const token = request.token || randomBytes(24).toString('hex')
     await this.requireVault().sealInviteToken(request.inviteId, token)
     const response = InviteResponse.parse(await this.json(state.edgeUrl, state.workspaceId, state.actorId, '/invites', {
-      id: request.inviteId, token,
+      id: request.inviteId, token, ttlMs: INVITE_TTL_MS, ...(request.teamName === undefined ? {} : { teamName: request.teamName }),
       grant: { workspaceRole: request.role, projectIds: [state.projectId], channelIds: state.channelIds, dmIds: [] },
     }))
     const invite: InviteView = {
@@ -187,6 +190,77 @@ export class RemoteTeamHost {
     }
     this.options.screens.put(state.projectId, INVITES, invite.id, invite)
     return { ...invite, token }
+  }
+
+  /**
+   * F4: the link of an invite this host just issued. The team id is the hub's workspace id; a workspace id that the strict link parser would refuse (upper case, an
+   * underscore) cannot be put in a link, and that is an error of the product's configuration, never something the link quietly changes.
+   * @param scope - Owner project. @param invite - The invite from {@link issue} (it carries the one-time token). @returns The link and when it stops working.
+   */
+  linkOf(scope: ProjectScopeRequest, invite: InviteView): InviteLinkView {
+    const state = this.requireOwner(scope)
+    return { inviteId: invite.id, link: inviteLinkOf({ teamId: state.workspaceId, token: invite.token }), expiresAt: invite.expiresAt }
+  }
+
+  /**
+   * F4: what the screen a link opens shows before anybody asks to join. Strict link first (anything else is "link inválido"), then the hub's public answer for that token.
+   * @param link - The raw link. @param edgeUrl - The hub's address from the product's configuration (a local origin; never taken from the link).
+   */
+  async preview(link: string, edgeUrl: string): Promise<InvitePreview> {
+    const parsed = parseInviteLink(link)
+    if (parsed === undefined) return { ok: false, error: 'LINK_INVALIDO' }
+    let edge: string
+    try {
+      edge = localEdgeOrigin(edgeUrl)
+    } catch (error) {
+      void error
+      return { ok: false, error: 'SEM_CONEXAO' }
+    }
+    let found: z.infer<typeof InviteResponse>
+    try {
+      found = InviteResponse.parse(await this.getPublic(edge, parsed.teamId, `/invites/${encodeURIComponent(parsed.token)}`))
+    } catch (error) {
+      return { ok: false, error: error instanceof SyncTransportError && error.status >= 400 && error.status < 500 ? 'LINK_INVALIDO' : 'SEM_CONEXAO' }
+    }
+    const { invite } = found
+    if (invite.revokedAt !== undefined) return { ok: false, error: 'CONVITE_REVOGADO' }
+    if (invite.usedAt !== undefined) return { ok: false, error: 'CONVITE_USADO' }
+    if (invite.expiresAt <= Date.now()) return { ok: false, error: 'CONVITE_VENCIDO' }
+    const projectId = invite.grant.projectIds[0]
+    if (projectId === undefined) return { ok: false, error: 'LINK_INVALIDO' }
+    return { ok: true, teamId: parsed.teamId, teamName: invite.teamName ?? null, projectId, expiresAt: invite.expiresAt }
+  }
+
+  /**
+   * F4: where the guest's request stands. A connected member (or the owner) is "aceito"; one that has only asked reads the hub's own answer for THEIR request.
+   * "aceito" from the hub means the owner decided: the screen then syncs, and the channel keys arrive with it.
+   * @param scope - The guest's local project.
+   */
+  async joinStatus(scope: ProjectScopeRequest): Promise<JoinStatus> {
+    const state = this.state(scope)
+    if (state === undefined) return 'sem_pedido'
+    if (state.role === 'owner' || state.status === 'connected') return 'aceito'
+    if (state.status === 'revoked') return 'removido'
+    try {
+      const answer = MyJoinRequest.parse(await this.getJson(state, '/join-requests/mine'))
+      return answer.request.status === 'pending' ? 'esperando_dono' : answer.request.status === 'approved' ? 'aceito'
+        : answer.request.status === 'denied' ? 'recusado' : 'sem_pedido'
+    } catch (error) {
+      void error
+      return 'sem_conexao'
+    }
+  }
+
+  /**
+   * F4: "Cancelar pedido". Withdraws a request nobody decided yet (it leaves the owner's list) and forgets the pending connection on this device.
+   * @param scope - The guest's local project.
+   */
+  async cancelJoinRequest(scope: ProjectScopeRequest): Promise<void> {
+    const state = this.state(scope)
+    if (state === undefined || state.role === 'owner' || state.status === 'connected') throw new Error('remote-team-nothing-to-cancel')
+    await this.json(state.edgeUrl, state.workspaceId, state.actorId, '/join-requests/mine/cancel', {})
+    this.connections.delete(scope.projectId)
+    this.options.screens.delete(scope.projectId, KIND, 'connection')
   }
 
   /** @param request - Transient token. @param actor - Server-resolved local identity. @returns Granted channel state. */

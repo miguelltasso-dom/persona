@@ -50,6 +50,8 @@ export interface ToolsViewProps {
   readonly health?: readonly ToolHealthLine[]
   readonly actions?: ToolsActions | undefined
   readonly onRetry?: (() => void) | undefined
+  /** "Quem pode usar?": the 440 px panel of a connected tool (the screen only places it; the host-bound one comes from the remote panel). Absent = the menu has no such item. */
+  readonly whoPanel?: ((card: ToolCard, close: () => void) => ReactNode) | undefined
 }
 
 const HEALTH_CHIP: Readonly<Record<Exclude<ToolHealthState, 'ok'>, { readonly key: string; readonly tone: 'warning' | 'neutral' }>> = {
@@ -59,9 +61,10 @@ const HEALTH_CHIP: Readonly<Record<Exclude<ToolHealthState, 'ok'>, { readonly ke
   missing: { key: 'health.missing', tone: 'neutral' },
 }
 
-export function ToolsView({ dict = defaultDict, state = 'ready', catalog, health = [], actions, onRetry }: ToolsViewProps): ReactNode {
+export function ToolsView({ dict = defaultDict, state = 'ready', catalog, health = [], actions, onRetry, whoPanel }: ToolsViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const [filter, setFilter] = useState<ToolFilter>('all')
+  const [whoCard, setWhoCard] = useState<ToolCard | undefined>(undefined)
   const header = <ScreenHeader icon="configuracoes" eyebrow={t('header.eyebrow')} title={t('title')} subtitle={t('subtitle')} />
 
   if (state === 'loading') {
@@ -121,7 +124,7 @@ export function ToolsView({ dict = defaultDict, state = 'ready', catalog, health
   }
 
   const menuItems = (card: ToolCard): readonly MenuItem[] => [
-    ...(actions?.onWho === undefined ? [] : [{ id: 'who', label: t('menu.who'), onSelect: () => { actions.onWho!(card) } }]),
+    ...(actions?.onWho === undefined && whoPanel === undefined ? [] : [{ id: 'who', label: t('menu.who'), onSelect: () => { actions?.onWho?.(card); if (whoPanel !== undefined) setWhoCard(card) } }]),
     ...(actions?.onTest === undefined ? [] : [{ id: 'test', label: t('menu.test'), onSelect: () => { void actions.onTest!(card).catch(() => undefined) } }]),
     ...(actions?.onOff === undefined ? [] : [{ id: 'off', label: t('menu.off'), tone: 'danger' as const, onSelect: () => { void actions.onOff!(card).catch(() => undefined) } }]),
   ]
@@ -129,79 +132,84 @@ export function ToolsView({ dict = defaultDict, state = 'ready', catalog, health
   return (
     <Screen className={styles.shell} data-persona-surface="tools">
       {header}
+      <div className={styles.layout}>
+        <div className={styles.main}>
 
-      <section aria-labelledby="tools-linked-title" className={styles.section}>
-        <h2 id="tools-linked-title" className={styles.sectionTitle}>{t('linked.title', { count: linked.length })}</h2>
-        {linked.length === 0
-          ? <p className={styles.note}>{t('linked.empty')}</p>
-          : (
-            <ul className={styles.linkedList}>
-              {linked.map((item) => {
-                const items = menuItems(item.card)
-                return (
-                  <li key={item.card.id} className={styles.linkedRow} data-tool={item.card.id} data-health={item.state}>
-                    {art(item.card, 'small')}
-                    <span className={styles.linkedName}>{item.card.name}</span>
-                    <span className={styles.linkedHealth}>{healthMark(item)}</span>
-                    {items.length > 0 && (
-                      <MenuButton label={t('menu.label', { name: item.card.name })} items={items} variant="ghost" icon={<UiIcon name="more" size={18} />} />
-                    )}
-                  </li>
-                )
-              })}
-            </ul>
-          )}
-      </section>
+          <section aria-labelledby="tools-linked-title" className={styles.section}>
+            <h2 id="tools-linked-title" className={styles.sectionTitle}>{t('linked.title', { count: linked.length })}</h2>
+            {linked.length === 0
+              ? <p className={styles.note}>{t('linked.empty')}</p>
+              : (
+                <ul className={styles.linkedList}>
+                  {linked.map((item) => {
+                    const items = menuItems(item.card)
+                    return (
+                      <li key={item.card.id} className={styles.linkedRow} data-tool={item.card.id} data-health={item.state}>
+                        {art(item.card, 'small')}
+                        <span className={styles.linkedName}>{item.card.name}</span>
+                        <span className={styles.linkedHealth}>{healthMark(item)}</span>
+                        {items.length > 0 && (
+                          <MenuButton label={t('menu.label', { name: item.card.name })} items={items} variant="ghost" icon={<UiIcon name="more" size={18} />} />
+                        )}
+                      </li>
+                    )
+                  })}
+                </ul>
+              )}
+          </section>
 
-      <FilterChips label={t('filters.label')} items={chips} value={filter} onChange={setFilter} className={styles.filters} />
+          <FilterChips label={t('filters.label')} items={chips} value={filter} onChange={setFilter} className={styles.filters} />
 
-      <section aria-labelledby="tools-grid-title" className={styles.section}>
-        <h2 id="tools-grid-title" className={styles.sectionTitle}>{t('grid.title')}</h2>
-        {grid.ready.length === 0 && grid.soon.length === 0
-          ? <EmptyState compact title={t('grid.empty')} />
-          : grid.ready.length === 0
-            ? <p className={styles.note}>{t('grid.noneYet')}</p>
-            : (
+          <section aria-labelledby="tools-grid-title" className={styles.section}>
+            <h2 id="tools-grid-title" className={styles.sectionTitle}>{t('grid.title')}</h2>
+            {grid.ready.length === 0 && grid.soon.length === 0
+              ? <EmptyState compact title={t('grid.empty')} />
+              : grid.ready.length === 0
+                ? <p className={styles.note}>{t('grid.noneYet')}</p>
+                : (
+                  <ul className={styles.grid}>
+                    {grid.ready.map(card => (
+                      <li key={card.id} className={styles.gridItem}>
+                        <Card padding="m" className={styles.card} data-tool={card.id}>
+                          {art(card, 'large')}
+                          <h3 className={styles.cardName}>{card.name}</h3>
+                          <p className={styles.cardSentence}>{card.sentence}</p>
+                          <div className={styles.cardFoot}>
+                            {card.via === 'claude-account'
+                              ? <Button variant="secondary" aria-label={t('card.claudeNamed', { name: card.name })} onClick={() => { actions?.onClaude?.(card) }}>{t('card.claude')}</Button>
+                              : <Button variant="secondary" aria-label={t('card.connectNamed', { name: card.name })} onClick={() => { actions?.onConnect?.(card) }}>{t('card.connect')}</Button>}
+                          </div>
+                        </Card>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+          </section>
+
+          {grid.soon.length > 0 && (
+            <details className={styles.soon}>
+              <summary className={styles.soonSummary}>
+                <UiIcon name="chevronRight" size={16} className={styles.soonIcon} />
+                {t('soon.title', { count: grid.soon.length })}
+              </summary>
+              <p className={styles.note}>{t('soon.hint')}</p>
               <ul className={styles.grid}>
-                {grid.ready.map(card => (
+                {grid.soon.map(card => (
                   <li key={card.id} className={styles.gridItem}>
-                    <Card padding="m" className={styles.card} data-tool={card.id}>
+                    <Card padding="m" className={`${styles.card} ${styles.cardSoon}`} data-tool={card.id} data-soon="true">
                       {art(card, 'large')}
                       <h3 className={styles.cardName}>{card.name}</h3>
                       <p className={styles.cardSentence}>{card.sentence}</p>
-                      <div className={styles.cardFoot}>
-                        {card.via === 'claude-account'
-                          ? <Button variant="secondary" aria-label={t('card.claudeNamed', { name: card.name })} onClick={() => { actions?.onClaude?.(card) }}>{t('card.claude')}</Button>
-                          : <Button variant="secondary" aria-label={t('card.connectNamed', { name: card.name })} onClick={() => { actions?.onConnect?.(card) }}>{t('card.connect')}</Button>}
-                      </div>
+                      <div className={styles.cardFoot}><Chip tone="neutral" size="s">{t('soon.chip')}</Chip></div>
                     </Card>
                   </li>
                 ))}
               </ul>
-            )}
-      </section>
-
-      {grid.soon.length > 0 && (
-        <details className={styles.soon}>
-          <summary className={styles.soonSummary}>
-            <UiIcon name="chevronRight" size={16} className={styles.soonIcon} />
-            {t('soon.title', { count: grid.soon.length })}
-          </summary>
-          <p className={styles.note}>{t('soon.hint')}</p>
-          <ul className={styles.grid}>
-            {grid.soon.map(card => (
-              <li key={card.id} className={styles.gridItem}>
-                <Card padding="m" className={`${styles.card} ${styles.cardSoon}`} data-tool={card.id} data-soon="true">
-                  {art(card, 'large')}
-                  <h3 className={styles.cardName}>{card.name}</h3>
-                  <p className={styles.cardSentence}>{card.sentence}</p>
-                  <div className={styles.cardFoot}><Chip tone="neutral" size="s">{t('soon.chip')}</Chip></div>
-                </Card>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
+            </details>
+          )}
+        </div>
+        {whoCard !== undefined && whoPanel !== undefined && <div className={styles.side} key={whoCard.id}>{whoPanel(whoCard, () => { setWhoCard(undefined) })}</div>}
+      </div>
     </Screen>
   )
 }

@@ -105,24 +105,26 @@ it('the BYTES of the main database file and of its WAL carry no token after the 
 
 it('an install whose OLD sweep already ran (nothing left to move) still gets its main file compacted ONCE: the text of the rows it erased is gone from the bytes', async () => {
   const { handle, product, vault, secrets } = await setup()
-  handle.store.db.exec('PRAGMA secure_delete = OFF') // how the older build erased: the page kept the text
   vault.createRecord({ id: 'r-legacy', workspaceId: 'ws', projectId: 'pp', kind: 'memory', body: '555555:token-legado-do-telegram', authorId: 'ana', visibility: { kind: 'workspace' }, factKey: VAULT_TELEGRAM })
-  vault.purgeSecret('r-legacy') // the old sweep: body replaced by a tombstone, fact key cleared
+  // How the OLDER build erased (plain SQL, no secure_delete): body replaced by a tombstone, fact key cleared; the page kept the text.
+  handle.store.db.exec("UPDATE vault_record SET body = 'Conteúdo movido para o Cofre.', fact_key = NULL, status = 'revoked' WHERE id = 'r-legacy'")
+  handle.store.db.exec("DELETE FROM vault_version WHERE target_kind = 'record' AND target_id = 'r-legacy'") // …and its versions
   handle.store.checkpointWal()
   expect(readFileSync(handle.path).includes('token-legado-do-telegram'), 'the premise: the page still has it').toBe(true)
-  handle.store.db.exec('PRAGMA secure_delete = ON')
   expect((await new CofreMigration({ product, vault, secrets }).run()).migrated).toBe(0) // nothing to move this time
   expect(readFileSync(handle.path).includes('token-legado-do-telegram')).toBe(false)
   expect((await new CofreMigration({ product, vault, secrets }).run()).migrated).toBe(0) // and the second boot does not rebuild the file again
   expect(handle.store.needsSecretCompaction()).toBe(false)
 })
 
-it('a LATER deletion of a secret row is zeroed at once (secure_delete is on for every connection of the store)', async () => {
+it('a LATER erasure of a secret row is zeroed at once (secure_delete is on while a secret is erased, and only then)', async () => {
   const { handle, vault } = await setup()
   vault.createRecord({ id: 'r-late', workspaceId: 'ws', projectId: 'pp', kind: 'memory', body: '999999:token-tardio-do-telegram', authorId: 'ana', visibility: { kind: 'workspace' }, factKey: VAULT_TELEGRAM })
   vault.purgeSecretFacts([VAULT_TELEGRAM])
   handle.store.checkpointWal()
   expect(readFileSync(handle.path).includes('token-tardio-do-telegram')).toBe(false)
+  // …and the pragma is not left on for the rest of the database (the scale spec's p95 depends on it): the connection is back to what it was.
+  expect(Number((handle.store.db.prepare('PRAGMA secure_delete').get() as { secure_delete: number }).secure_delete)).toBe(0)
 })
 
 it('the backup made BEFORE the sweep does not keep the token in clear either (it is scrubbed after the sweep)', async () => {

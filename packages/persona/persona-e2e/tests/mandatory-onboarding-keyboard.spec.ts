@@ -73,7 +73,7 @@ describe.skipIf(!runPersonaE2e)('onboarding — keyboard only (S7)', () => {
     await page.keyboard.press('Enter')
 
     // Step 2 — company text.
-    await page.getByText(onboarding.step2VaultBadge).waitFor({ state: 'visible' })
+    await page.getByLabel('Sobre a empresa').getByText(onboarding.step2VaultBadge, { exact: true }).waitFor({ state: 'visible' })
     const after1 = await focusInfo(page)
     stops.push(after1)
     rec.notes.push(`focus after step 1→2: ${JSON.stringify(after1)}`)

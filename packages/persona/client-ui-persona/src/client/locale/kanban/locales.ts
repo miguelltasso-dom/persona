@@ -273,6 +273,12 @@ export const pt = {
   'projects.options': 'Opções',
   'boards.filterLabel': 'Filtrar projetos',
   'card.doneBy': 'Feito por {name}',
+  'card.state.todo': 'Na fila de {name}',
+  'card.state.doing': '{name} está fazendo',
+  'card.state.reviewing': '{name} está revisando',
+  'card.state.client': 'Esperando o cliente',
+  'card.state.waitingYou': 'Esperando você',
+  'card.state.stopped': 'Parado',
 } as const
 
 /** English copy. */
@@ -545,6 +551,12 @@ export const en = {
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
   'card.doneBy': 'Done by {name}',
+  'card.state.todo': 'In {name}\'s queue',
+  'card.state.doing': '{name} is working on it',
+  'card.state.reviewing': '{name} is reviewing',
+  'card.state.client': 'Waiting for the client',
+  'card.state.waitingYou': 'Waiting for you',
+  'card.state.stopped': 'Stopped',
 } as const
 
 export const zh = {
@@ -816,6 +828,12 @@ export const zh = {
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
   'card.doneBy': 'Done by {name}',
+  'card.state.todo': 'In {name}\'s queue',
+  'card.state.doing': '{name} is working on it',
+  'card.state.reviewing': '{name} is reviewing',
+  'card.state.client': 'Waiting for the client',
+  'card.state.waitingYou': 'Waiting for you',
+  'card.state.stopped': 'Stopped',
 } as const
 export const ja = {
   'header.eyebrow': 'Work',
@@ -1086,6 +1104,12 @@ export const ja = {
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
   'card.doneBy': 'Done by {name}',
+  'card.state.todo': 'In {name}\'s queue',
+  'card.state.doing': '{name} is working on it',
+  'card.state.reviewing': '{name} is reviewing',
+  'card.state.client': 'Waiting for the client',
+  'card.state.waitingYou': 'Waiting for you',
+  'card.state.stopped': 'Stopped',
 } as const
 export const es = {
   'header.eyebrow': 'Work',
@@ -1356,6 +1380,12 @@ export const es = {
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
   'card.doneBy': 'Done by {name}',
+  'card.state.todo': 'In {name}\'s queue',
+  'card.state.doing': '{name} is working on it',
+  'card.state.reviewing': '{name} is reviewing',
+  'card.state.client': 'Waiting for the client',
+  'card.state.waitingYou': 'Waiting for you',
+  'card.state.stopped': 'Stopped',
 } as const
 export const fr = {
   'header.eyebrow': 'Work',
@@ -1626,6 +1656,12 @@ export const fr = {
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
   'card.doneBy': 'Done by {name}',
+  'card.state.todo': 'In {name}\'s queue',
+  'card.state.doing': '{name} is working on it',
+  'card.state.reviewing': '{name} is reviewing',
+  'card.state.client': 'Waiting for the client',
+  'card.state.waitingYou': 'Waiting for you',
+  'card.state.stopped': 'Stopped',
 } as const
 export const de = {
   'header.eyebrow': 'Work',
@@ -1896,6 +1932,12 @@ export const de = {
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
   'card.doneBy': 'Done by {name}',
+  'card.state.todo': 'In {name}\'s queue',
+  'card.state.doing': '{name} is working on it',
+  'card.state.reviewing': '{name} is reviewing',
+  'card.state.client': 'Waiting for the client',
+  'card.state.waitingYou': 'Waiting for you',
+  'card.state.stopped': 'Stopped',
 } as const
 export const ru = {
   'header.eyebrow': 'Work',
@@ -2166,6 +2208,12 @@ export const ru = {
   'projects.options': 'Options',
   'boards.filterLabel': 'Filter projects',
   'card.doneBy': 'Done by {name}',
+  'card.state.todo': 'In {name}\'s queue',
+  'card.state.doing': '{name} is working on it',
+  'card.state.reviewing': '{name} is reviewing',
+  'card.state.client': 'Waiting for the client',
+  'card.state.waitingYou': 'Waiting for you',
+  'card.state.stopped': 'Stopped',
 } as const
 
 export type KanbanKey = keyof typeof pt

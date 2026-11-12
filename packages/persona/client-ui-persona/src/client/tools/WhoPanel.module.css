@@ -1,0 +1,223 @@
+/* Configurações › Ferramentas › "Quem pode usar?" (item 26): o painel de 440 px do Cofre (sem scrim, fundo sólido, 200 % por cima). Só token. */
+
+.panel {
+  display: flex;
+  flex: 0 0 440px;
+  flex-direction: column;
+  width: 440px;
+  max-width: 100%;
+  box-sizing: border-box;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-space-3);
+  background: var(--persona-paper);
+  color: var(--persona-ink);
+  animation: who-panel-in var(--motion-panel) var(--ease-enter) both;
+}
+
+@keyframes who-panel-in {
+  from { transform: translateX(24px); opacity: 0; }
+  to { transform: none; opacity: 1; }
+}
+
+@media (max-width: 760px) {
+  .panel {
+    position: absolute;
+    inset: 0;
+    width: auto;
+    flex-basis: auto;
+    z-index: 2;
+  }
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-4) var(--persona-space-4) var(--persona-space-3);
+  border-bottom: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+.headerText {
+  min-width: 0;
+}
+
+.title {
+  margin: 0;
+  font: 500 20px/1.2 var(--persona-font-display, var(--persona-font-text));
+  color: var(--persona-ink);
+}
+
+.subtitle {
+  margin: var(--persona-space-1) 0 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--persona-ink-soft);
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--persona-space-5);
+  min-height: 0;
+  padding: var(--persona-space-4);
+  overflow-y: auto;
+}
+
+.section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--persona-space-3);
+}
+
+.sectionTitle {
+  margin: 0;
+  font: 800 13px/1.2 var(--persona-font-text);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--persona-ink-soft);
+}
+
+.note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--persona-ink-soft);
+}
+
+.errorBox {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+}
+
+.errorLine {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--persona-danger, var(--persona-ink));
+}
+
+/* ---- os rostos: 40 px, marcáveis, todos desmarcados até o host dizer ---- */
+.faces {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(176px, 1fr));
+  gap: var(--persona-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.faceItem {
+  display: flex;
+  min-width: 0;
+}
+
+.face {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 16px;
+  align-items: center;
+  gap: var(--persona-space-2);
+  flex: 1;
+  min-height: 56px;
+  padding: var(--persona-space-2) var(--persona-space-3);
+  border: var(--persona-border-width) solid var(--persona-outline-soft);
+  border-radius: var(--persona-radius-m);
+  background: var(--persona-paper);
+  color: var(--persona-ink);
+  font: 700 14px/1.2 var(--persona-font-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.face:hover:not(:disabled) {
+  background: var(--persona-wash);
+}
+
+.face[aria-checked='true'] {
+  border-color: var(--persona-outline);
+  background: var(--persona-accent-tint);
+}
+
+.face:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--persona-focus-halo);
+}
+
+.face:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.faceStatic {
+  cursor: default;
+}
+
+.faceName {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.faceMark {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+}
+
+/* ---- o que ele permite ---- */
+.permits {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.permit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--persona-space-3);
+  min-height: 40px;
+  border-bottom: var(--persona-border-width) solid var(--persona-outline-soft);
+  font-size: 14px;
+  color: var(--persona-ink);
+}
+
+.permit:last-child {
+  border-bottom: 0;
+}
+
+.permitName {
+  font-weight: 600;
+}
+
+.permitLock {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--persona-space-1);
+  font-size: 13px;
+  color: var(--persona-ink-soft);
+}
+
+.permitOff {
+  font-size: 13px;
+  color: var(--persona-ink-soft);
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--persona-space-3) var(--persona-space-4) var(--persona-space-4);
+  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .panel {
+    animation: none;
+  }
+}

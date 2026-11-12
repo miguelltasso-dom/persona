@@ -6,6 +6,39 @@
   gap: var(--persona-space-5);
 }
 
+/* Com o painel "Quem pode usar?" aberto: a tela à esquerda, o painel de 440 px à direita (o padrão do Cofre); em janela estreita (200 %) o painel cobre a tela. */
+.layout {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-4);
+}
+
+.main {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--persona-space-5);
+  min-width: 0;
+}
+
+.side {
+  display: flex;
+  flex: 0 0 auto;
+  align-self: stretch;
+}
+
+@media (max-width: 760px) {
+  .layout {
+    position: relative;
+  }
+
+  .side {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+  }
+}
+
 .section {
   display: flex;
   flex-direction: column;

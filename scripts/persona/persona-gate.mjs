@@ -115,6 +115,14 @@ if (evalScan.status !== 0) {
   failing.add('web-frontend')
 } else log((evalScan.stdout + evalScan.stderr).trim() || 'client eval scan ok')
 
+// Head closure (Gauge, Keel 12/11): everything above validates the TREE, but the COMMIT is what gets published. Every relative import of HEAD must resolve inside HEAD
+// (a new file left without `git add` compiles here and breaks the published commit). Pure git, a few seconds.
+const closure = run('node', ['scripts/persona/check-head-closure.mjs'])
+if (closure.status !== 0) {
+  log(`head closure FAILED:${NL}${(closure.stdout + closure.stderr).trim().split(NL).slice(0, 12).join(NL)}`)
+  failing.add('head-closure')
+} else log((closure.stdout + closure.stderr).trim())
+
 if (!skipSmoke && failing.size === 0) {
   const smoke = run(process.execPath, ['--import', 'tsx/esm', 'scripts/persona/persona-boot-smoke.mjs', '--root', root])
   log(`boot smoke: ${`${smoke.stdout}${smoke.stderr}`.trim().split(NL).slice(-3).join(' | ')}`)

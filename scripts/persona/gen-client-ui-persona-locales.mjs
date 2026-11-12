@@ -28,6 +28,7 @@ const BUNDLES = [
   { file: 'connections', const: 'CONNECTIONS_NS', ns: 'persona.connections', keyType: 'ConnectionsKey' },
   { file: 'browser', const: 'BROWSER_NS', ns: 'persona.browser', keyType: 'BrowserKey' },
   { file: 'station', const: 'STATION_NS', ns: 'persona.station', keyType: 'StationKey' },
+  { file: 'indicators', const: 'INDICATORS_NS', ns: 'persona.indicators', keyType: 'IndicatorsKey' },
   { file: 'cofre', const: 'COFRE_NS', ns: 'persona.cofre', keyType: 'CofreKey' },
   { file: 'review', const: 'REVIEW_NS', ns: 'persona.review', keyType: 'ReviewKey' },
   { file: 'profile', const: 'PROFILE_NS', ns: 'persona.profile', keyType: 'ProfileKey' },

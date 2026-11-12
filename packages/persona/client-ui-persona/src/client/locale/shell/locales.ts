@@ -376,6 +376,8 @@ export const pt = {
   'teamAi.refused.noAccount': 'Entre em uma conta do Claude ou do Codex e tente de novo.',
   'teamAi.refused.noOne': 'Agora todas as pessoas da equipe têm IA.',
   'teamAi.refused.failed': 'Não consegui ligar agora. Tente de novo.',
+  'teamAi.dialog.noAccount.text': 'Ainda não há nenhuma assinatura de IA ligada neste computador. Entre na sua conta do Claude, do Codex ou de outro motor em Conexões e volte aqui: a equipe toda liga de uma vez.',
+  'teamAi.dialog.noAccount.action': 'Abrir Conexões',
   'rail.ai.unconfirmed': '{engine} · não consegui conferir',
   'rail.ai.retry': 'Tentar de novo',
 } as const
@@ -753,6 +755,8 @@ export const en = {
   'teamAi.refused.noAccount': 'Sign in to a Claude or Codex account and try again.',
   'teamAi.refused.noOne': 'Everyone on the team has AI now.',
   'teamAi.refused.failed': 'I could not turn it on now. Try again.',
+  'teamAi.dialog.noAccount.text': 'No AI subscription is signed in on this computer yet. Sign in to Claude, Codex or another engine in Connections and come back: the whole team connects at once.',
+  'teamAi.dialog.noAccount.action': 'Open Connections',
   'rail.ai.unconfirmed': '{engine} · could not check',
   'rail.ai.retry': 'Try again',
 } as const
@@ -1129,6 +1133,8 @@ export const zh = {
   'teamAi.refused.noAccount': 'Sign in to a Claude or Codex account and try again.',
   'teamAi.refused.noOne': 'Everyone on the team has AI now.',
   'teamAi.refused.failed': 'I could not turn it on now. Try again.',
+  'teamAi.dialog.noAccount.text': 'No AI subscription is signed in on this computer yet. Sign in to Claude, Codex or another engine in Connections and come back: the whole team connects at once.',
+  'teamAi.dialog.noAccount.action': 'Open Connections',
   'rail.ai.unconfirmed': '{engine} · could not check',
   'rail.ai.retry': 'Try again',
 } as const
@@ -1504,6 +1510,8 @@ export const ja = {
   'teamAi.refused.noAccount': 'Sign in to a Claude or Codex account and try again.',
   'teamAi.refused.noOne': 'Everyone on the team has AI now.',
   'teamAi.refused.failed': 'I could not turn it on now. Try again.',
+  'teamAi.dialog.noAccount.text': 'No AI subscription is signed in on this computer yet. Sign in to Claude, Codex or another engine in Connections and come back: the whole team connects at once.',
+  'teamAi.dialog.noAccount.action': 'Open Connections',
   'rail.ai.unconfirmed': '{engine} · could not check',
   'rail.ai.retry': 'Try again',
 } as const
@@ -1879,6 +1887,8 @@ export const es = {
   'teamAi.refused.noAccount': 'Sign in to a Claude or Codex account and try again.',
   'teamAi.refused.noOne': 'Everyone on the team has AI now.',
   'teamAi.refused.failed': 'I could not turn it on now. Try again.',
+  'teamAi.dialog.noAccount.text': 'No AI subscription is signed in on this computer yet. Sign in to Claude, Codex or another engine in Connections and come back: the whole team connects at once.',
+  'teamAi.dialog.noAccount.action': 'Open Connections',
   'rail.ai.unconfirmed': '{engine} · could not check',
   'rail.ai.retry': 'Try again',
 } as const
@@ -2254,6 +2264,8 @@ export const fr = {
   'teamAi.refused.noAccount': 'Sign in to a Claude or Codex account and try again.',
   'teamAi.refused.noOne': 'Everyone on the team has AI now.',
   'teamAi.refused.failed': 'I could not turn it on now. Try again.',
+  'teamAi.dialog.noAccount.text': 'No AI subscription is signed in on this computer yet. Sign in to Claude, Codex or another engine in Connections and come back: the whole team connects at once.',
+  'teamAi.dialog.noAccount.action': 'Open Connections',
   'rail.ai.unconfirmed': '{engine} · could not check',
   'rail.ai.retry': 'Try again',
 } as const
@@ -2629,6 +2641,8 @@ export const de = {
   'teamAi.refused.noAccount': 'Sign in to a Claude or Codex account and try again.',
   'teamAi.refused.noOne': 'Everyone on the team has AI now.',
   'teamAi.refused.failed': 'I could not turn it on now. Try again.',
+  'teamAi.dialog.noAccount.text': 'No AI subscription is signed in on this computer yet. Sign in to Claude, Codex or another engine in Connections and come back: the whole team connects at once.',
+  'teamAi.dialog.noAccount.action': 'Open Connections',
   'rail.ai.unconfirmed': '{engine} · could not check',
   'rail.ai.retry': 'Try again',
 } as const
@@ -3004,6 +3018,8 @@ export const ru = {
   'teamAi.refused.noAccount': 'Sign in to a Claude or Codex account and try again.',
   'teamAi.refused.noOne': 'Everyone on the team has AI now.',
   'teamAi.refused.failed': 'I could not turn it on now. Try again.',
+  'teamAi.dialog.noAccount.text': 'No AI subscription is signed in on this computer yet. Sign in to Claude, Codex or another engine in Connections and come back: the whole team connects at once.',
+  'teamAi.dialog.noAccount.action': 'Open Connections',
   'rail.ai.unconfirmed': '{engine} · could not check',
   'rail.ai.retry': 'Try again',
 } as const

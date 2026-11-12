@@ -76,6 +76,7 @@
 /* Lilac underlined links — match ChangeFeed `.pageLink` in Brain.module.css (AA on cream). */
 .brainPageLink {
   /* WCAG 2.2 target size: at least 24 px tall even when the link is one line of text. */
+  position: relative;
   display: inline-flex;
   align-items: center;
   min-height: 24px;
@@ -114,6 +115,13 @@
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
+}
+
+/* Muse (12/11): a 32 px target without moving the row or changing how the link looks: the extra 4 px above and below are an invisible hit area. */
+.brainPageLink::after {
+  content: '';
+  position: absolute;
+  inset: -4px -2px;
 }
 
 .brainPageLink:focus-visible {

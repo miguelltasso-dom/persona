@@ -30,6 +30,8 @@ export interface TeamPerson {
   readonly name: string
   readonly title: string
   readonly runner: PersonaRunner
+  /** Carbon P1-09: what HER OWN seat says, when she is bound to one with its own home (`active_account`): `ok` = logged in, `without` = logged out. Absent = the engine's probe card speaks for her. */
+  readonly accountFact?: EngineFact
 }
 
 export interface WithoutAiPerson {
@@ -65,7 +67,7 @@ export function peopleWithoutAi(team: readonly TeamPerson[], cards: readonly Con
   const without: WithoutAiPerson[] = []
   let unsure = 0
   for (const person of team) {
-    const fact = engineFact(cards.find(card => card.id === engineOf(person.runner)))
+    const fact = person.accountFact ?? engineFact(cards.find(card => card.id === engineOf(person.runner)))
     if (fact === 'without') without.push({ personaId: person.id, name: person.name, title: person.title })
     else if (fact === 'unsure') unsure += 1
   }
@@ -155,6 +157,8 @@ export interface TeamConnectPorts {
   readonly accounts: (projectId: string) => readonly AccountInput[]
   /** Put a persona on this engine (saves her runner, drops her warm session). Called only when she is not on it already. */
   readonly applyEngine: (projectId: string, personaId: string, cli: CliName) => void
+  /** Carbon P1-09: bind the account the person chose to this persona (`active_account`), whether or not her engine changed. An id that is no seat of her engine binds nothing. */
+  readonly bindAccount?: (projectId: string, personaId: string, accountId: string) => void
   /** Wake one persona on her engine and the account the person chose; the default is {@link wakeVerdict} of her engine's fresh card. */
   readonly wake?: (projectId: string, personaId: string, cli: CliName, accountId: string | undefined) => Promise<WakeResult>
   readonly load: (projectId: string) => TeamConnectView | undefined
@@ -270,6 +274,8 @@ export class TeamConnect {
       const person = this.ports.team(projectId).find(item => item.id === personaId)
       if (person === undefined) return mark('nao_conectou', 'falhou')
       if (!(person.runner.kind === 'cli' && person.runner.cli === cli)) this.ports.applyEngine(projectId, personaId, cli)
+      // Carbon P1-09: she used to keep the default home when she was already on this engine, and the moved ones never got the chosen seat: bind it to everyone woken.
+      if (from.accountId !== undefined) this.ports.bindAccount?.(projectId, personaId, from.accountId)
       const woke = await (this.ports.wake?.(projectId, personaId, cli, from.accountId) ?? Promise.resolve(wakeVerdict(this.ports.cards().find(card => card.id === cli))))
       return woke.ok ? mark('conectada') : mark('nao_conectou', woke.reason)
     } catch (error) {

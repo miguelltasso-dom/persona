@@ -128,6 +128,12 @@ function copyTree(relDir, filter) {
 const ASSET_URL_STUB = join(ROOT, 'packages/persona/client-ui-persona/src/client/assets/asset-url.ts')
 
 async function main() {
+  // P2-02 (Keel, D-110): persona-assets/ is NOT in git (only the build, 16 MiB, is versioned). On a clean clone there is nothing to build FROM: say so loudly and leave the committed assets/ exactly as they are.
+  // On the owner's PC the folder exists and the build runs (and fails) for real. Never a silent pass: the message is on stdout and the exit code is 0 only because the source is absent by decision.
+  if (!existsSync(SRC)) {
+    console.log(`SKIP build-assets: ${SRC} não existe nesta máquina (D-110: só o build versionado vai ao git). Nada foi gerado; ${REAL_OUT} fica como está. No PC do dono este passo roda de verdade.`)
+    return
+  }
   // COLHEITA item 21 (Gauge): validate the "personas vivas" sources BEFORE anything below wipes OUT. A bad mask.json / canvas then stops the build with the old assets and generated-imports.ts untouched.
   const releaseLock = await acquireLock(join(ROOT, '.maestri/locks/assets-build.lock'), { log: console.log })
   const vivasPlans = await validateVivas({ src: SRC, sharp })

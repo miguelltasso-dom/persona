@@ -134,8 +134,8 @@ export function useTeamConnect(
   const openDialog = useCallback((): void => { setRefused(null); setOpen(true) }, [])
   const closeDialog = useCallback((): void => {
     setOpen(false)
-    // Fechar depois do fim: a próxima vez que abrir volta a lista de quem falta, não o "Pronto" antigo.
-    if (connectRef.current.state === 'done') setConnect(TEAM_CONNECT_IDLE)
+    // Fechar depois do fim: a próxima vez que abrir volta a lista de quem falta, não o "Pronto" antigo. Carbon P1-09: também depois de uma rodada `partial` (a escolha de conta volta).
+    if (connectRef.current.state === 'done' || connectRef.current.state === 'partial') setConnect(TEAM_CONNECT_IDLE)
   }, [])
 
   return { ai, connect, settled, open, openDialog, closeDialog, accountId, chooseAccount: setPicked, starting, refused, start, retryOne }

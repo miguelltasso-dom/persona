@@ -2,16 +2,15 @@
 
 import { HandoffChip } from '../teamwork/HandoffChip.tsx'
 import { StartedNowNote } from './StartedNowNote.tsx'
-import { teamworkText } from '../teamwork/teamwork-context.tsx'
+import { teamworkText, useTeamwork } from '../teamwork/teamwork-context.tsx'
 import { type DragEvent, type MouseEvent, type ReactNode } from 'react'
 import { ApprovedStamp, Avatar, BrandIcon, Card, Chip, UiIcon } from '../primitives/index.ts'
 import { resolvePersonaFace } from '../approvals/approvals-ui-helpers.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
-import type { PersonaWorkUiState } from '../team/persona-work-state.ts'
-import { PERSONA_STATE_CHIP_TONE } from '../team/persona-state.ts'
 import { SubjectDot } from '../chat/SubjectBar.tsx'
 import { KanbanCardMenu, type FlowMoveTarget } from './KanbanCardMenu.tsx'
+import { cardStateChipOf, stoppedReasonOf } from './card-state.ts'
 import { cardOpenHandlers, TaskThreadBadge } from './TaskThreadBadge.tsx'
 import styles from './Kanban.module.css'
 import type { KanbanCardModel, KanbanColumnId } from './types.ts'
@@ -39,14 +38,6 @@ export interface KanbanCardProps {
     readonly onClick: (event: MouseEvent<HTMLElement>) => void
     readonly onPointerEnter: (event: MouseEvent<HTMLElement>) => void
   }) | undefined
-}
-
-function resolveWorkState(card: KanbanCardModel): PersonaWorkUiState {
-  if (card.assigneeState !== undefined) return card.assigneeState
-  if (card.blocked || card.column === 'blocked') return 'stuck'
-  if (card.waitingEvent) return 'waiting'
-  if (card.column === 'in_progress' || card.column === 'in_review') return 'working'
-  return 'resting'
 }
 
 /** Draggable ticket card. */
@@ -80,7 +71,7 @@ export function KanbanCard({
 }: KanbanCardProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const dragging = draggingId === card.id
-  const workState = resolveWorkState(card)
+  const teamwork = useTeamwork()
   const assigneeName = card.assignee?.name ?? t('card.unassigned')
   // D-069: a persona is never a letter. The face of the card's persona (the gallery animal for its id/name, else the stable one for its id).
   const assigneeFace = card.assignee === undefined ? undefined : resolvePersonaFace({ id: card.assignee.id, name: card.assignee.name })
@@ -95,7 +86,11 @@ export function KanbanCard({
     onDragStart(card.id)
   }
 
-  const stateLabel = t(`chip.state.${workState}`)
+  // Muse (12/11): the chip says the state of the CARD ("Na fila de Bia", "Bia está fazendo", "Esperando o cliente"), never the persona's own state.
+  const stateChip = cardStateChipOf(card)
+  const stoppedReason = stoppedReasonOf(card) // Muse (12/11): a stopped card says WHY, in one muted line under the title, when the host sent it
+  const reviewerName = card.reviewing === undefined ? undefined : teamwork?.personaFor(card.reviewing.personaId)?.name
+  const stateName = stateChip?.key === 'card.state.reviewing' ? (reviewerName ?? assigneeName) : assigneeName
 
   return (
     <Card
@@ -127,6 +122,7 @@ export function KanbanCard({
         )}
         <h3 className={styles.cardTitle}>{card.title}</h3>
       </div>
+      {stoppedReason !== '' && <p className={styles.cardReason} title={stoppedReason} data-card-reason="">{stoppedReason}</p>}
       {card.conversationSubject !== undefined && (
         <span className="persona-sr-only">
           {t('card.subjectLabel', { name: card.conversationSubject.name })}
@@ -204,7 +200,7 @@ export function KanbanCard({
         )}
         {card.column === 'done'
           ? (card.assignee === undefined ? null : <Chip tone="neutral" size="s" data-card-done-by="">{t('card.doneBy', { name: assigneeName })}</Chip>)
-          : <Chip tone={PERSONA_STATE_CHIP_TONE[workState]} size="s">{stateLabel}</Chip>}
+          : (stateChip === undefined ? null : <Chip tone={stateChip.tone} size="s" data-card-state={stateChip.key}>{t(stateChip.key, { name: stateName })}</Chip>)}
         <TaskThreadBadge dict={dict} thread={card.thread} />
         {showApprovalStamp && <Chip tone="success" size="s" data-card-approved="">{t('stamp.approved')}</Chip>}
         {(onMoveCard !== undefined || onMoveFlowColumn !== undefined) && (

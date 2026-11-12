@@ -28,7 +28,7 @@ export interface EmailCredentialInput {
 }
 
 export interface EmailRuleFormProps {
-  readonly dict?: LocaleDict
+  readonly dict?: LocaleDict | undefined
   readonly presets: readonly EmailPresetView[]
   readonly filter: EmailFilterView
   /** Save the rule; reject to show “Não consegui salvar a regra”. */

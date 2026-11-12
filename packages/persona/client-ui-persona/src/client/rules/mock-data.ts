@@ -6,6 +6,10 @@ export interface TriageRule {
   readonly speculativeEnabled: boolean
   /** When the host says what the rule did lately ("Barrou 2 gastos esta semana"); absent = no line, never an invented one. */
   readonly lastApplied?: string | undefined
+  /** P1-10: the lock kind the host obeys; a rule with one lives in the "Travas da casa" card. Absent = free text. */
+  readonly kind?: 'never-spend' | 'never-send' | 'never-publish' | 'never-delete' | 'never-hire' | undefined
+  /** P1-10: `false` = the host only noted it (text, no `kind`): the screen says so and promises nothing. Absent = the host did not say. */
+  readonly enforced?: boolean | undefined
 }
 
 export interface TriageSimulationLog {

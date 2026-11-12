@@ -143,6 +143,7 @@ import {
   lastRunnerToolSteps,
   lastRunnerTools,
   setRunnerPartialSink,
+  setRunnerToolSink,
   lastRunnerText,
   NO_FINAL_WORDS,
   permissionFor,
@@ -2057,6 +2058,16 @@ export class Orchestration {
     return released
   }
 
+  /**
+   * P1-02(b): whether ANOTHER Task of this persona is running in the background. Her runner is one (one TextCapture, one usage context, one action bridge): a second
+   * Task started in front on it would write over the background one, so it gets a runner of its own (key `…:task:<ticketId>:solo`, found by `taskRunnerOf` and dropped with
+   * its ticket by `dropEndedTaskRunners`, like a Task that carries connectors).
+   */
+  private busyInBackground(projectId: string, persona: StoredPersona, ticketId: string): boolean {
+    const tickets = this.runtime(projectId).repo.tickets
+    return this.backgroundWork.ids().some(id => id !== ticketId && tickets.get(id)?.execution?.name === persona.name)
+  }
+
   /** The warm task runner of the persona that executes a ticket, when its turn can be reached. */
   private taskRunnerOf(projectId: string, ticketId: string): Runner | undefined {
     const owner = this.runtime(projectId).repo.tickets.get(ticketId)?.execution?.name
@@ -2690,7 +2701,8 @@ export class Orchestration {
     // runner built with the grant is never reused for a Task without a draft.
     const draftDirectory = !answerOnly && purpose === 'task' && ticketId !== undefined ? this.runtime(projectId).repo.tickets.get(ticketId)?.execution?.directory : undefined
     const taskTools = toolsForTask(persona.tools, draftDirectory, spec.kind === 'cli')
-    const key = `${projectId}:${persona.id}:${purpose}${answerOnly ? ':answer-only' : ''}${warmKeySuffix(connectors, ticketId)}${spec.kind === 'cli' && canSaveFiles(taskTools) ? ':files' : ''}${browser === undefined ? '' : ':browser'}${purpose === 'talk' && thread !== undefined ? `:t:${thread}` : ''}`
+    const apart = !answerOnly && purpose === 'task' && ticketId !== undefined && this.busyInBackground(projectId, persona, ticketId) ? `:${ticketId}:solo` : '' // P1-02(b)
+    const key = `${projectId}:${persona.id}:${purpose}${answerOnly ? ':answer-only' : ''}${warmKeySuffix(connectors, ticketId) || apart}${spec.kind === 'cli' && canSaveFiles(taskTools) ? ':files' : ''}${browser === undefined ? '' : ':browser'}${purpose === 'talk' && thread !== undefined ? `:t:${thread}` : ''}`
     const cached = this.warmRunners.get(key)
     if (cached !== undefined) {
       // P0-05: the browser is part of what the runner was opened with (the key carries it), so a runner that holds it is only ever handed to a Task that carries it, and one opened
@@ -2937,6 +2949,7 @@ export class Orchestration {
         if (this.events.has(doneId)) continue
         const sessionId = workerSessionId(ticket.id)
         this.setRunnerUsageContext(runner, 'execution', ticket.id)
+        setRunnerToolSink(runner, () => { this.backgroundWork.toolCalled(ticket.id) }) // P1-02(a): the 20th tool call of the turn moves the Task to the background
         const recovery = rt.recoveryNotes.includes(RECOVERY_NOTE)
         // TEAM-6: a REVIEW is announced by its typed line ("Bia pediu a revisão a Lia"), not by a progress line of the reviewer.
         const progressId = `exec-${ticket.id}-progress`

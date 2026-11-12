@@ -91,4 +91,10 @@ it('only the workspace owner connects the team (it changes everyone\'s engine)',
   vi.spyOn(h.connections, 'detect').mockResolvedValue([claudeOut, codexIn])
   await h.connections.ready()
   expect(h.connectTeam({ ...SCOPE })).toMatchObject({ ok: true }) // the host's actor is the owner here
+  await settleConnect(h)
+  // P2-02 (the title promised a refusal nobody tested): a MEMBER who can work in a shared project is still refused. The control proves the refusal comes from the owner gate, not from a project she cannot reach.
+  h.createProject({ id: 'team', workspaceId: 'ws', name: 'Time', description: '' })
+  h.sessionMemberId = 'cris'
+  expect(() => h.listTasks({ workspaceId: 'ws', projectId: 'team' }), 'control: Cris works in the shared project').not.toThrow()
+  expect(() => h.connectTeam({ workspaceId: 'ws', projectId: 'team' })).toThrow('forbidden')
 })

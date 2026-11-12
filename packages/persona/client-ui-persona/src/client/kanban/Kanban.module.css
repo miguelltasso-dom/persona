@@ -211,6 +211,18 @@
   gap: var(--persona-space-2);
 }
 
+/* Muse (12/11): why a card in Bloqueado stopped: one line, 13 px, muted, under the title. */
+.cardReason {
+  margin: 0 0 var(--persona-space-1);
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  color: var(--persona-ink-soft);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .cardTitle {
   margin: 0 0 var(--persona-space-1);
   font-size: 0.9375rem;

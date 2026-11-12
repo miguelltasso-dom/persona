@@ -84,6 +84,11 @@ export interface OverviewViewProps extends PropsLocale<'persona.shell'> {
   readonly teamAiSlot?: ReactNode
   /** Item 19a: a seção "Seus números" (os números fixados, atualizados em silêncio). Ausente = não existe. */
   readonly numbersSlot?: ReactNode
+  /**
+   * Item 19a (P1-08): the fall notices of "Seus números", inside "Precisa de você" after the decisions. They are NOTICES, not decisions: they are not part of the
+   * pending count of the card, of the Aprovações rail or of the tray. `count` is how many there are (0 = nothing to draw).
+   */
+  readonly notices?: { readonly count: number; readonly slot: ReactNode } | undefined
 }
 
 export interface FirstDelivery {
@@ -134,6 +139,7 @@ export function OverviewView({
   firstDeliveryPending,
   teamAiSlot,
   numbersSlot,
+  notices,
 }: OverviewViewProps): ReactNode {
   const [dismissedTaskId, setDismissedTaskId] = useState<string | null>(null)
   // "Resumir o dia": o botão vira "Resumindo…" (desabilitado) durante a chamada; o resultado vira o cartão (posted) ou um aviso neutro com a ação que resolve.
@@ -208,7 +214,9 @@ export function OverviewView({
   useDecisionListMotion(attentionListRef, shownDecisions.map(d => d.id), attentionTitleRef)
   // The one number every screen reads: pending + failed, never a count of its own.
   const pendingCount = hasDecisions ? openBlockingCount(decisions) : attentionItems.length
-  const calm = hasDecisions ? blockingDecisions.length === 0 : attentionItems.length === 0
+  const noticeCount = notices?.count ?? 0
+  const hasListBeforeNotices = hasDecisions ? blockingDecisions.length > 0 : attentionItems.length > 0
+  const calm = !hasListBeforeNotices && noticeCount === 0
   const coordination = coordinationOf(nowRows)
   const quiet = calm && !teamHasActiveTask
   // One block, two honest sources: a real task on the board, or a request from the company profile addressed to who coordinates.
@@ -431,6 +439,11 @@ export function OverviewView({
                   ))}
                 </ul>
               ) : null}
+              {noticeCount > 0 && (
+                <div className={hasListBeforeNotices ? styles.noticesAfter : undefined} data-overview-notices="">
+                  {notices?.slot}
+                </div>
+              )}
             </Card>
           )}
 

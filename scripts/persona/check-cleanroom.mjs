@@ -5,7 +5,7 @@
 //   node scripts/persona/check-cleanroom.mjs --root <worktree>    (checa a worktree de outro dono)
 //   node scripts/persona/check-cleanroom.mjs --files a.ts b.css   (só esses arquivos, inteiros)
 //   node scripts/persona/check-cleanroom.mjs --all                (todos os arquivos versionados; o legado do fork pode acusar)
-// Opções: --clone <pasta> (padrão C:\Users\migue\dev\_avaliacao\agentes-chat ou $PERSONA_CLEANROOM_CLONE) · --no-clone · --require-clone · --strict-names
+// Opções: --clone <pasta> (padrão C:\Users\migue\dev\_avaliacao\agentes-chat ou $PERSONA_CLEANROOM_CLONE) · --no-clone · --allow-missing-clone (sem o clone a checagem REPROVA por padrão: falha fechada) · --strict-names
 //         --no-cache (relê o clone inteiro, ~85 s) · cache em %TEMP%\persona-cleanroom-cache ($PERSONA_CLEANROOM_CACHE muda): só hashes numéricos + nomes de arquivo, refeito sozinho se o clone mudar
 //         --allow <json> (padrão scripts/persona/check-cleanroom.allow.json) · --json · --report <arquivo.json> · --quiet
 //
@@ -34,15 +34,33 @@ export const MARK_RULES = [
   // "agentes chat" com espaço é português comum: só vale com . - _ no meio.
   { id: 'agentes.chat', re: /agentes[.\-_]chat/iu },
   { id: 'agenteschat', re: /agenteschat/iu },
-  { id: 'Codari', re: /(?<![\p{L}\p{N}])(?:Codari|codari|CODARI)(?![a-z\p{N}])/u },
-  { id: 'Jev', re: /(?<![\p{L}\p{N}])(?:Jev|jev|JEV)(?![a-z\p{N}])/u },
-  { id: 'Lodi', re: /(?<![\p{L}\p{N}])(?:Lodi|lodi|LODI)(?![a-z\p{N}])/u },
+  // P2-03: a marca com inicial maiúscula DENTRO de um identificador camelCase também conta (useJev, fetchLodiPlan, CodariClient): fronteira minúscula→Maiúscula.
+  { id: 'Codari', re: /(?:(?<![\p{L}\p{N}])(?:Codari|codari|CODARI)|(?<=[\p{Ll}\p{N}])Codari)(?![a-z\p{N}])/u },
+  { id: 'Jev', re: /(?:(?<![\p{L}\p{N}])(?:Jev|jev|JEV)|(?<=[\p{Ll}\p{N}])Jev)(?![a-z\p{N}])/u },
+  { id: 'Lodi', re: /(?:(?<![\p{L}\p{N}])(?:Lodi|lodi|LODI)|(?<=[\p{Ll}\p{N}])Lodi)(?![a-z\p{N}])/u },
 ]
 
-/** Nomes internos do agentes.chat que o PLANO-COLHEITA proíbe em código nosso (os nossos são em português). Aviso; --strict-names reprova. */
-export const NAME_RULES = [
-  'talker', 'unbacked', 'untried', 'findable', 'endsAsking', 'statusReply', 'moveToBackground', 'steer_work', 'ask_choices', 'whoholds',
-].map((name) => ({ id: name, re: new RegExp(`(?<![\\p{L}\\p{N}])${name}(?![\\p{L}\\p{N}])`, 'u') }))
+/**
+ * Nomes internos do agentes.chat que o PLANO-COLHEITA proíbe em código nosso (os nossos são em português). Aviso; --strict-names reprova.
+ * P2-03: cada nome é uma lista de PALAVRAS e casa em qualquer caixa e em qualquer grafia de identificador (askChoices, AskChoices, ask_choices, ask-choices, answerAskChoices):
+ * o texto é "desmontado" (fronteira camelCase vira _, tudo minúsculo) antes da busca. `id` continua sendo o nome canônico que o relatório mostra.
+ */
+export const NAME_WORDS = [
+  { id: 'talker', words: ['talker'] },
+  { id: 'unbacked', words: ['unbacked'] },
+  { id: 'untried', words: ['untried'] },
+  { id: 'findable', words: ['findable'] },
+  { id: 'endsAsking', words: ['ends', 'asking'] },
+  { id: 'statusReply', words: ['status', 'reply'] },
+  { id: 'moveToBackground', words: ['move', 'to', 'background'] },
+  { id: 'steer_work', words: ['steer', 'work'] },
+  { id: 'ask_choices', words: ['ask', 'choices'] },
+  { id: 'whoholds', words: ['who', 'holds'] },
+]
+const SEP = '[_-]?'
+export const NAME_RULES = NAME_WORDS.map(({ id, words }) => ({ id, re: new RegExp(`(?<![a-z0-9])${words.join(SEP)}(?![a-z0-9])`, 'u') }))
+/** Texto "desmontado": camelCase → snake, minúsculo. `answerAskChoices` → `answer_ask_choices`. */
+export const splitIdentifiers = (text) => text.replace(/(?<=[\p{Ll}\p{N}])(?=\p{Lu})/gu, '_').toLowerCase()
 
 const IGNORED_PATH = [
   /^\.maestri\//u,
@@ -64,7 +82,8 @@ export function marksInText(text) {
   return MARK_RULES.filter(({ re }) => re.test(text)).map(({ id }) => ({ rule: id, kind: 'marca' }))
 }
 export function namesInText(text) {
-  return NAME_RULES.filter(({ re }) => re.test(text)).map(({ id }) => ({ rule: id, kind: 'nome' }))
+  const spelled = splitIdentifiers(text)
+  return NAME_RULES.filter(({ re }) => re.test(spelled)).map(({ id }) => ({ rule: id, kind: 'nome' }))
 }
 
 // ---------------------------------------------------------------- normalização e hash
@@ -115,7 +134,7 @@ export function fingerprints(text) {
     if (slice.reduce((sum, item) => sum + item.substance.length, 0) < MIN_WINDOW) continue
     out.push({ key: hashKey('trecho', slice.map((item) => item.norm).join('\n')), kind: 'trecho', line: slice[0].n, lastLine: slice[WINDOW - 1].n })
   }
-  for (const { value, line } of stringLiterals(text)) {
+  for (const { value, line } of [...stringLiterals(text), ...jsxTexts(text)]) {
     for (const part of value.split(/(?<=[.!?:;])\s+|\\n|\n+/u)) {
       const norm = normalizeLine(part)
       const substance = substanceOf(norm)
@@ -138,6 +157,28 @@ export function stringLiterals(text) {
   }
   for (const m of text.matchAll(/'((?:\\.|[^'\\\n]){50,}?)'|"((?:\\.|[^"\\\n]){50,}?)"/gu)) out.push({ value: m[1] ?? m[2], line: lineOf(m.index) })
   for (const m of text.matchAll(/`((?:\\.|[^`\\]){50,}?)`/gu)) out.push({ value: m[1], line: lineOf(m.index) })
+  return out
+}
+
+/**
+ * P2-03: texto SOLTO de JSX (`<p>Frase inteira da tela.</p>`, também em várias linhas) não tem aspas e escapava das impressões de texto. Pega o que fica entre um `>` e o próximo `<`,
+ * sem `{`/`}` (expressão) nem `<`/`>`, com 50+ caracteres. Em TS comum isso também pega pedaços de comparação (`a > b && c < d`): sobra de impressão, nunca falso positivo, porque só vira
+ * acusação se o MESMO texto existir no clone.
+ */
+export function jsxTexts(text) {
+  const out = []
+  const starts = [0]
+  for (let i = text.indexOf('\n'); i !== -1; i = text.indexOf('\n', i + 1)) starts.push(i + 1)
+  const lineOf = (index) => {
+    let lo = 0
+    let hi = starts.length - 1
+    while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (starts[mid] <= index) lo = mid; else hi = mid - 1 }
+    return lo + 1
+  }
+  for (const m of text.matchAll(/>([^<>{}]{50,}?)</gu)) {
+    const value = m[1].trim()
+    if (value.length >= 50) out.push({ value, line: lineOf(m.index + 1) })
+  }
   return out
 }
 
@@ -239,7 +280,7 @@ function* walkClone(dir) {
 
 // ---- índice em cache: só números (hash de 53 bits) + nomes de arquivo, numa pasta temporária; nunca o conteúdo do clone.
 //      Sem cache a rodada lê ~210 MB do clone (~85 s); com cache só confere tamanho/data dos arquivos (~1 s) e busca binária.
-export const INDEX_VERSION = 2 // suba quando mudar fingerprints()/limiares: invalida todos os caches
+export const INDEX_VERSION = 3 // v3 (P2-03): texto solto de JSX entra nas impressões. Suba quando mudar fingerprints()/limiares: invalida todos os caches
 
 /** Assinatura do clone: versão + (caminho|tamanho|mtime) de cada arquivo de código. Mudou qualquer arquivo → índice refeito. */
 export function cloneSignature(cloneDir) {
@@ -353,7 +394,7 @@ export function matchAgainstClone(ours, cloneDir, { onProgress, cacheDir } = {})
 // ---------------------------------------------------------------- orquestração
 
 /**
- * @param {{ root?: string, base?: string, files?: string[], all?: boolean, clone?: string|false, strictNames?: boolean, allow?: any[], requireClone?: boolean, targets?: Map<string, any>, readFile?: (rel:string)=>string|undefined }} options
+ * @param {{ root?: string, base?: string, files?: string[], all?: boolean, clone?: string|false, strictNames?: boolean, allow?: any[], allowMissingClone?: boolean, targets?: Map<string, any>, readFile?: (rel:string)=>string|undefined }} options
  * @returns {{ ok: boolean, findings: any[], warnings: any[], allowed: any[], stats: any }}
  */
 export function runCheck(options = {}) {
@@ -400,7 +441,8 @@ export function runCheck(options = {}) {
   if (options.clone === false || options.clone === undefined) stats.cloneStatus = 'desligado (--no-clone)'
   else if (!existsSync(options.clone)) {
     stats.cloneStatus = `clone não encontrado (${options.clone})`
-    if (options.requireClone === true) findings.push({ severity: 'falha', kind: 'clone', rule: 'ausente', file: options.clone, line: 0, onde: 'o clone é exigido (--require-clone) e não existe' })
+    // P2-03: FALHA FECHADA. Sem o clone a regra de trecho não roda, e "passou" seria mentira; quem não tem o clone nesta máquina diz isso (--allow-missing-clone ou --no-clone).
+    if (options.allowMissingClone !== true) findings.push({ severity: 'falha', kind: 'clone', rule: 'ausente', file: options.clone, line: 0, onde: 'o clone não existe nesta máquina: a regra de trecho não rodou (use --no-clone ou --allow-missing-clone se isso é de propósito)' })
   } else {
     const { hits, scanned, indexo } = matchAgainstClone(ours, options.clone, { cacheDir: options.cacheDir })
     stats.cloneArquivos = scanned
@@ -449,7 +491,7 @@ function main() {
   const clone = args.flags.has('no-clone') ? false : (args.clone ?? process.env.PERSONA_CLEANROOM_CLONE ?? DEFAULT_CLONE)
   let result
   try {
-    result = runCheck({ root, base: args.base, files: args.files, all: args.flags.has('all'), clone, strictNames: args.flags.has('strict-names'), requireClone: args.flags.has('require-clone'), allow: loadAllow(allowPath), cacheDir: args.flags.has('no-cache') ? undefined : (process.env.PERSONA_CLEANROOM_CACHE ?? join(tmpdir(), 'persona-cleanroom-cache')) })
+    result = runCheck({ root, base: args.base, files: args.files, all: args.flags.has('all'), clone, strictNames: args.flags.has('strict-names'), allowMissingClone: args.flags.has('allow-missing-clone'), allow: loadAllow(allowPath), cacheDir: args.flags.has('no-cache') ? undefined : (process.env.PERSONA_CLEANROOM_CACHE ?? join(tmpdir(), 'persona-cleanroom-cache')) })
   } catch (error) { console.error(`erro ao checar: ${error.message}`); process.exit(2) }
   if (args.report !== undefined) writeFileSync(resolve(args.report), `${JSON.stringify({ geradoEm: new Date().toISOString(), root, ...result }, null, 2)}\n`)
   if (!args.flags.has('quiet') || !result.ok) console.log(args.flags.has('json') ? JSON.stringify(result, null, 2) : renderText(result))

@@ -197,6 +197,8 @@
   "composer.autonomy.on-request": "Always ask",
   "composer.autonomy.propose": "Suggests and waits",
   "composer.autonomy.act-within-limits": "Routine autonomy",
+  "composer.autonomy.tip.on-request": "{name} always asks before any action.",
+  "composer.autonomy.tip.act-within-limits": "{name} decides routine matters within the limits.",
   "subjects.complete": "Complete topic",
   "subjects.snooze3h": "Remind me · 3 h",
   "subjects.snoozeTomorrow": "Remind me · tomorrow 9:00",

@@ -68,7 +68,7 @@ it('a Bia falha: o laço termina e a espera NÃO gasta turno (só a Bia rodou; T
   expect(order(h)).toEqual(['bia'])
   expect(tickets(h).map(item => item.execution?.name).sort()).toEqual(['Bia', 'Caio', 'Teo'])
   expect(report(h, 'Bia')?.state).toBe('blocked')
-  // Hoje as duas seguem "waiting" sem custo. O RED abaixo muda isso para uma linha honesta ao dono.
-  expect(['waiting', 'blocked']).toContain(report(h, 'Teo')?.state)
-  expect(['waiting', 'blocked']).toContain(report(h, 'Caio')?.state)
+  // P2-02 (a asserção frouxa `['waiting','blocked']` aceitava os dois estados): com a correção do Forge as duas dependentes viram `blocked`, sem custo, e o dono recebe a linha (acceptance-item1-falhas-red).
+  expect(report(h, 'Teo')?.state).toBe('blocked')
+  expect(report(h, 'Caio')?.state).toBe('blocked')
 })

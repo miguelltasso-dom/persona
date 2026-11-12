@@ -230,9 +230,11 @@ export class VaultRepos {
    */
   purgeSecret(id: string): void {
     if (this.getRecord(id) === undefined) throw new StoreError('not-found', id)
-    this.store.tx((db) => {
-      run(db, 'UPDATE vault_record SET body = ?, fact_key = NULL, status = ? WHERE id = ?', [SECRET_PURGED_BODY, 'revoked', id])
-      run(db, 'DELETE FROM vault_version WHERE target_kind = ? AND target_id = ?', ['record', id])
+    this.store.withSecureDelete(() => {
+      this.store.tx((db) => {
+        run(db, 'UPDATE vault_record SET body = ?, fact_key = NULL, status = ? WHERE id = ?', [SECRET_PURGED_BODY, 'revoked', id])
+        run(db, 'DELETE FROM vault_version WHERE target_kind = ? AND target_id = ?', ['record', id])
+      })
     })
   }
 
@@ -242,7 +244,7 @@ export class VaultRepos {
    * @returns How many records were erased.
    */
   purgeSecretFacts(factKeys: readonly string[]): number {
-    return this.store.tx(db => scrubSecretFacts(db, factKeys))
+    return this.store.withSecureDelete(() => this.store.tx(db => scrubSecretFacts(db, factKeys)))
   }
 
   /**

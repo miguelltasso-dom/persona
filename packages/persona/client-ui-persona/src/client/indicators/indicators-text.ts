@@ -1,70 +1,32 @@
 /**
- * "Seus números" (colheita item 19a): all the words of the feature, in pt-BR, in one typed dictionary (the texts are Muse's, design/COLHEITA-MUSE.md §19a).
- * The Visão geral and the thread share it, and neither owns a locale bundle for it.
+ * "Seus números" (colheita item 19a): as palavras da funcionalidade. P2-01 parte B (Keel 05:53): o texto vem do namespace
+ * 'indicators' do ctx.locale. O mount liga o binder com `bindIndicatorsText`; sem binder (preview, teste) vale o pt do
+ * próprio locale gerado. A Visão geral e o fio compartilham este módulo.
  */
 
-export const INDICATORS_PT = {
-  'section.title': 'Seus números',
-  'section.aria': 'Seus números, atualizados em silêncio',
-  'empty.title': 'Nada fixado ainda',
-  'empty.body': 'Peça um número a alguém da equipe, como “quanto vendemos ontem?”, e toque em Fixar.',
-  'pin.button': 'Fixar na Visão geral',
-  'pin.pinned': 'Fixado na Visão geral',
-  'offer.group': 'Número de {name}',
-  'modal.title': 'Fixar na Visão geral',
-  'modal.eyebrow': 'Seus números',
-  'modal.name': 'Nome do número',
-  'modal.when': 'Quando atualizar',
-  'modal.hourly': 'A cada hora',
-  'modal.hourlyBody': 'Bom para o que muda durante o dia.',
-  'modal.daily': 'Todo dia às 8h',
-  'modal.dailyBody': 'Um número novo toda manhã.',
-  'modal.alert': 'Avisar quando cair mais de {pct}%',
-  'modal.test': 'Testar agora',
-  'modal.testing': 'Testando…',
-  'modal.tip': 'Teste antes de fixar: assim você vê o número de verdade.',
-  'modal.result': 'Resultado do teste',
-  'modal.pin': 'Fixar',
-  'modal.pinning': 'Fixando…',
-  'modal.cancel': 'Cancelar',
-  'modal.close': 'Fechar',
-  'modal.testFailed': 'O teste não deu certo.',
-  'modal.pinFailed': 'Não deu para fixar agora.',
-  'card.updatedAt': 'Atualizado às {time}',
-  'card.updatedOn': 'Atualizado em {day} às {time}',
-  'card.updating': 'Atualizando…',
-  'card.failed': 'Não consegui atualizar',
-  'card.why': 'Ver por quê',
-  'card.hideWhy': 'Esconder',
-  'card.stale': 'de {when}',
-  'card.refresh': 'Atualizar agora',
-  'card.unpin': 'Tirar da Visão geral',
-  'card.more': 'Mais ações de {name}',
-  'card.alert': 'Aviso',
-  'notice.aria': 'Avisos dos seus números',
-  'notice.kind': 'Aviso · Seus números',
-  'notice.fell': '{name} caiu {pct}% {since}.',
-  'notice.sinceDaily': 'desde ontem',
-  'notice.sinceLast': 'desde a última atualização',
-  'notice.see': 'Ver o número',
-  'notice.seen': 'Já vi',
-  'goal.of': '{value} de {goal}',
-  'goal.percent': '{percent}% da meta',
-  'list.ok': 'ok',
-  'list.attention': 'atenção',
-  'list.more': '+{count} itens',
-  'trend.up': 'subiu',
-  'trend.down': 'caiu',
-  'trend.flat': 'igual',
-} as const
+import { pt as indicatorsPt, type IndicatorsKey } from '../locale/indicators/locales.ts'
+import { bindLocale } from '../preview/locale-bind.ts'
 
-export type IndicatorsKey = keyof typeof INDICATORS_PT
+export type { IndicatorsKey }
+
+export type IndicatorsBind = (key: string, params?: Readonly<Record<string, string | number>>) => string
+
+let bound: IndicatorsBind | undefined
 
 /**
- * @param key - Dictionary key.
+ * Liga (ou desliga, com `undefined`) o texto do ctx.locale. O mount chama com `ctx.locale.bind(INDICATORS_NS)`.
+ * @param bind - Função de texto do namespace 'indicators'.
+ */
+export function bindIndicatorsText(bind: IndicatorsBind | undefined): void {
+  bound = bind
+}
+
+/**
+ * @param key - Chave do namespace 'indicators'.
  * @param params - `{name}` placeholders.
- * @returns The pt-BR text.
+ * @returns O texto no idioma do ctx.locale (pt quando não há binder).
  */
 export function itext(key: IndicatorsKey, params: Readonly<Record<string, string | number>> = {}): string {
-  return INDICATORS_PT[key].replace(/\{(\w+)\}/gu, (whole, name: string) => String(params[name] ?? whole))
+  if (bound !== undefined) return bound(key, params)
+  return bindLocale(indicatorsPt, key, params)
 }

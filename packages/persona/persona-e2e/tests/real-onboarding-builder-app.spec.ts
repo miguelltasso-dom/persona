@@ -22,7 +22,7 @@ describe.skipIf(!run)('SCOPE-1 — onboarding do zero pelo construtor conversaci
       const next = page.getByRole('button', { name: onboarding.continue, exact: true })
       await page.getByPlaceholder(onboarding.step1Placeholder).fill('Gauge Builder')
       await next.click()
-      await page.getByText(onboarding.step2VaultBadge).waitFor({ state: 'visible' })
+      await page.getByLabel('Sobre a empresa').getByText(onboarding.step2VaultBadge, { exact: true }).waitFor({ state: 'visible' })
       await next.click()
       await page.getByRole('heading', { name: onboarding.step3Title }).waitFor({ state: 'visible' })
       await page.waitForTimeout(1_500)

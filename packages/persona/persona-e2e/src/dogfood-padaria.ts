@@ -118,7 +118,7 @@ export async function runPadariaDogfood(): Promise<DogfoodReport> {
 
       await page.getByPlaceholder(onboarding.step1Placeholder).fill('Clara')
       await wizardContinue().click()
-      await page.getByText(onboarding.step2VaultBadge).waitFor({ state: 'visible', timeout: 30_000 })
+      await page.getByLabel('Sobre a empresa').getByText(onboarding.step2VaultBadge, { exact: true }).waitFor({ state: 'visible', timeout: 30_000 })
       await shot('01-sobre-empresa')
       await page.getByPlaceholder('Descreva em linguagem natural ou cole um texto…').fill(COMPANY)
       await wizardContinue().click()

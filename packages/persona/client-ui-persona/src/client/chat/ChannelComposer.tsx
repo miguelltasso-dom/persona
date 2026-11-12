@@ -1020,8 +1020,8 @@ export function ChannelComposer({
                   <Tooltip
                     content={
                       responderAutonomy === 'on-request'
-                        ? (responder.name + ' sempre pergunta antes de qualquer ação.')
-                        : (responder.name + ' decide o rotineiro dentro dos limites.')
+                        ? t('composer.autonomy.tip.on-request', { name: responder.name })
+                        : t('composer.autonomy.tip.act-within-limits', { name: responder.name })
                     }
                   >
                     <button

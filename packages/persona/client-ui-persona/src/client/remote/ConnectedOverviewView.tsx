@@ -16,6 +16,14 @@ import { noticesOf } from '../indicators/indicators-model.ts'
 import { spotlightIndicator } from '../indicators/spotlight-indicator.ts'
 import { useIndicators } from '../indicators/use-indicators.tsx'
 import type { TeamConnectRemoteWire } from '../team-connect/team-connect-wire.ts'
+import { readOnboardingDisplayName } from '../shell/onboarding-persistence.ts'
+
+/** The name the greeting uses: the member's own, or (while the member still has the "Você" placeholder the app made before the onboarding) the name typed in step 1. */
+export function greetingName(memberName: string | undefined): string | undefined {
+  const own = memberName?.trim() ?? ''
+  const placeholder = own === '' || ['você', 'voce', 'owner', 'you'].includes(own.toLowerCase())
+  return placeholder ? (readOnboardingDisplayName() ?? (own === '' ? undefined : own)) : own
+}
 
 export interface ConnectedOverviewInjected {
   hooks: { live: HostObservable<PersonaLiveSnapshot> }
@@ -33,6 +41,8 @@ export interface ConnectedOverviewInjected {
   askCoordination?(text: string): void
   /** DESIGN-01 #09: the request derived from the company profile in the Cofre (null = no profile, nothing to suggest). Absent = no suggestion. */
   loadCompanySuggestion?(): Promise<{ readonly title: string } | null>
+  /** Carbon P1-09: opens Configurações › Conexões (from the modal that has no account to wake the team with). Absent = the modal keeps its old, disabled button. */
+  openConnections?(): void
   /** Item 13: the host calls of "Ligar a IA para a equipe toda" (`getTeamAi`, `connectTeam`, `getTeamConnect`, `retryTeamPersona`). Absent = no banner. */
   teamConnectRemote?: TeamConnectRemoteWire
   /** Item 19a: the host Remote for "Seus números" (`listIndicators`…). A host without the five calls (or none) = no section. */
@@ -56,6 +66,7 @@ export function ConnectedOverviewView({
   askCoordination,
   loadCompanySuggestion,
   teamConnectRemote,
+  openConnections,
   indicatorsRemote,
   refreshLive,
 }: ConnectedOverviewViewProps): ReactNode {
@@ -103,7 +114,7 @@ export function ConnectedOverviewView({
       awayEvents={awayEvents}
       away={live.away}
       {...(dismissAway === undefined ? {} : { onDismissAway: dismissAway })}
-      userName={live.team?.members.find(member => member.id === live.tenant?.memberId)?.displayName}
+      userName={greetingName(live.team?.members.find(member => member.id === live.tenant?.memberId)?.displayName)}
       suggestedTask={live.suggestedTask ?? undefined}
       companySuggestion={companySuggestion}
       onAskCoordination={askCoordination}
@@ -112,7 +123,7 @@ export function ConnectedOverviewView({
       onNavigate={navigate}
       {...(askDailyBrief === undefined || !isTeamworkEnabled() ? {} : { onAskDailyBrief: askDailyBrief })}
       onOpenAwayTask={openAwayTask}
-      teamAiSlot={<ConnectedTeamAi t={t} remote={teamConnectRemote} workspaceId={live.tenant?.workspaceId} projectId={live.tenant?.projectId} />}
+      teamAiSlot={<ConnectedTeamAi t={t} remote={teamConnectRemote} workspaceId={live.tenant?.workspaceId} projectId={live.tenant?.projectId} onOpenConnections={openConnections} />}
       numbersSlot={indicators === undefined ? null : <SeusNumerosBound binding={indicators} onAlertsChange={refreshLive} />}
       notices={fallNotices.length === 0
         ? undefined

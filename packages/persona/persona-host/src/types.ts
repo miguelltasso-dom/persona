@@ -2476,6 +2476,8 @@ export interface IssueInviteRequest {
   readonly inviteId: string
   readonly token: string
   readonly role: 'member' | 'guest'
+  /** F4: the team's name, shown by the screen the link opens ("Convidar alguém para a Padaria Lua"). */
+  readonly teamName?: string
 }
 
 /** Redeem a token as a new member. */
@@ -2486,6 +2488,54 @@ export interface RedeemInviteRequest {
   readonly memberId: string
   readonly displayName: string
   readonly handle: string
+}
+
+/** F4: the link of one invite, built by the owner's host: `persona://entrar/<time>/<token>` (one person, 7 days). */
+export interface InviteLinkView {
+  readonly inviteId: string
+  readonly link: string
+  readonly expiresAt: number
+}
+
+/** F4: what the screen a link opens needs BEFORE anybody asks to join. */
+export interface PreviewInviteRequest {
+  readonly link: string
+  /** The hub's address comes from the product's configuration, never from the link. */
+  readonly edgeUrl: string
+}
+
+/** F4: what that screen shows. The errors are the screen's own sentences (never a code the person has to read). */
+export type InvitePreview =
+  | { readonly ok: true; readonly teamId: string; readonly teamName: string | null; readonly projectId: string; readonly expiresAt: number }
+  | { readonly ok: false; readonly error: 'LINK_INVALIDO' | 'CONVITE_VENCIDO' | 'CONVITE_USADO' | 'CONVITE_REVOGADO' | 'SEM_CONEXAO' }
+
+/** F4: the person pressed "Pedir para entrar". The local workspace of the team must already exist (its id is the link's team). */
+export interface JoinTeamRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly link: string
+  readonly edgeUrl: string
+}
+
+/** F4: someone who followed the link and waits for the owner (the card in Aprovações). */
+export interface JoinRequestView {
+  readonly id: string
+  readonly actorId: string
+  readonly displayName: string | null
+  readonly requestedAt: string
+  /** The two public keys, in groups of four: owner and person compare it out loud. */
+  readonly securityCode: string
+}
+
+/** F4: where the guest's request stands, in the words the screen needs. */
+export type JoinStatus = 'sem_pedido' | 'esperando_dono' | 'aceito' | 'recusado' | 'removido' | 'sem_conexao'
+
+/** F4: the owner's decision on one waiting person. */
+export interface DecideJoinRequest {
+  readonly workspaceId: string
+  readonly projectId: string
+  readonly requestId: string
+  readonly allow: boolean
 }
 
 /** Revoke by id. */

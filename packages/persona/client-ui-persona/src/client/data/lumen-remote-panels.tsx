@@ -30,7 +30,7 @@ import { EVENT_SOURCES, readEventWire, type EventSourceId, type RoutineEventWire
 import { routineNameFromPrompt, type RoutineScheduleWire, type RoutineWire } from '../routines/routine-wire.ts'
 import { UsageLimits } from '../usage/UsageLimits.tsx'
 import { EmailRuleForm, type EmailCredentialInput } from '../email-rule/EmailRuleForm.tsx'
-import { TriageRulesView } from '../rules/TriageRulesView.tsx'
+import { TriageRulesView, type HouseLockKind, type HouseLockUi } from '../rules/TriageRulesView.tsx'
 import { PersonaProfilePage } from '../profile/PersonaProfilePage.tsx'
 import type { PersonaProfileSnapshot } from '../profile/mock-data.ts'
 import type { PersonaAvatar } from '@deepseek-ai/dsh-persona-core'
@@ -51,7 +51,9 @@ import {
 import { swapPolicyCardSummaryLine, type ConnectionsAccountsUi, type RunnerSwapPolicyScope } from './adapters/connection-accounts.ts'
 import { coordinationPersonaId } from './coordination-persona.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
+import type { LocalePanelProps } from '../locale/panel-dicts.ts'
 import { pt as profileDict } from '../locale/profile/locales.ts'
+import { pt as rulesDict } from '../locale/rules/locales.ts'
 import { tasksToKanbanCards } from './adapters/kanban.ts'
 import { countStaleReviews } from '../kanban/review-stale.ts'
 import { readKanbanScaleSeed } from '../kanban/kanban-scale-dev.ts'
@@ -98,7 +100,7 @@ import {
 import { pickProjectRootPath } from '../files/pick-project-root.ts'
 import type { FilesSurfaceState } from '../files/FilesView.tsx'
 import type { ProactivityLimits, QuietWindow, TriageRule } from '../rules/mock-data.ts'
-import type { ProjectLimitsView, QuietWindowView, TriageRuleView } from '@deepseek-ai/dsh-persona-host/types'
+import type { ProjectLimitsView, QuietWindowView, RuleKindsView, TriageRuleView } from '@deepseek-ai/dsh-persona-host/types'
 import type { HostObservable, InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import type { ShellState } from '../shell/create-shell-store.ts'
 import { HIRE_PERSONA_PROFILE_ID, type MainPanelId } from '../shell/create-shell-store.ts'
@@ -168,7 +170,19 @@ function triageRulesFromHost(rules: readonly TriageRuleView[]): readonly TriageR
     assessmentText: rule.assessmentText,
     logOnly: rule.logOnly,
     speculativeEnabled: rule.speculativeEnabled,
+    // P1-10: what the host says about it (never guessed): the lock kind it obeys, and whether it obeys the rule at all.
+    ...(rule.kind === undefined ? {} : { kind: rule.kind }),
+    ...(rule.enforced === undefined ? {} : { enforced: rule.enforced }),
   }))
+}
+
+/** The lock card: one switch per kind the host obeys (`getRuleKinds`), on when a saved rule of that kind exists, with what it really held back. */
+function houseLocksFromHost(kinds: readonly { readonly kind: HouseLockKind }[], rules: readonly TriageRuleView[]): readonly HouseLockUi[] {
+  return kinds.map(({ kind }) => {
+    const rule = rules.find(row => row.kind === kind)
+    const applied = rule?.applied === undefined ? undefined : { thisWeek: rule.applied.thisWeek, lastWhat: rule.applied.lastWhat }
+    return { kind, on: rule !== undefined, ...(applied === undefined ? {} : { applied }) }
+  })
 }
 
 function quietFromHost(windows: readonly QuietWindowView[]): readonly QuietWindow[] {
@@ -684,7 +698,7 @@ export function RemoteUsagePanel({ persona, useTenant, useShell, selectMainPanel
   )
 }
 
-export function RemoteConnectionsPanel({ persona, useTenant, useShell, selectMainPanel, openHelp }: LumenRemotePanelProps): ReactNode {
+export function RemoteConnectionsPanel({ persona, useTenant, useShell, selectMainPanel, openHelp, dicts }: LumenRemotePanelProps & LocalePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
@@ -813,6 +827,7 @@ export function RemoteConnectionsPanel({ persona, useTenant, useShell, selectMai
       onRemoveAccount={onRemoveAccount}
       emailRule={emailRule === null ? undefined : (
         <EmailRuleForm
+          dict={dicts?.emailRule}
           presets={emailRule.presets}
           filter={emailRule.filter}
           onSave={saveEmailRule}
@@ -1031,10 +1046,17 @@ export function RemoteRulesPanel({ persona, useTenant, useShell }: LumenRemotePa
       unwrapRemote(await persona.getProjectLimits(scopeReq)),
       unwrapRemote(await persona.listTriageLog(scopeReq)),
     ])
-    return { rules, quiet, limits, triageLog }
+    // P1-10 (HONEST-1): what the host OBEYS (`getRuleKinds`). A host that does not know the contract, or that fails to answer it, offers nothing beyond the budget and the saved
+    // rules: the screen never promises what it cannot confirm.
+    let kinds: RuleKindsView | undefined
+    if (typeof persona.getRuleKinds === 'function') {
+      try { kinds = await unwrapRemote(await persona.getRuleKinds(scopeReq)) } catch (error) { void error }
+    }
+    return { rules, quiet, limits, triageLog, kinds }
   }, [persona, workspaceId, projectId])
   const { state, retry } = usePersonaRemoteLoad(scope !== null, loadKey, load)
   const payload = state.status === 'ready' ? state.data : null
+  const kinds = payload?.kinds
   const rulesProps = payload === null
     ? { rules: [] as const, quietWindows: [] as const, triageLog: [] as const }
     : {
@@ -1042,12 +1064,38 @@ export function RemoteRulesPanel({ persona, useTenant, useShell }: LumenRemotePa
       quietWindows: quietFromHost(payload.quiet),
       limits: limitsFromHost(payload.limits),
       triageLog: triageLogFromHost(payload.triageLog),
+      ...(kinds === undefined ? {} : {
+        obeyed: { quietWindows: kinds.quietWindow.enforced, newRules: kinds.kinds.length > 0 },
+        houseLocks: houseLocksFromHost(kinds.kinds, payload.rules),
+      }),
     }
-  // HONEST-1: the screen offers only what the host obeys, and the host has no contract for that yet (no `obeyed`): no quiet windows, no "create rule".
+  /** A lock on = a saved rule of that kind (the host obeys only a rule with `kind`; its words are the lock's own name); off = delete the rule that holds it. */
+  const toggleLock = async (kind: HouseLockKind, on: boolean): Promise<void> => {
+    if (scope === null) return
+    const scopeReq = { workspaceId: scope.workspaceId, projectId: scope.projectId }
+    if (on) {
+      await unwrapRemote(await persona.putTriageRule({
+        ...scopeReq,
+        id: `house-${kind}`,
+        gateText: bindLocale(rulesDict, `locks.${kind}`),
+        assessmentText: '',
+        logOnly: false,
+        speculativeEnabled: false,
+        kind,
+      }))
+    } else {
+      const saved = payload?.rules.find(rule => rule.kind === kind)
+      if (saved === undefined) return
+      await unwrapRemote(await persona.deleteTriageRule({ ...scopeReq, id: saved.id }))
+    }
+    setReloadToken(token => token + 1)
+  }
+  // HONEST-1: the screen offers only what the host obeys (`getRuleKinds` → `obeyed`, the lock card, the quiet windows). Without that answer: no quiet windows, no locks.
   // An empty list is not an empty screen: the budget is always there, and the rules card says there is none.
   return (
     <TriageRulesView
       {...rulesProps}
+      onToggleLock={kinds === undefined ? undefined : toggleLock}
       initialState={remotePanelSurface(gate, state, () => false)}
       onRemoteRetry={() => { retryBootstrap(); retry(); setReloadToken(token => token + 1) }}
       onSaveLimits={(limits) => {

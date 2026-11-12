@@ -48,14 +48,15 @@ describe('kanban stage projection', () => {
 })
 
 describe.sequential('kanban preview (dom)', () => {
-  it('renders project board with five columns and waiting-event chip', () => {
+  it('renders project board with five columns and the state of the CARDS (Muse + Atlas, 12/11: never the persona\'s own state)', () => {
     const view = renderPreview(<ProjectKanban dict={pt} />)
     const projectRoot = document.querySelector('[data-persona-kanban="project"]')
     expect(projectRoot).toBeTruthy()
     expect(screen.getByRole('heading', { level: 1, name: pt['title.project'] })).toBeTruthy()
     const board = within(projectRoot as HTMLElement).getByRole('region', { name: pt['a11y.boardRegion'] })
     expect(board.querySelector('#col-todo')?.textContent).toContain(pt['column.todo'])
-    expect(within(projectRoot as HTMLElement).getByText(pt['chip.state.waiting'])).toBeTruthy()
+    expect((projectRoot as HTMLElement).querySelector('[data-card-state]')).toBeTruthy() // "Na fila de …", "… está fazendo", "Esperando o cliente"
+    expect(within(projectRoot as HTMLElement).queryByText(pt['chip.state.waiting'])).toBeNull() // "Esperando você" belongs to the face and the rail, not to the card
     view.unmount()
   })
 

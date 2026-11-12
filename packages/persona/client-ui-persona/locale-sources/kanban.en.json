@@ -266,5 +266,11 @@
   "projects.history.back": "Back to the board",
   "projects.options": "Options",
   "boards.filterLabel": "Filter projects",
-  "card.doneBy": "Done by {name}"
+  "card.doneBy": "Done by {name}",
+  "card.state.todo": "In {name}'s queue",
+  "card.state.doing": "{name} is working on it",
+  "card.state.reviewing": "{name} is reviewing",
+  "card.state.client": "Waiting for the client",
+  "card.state.waitingYou": "Waiting for you",
+  "card.state.stopped": "Stopped"
 }

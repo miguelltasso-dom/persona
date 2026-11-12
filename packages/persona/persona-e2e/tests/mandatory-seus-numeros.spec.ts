@@ -21,7 +21,7 @@ const OFFER = `Vendemos bem ontem.\n${marker(SALES)}`
 const TESTED = marker({ ...SALES, valor: 'R$ 1.300', bruto: 1300 })
 const FELL = marker({ ...SALES, valor: 'R$ 900', bruto: 900, tendencia: '-31% desde ontem', direcao: 'desce' })
 
-async function theme(page: Page, dark: boolean, zoom: 1 | 2): Promise<void> {
+async function theme(page: Page, dark: boolean, zoom: 1 | 2, anchor = '[data-seus-numeros]'): Promise<void> {
   await page.evaluate(([isDark, z]) => {
     if (isDark) document.body.setAttribute('data-ds-dark-theme', 'true')
     else document.body.removeAttribute('data-ds-dark-theme')
@@ -32,21 +32,21 @@ async function theme(page: Page, dark: boolean, zoom: 1 | 2): Promise<void> {
   await page.waitForTimeout(700)
   // The Visão geral is taller than the window (and taller still at 200%): bring "Seus números" into view so every capture frames the section.
   // (Only when the section is on screen: waiting for an absent element would burn the action timeout on every thread or modal capture.)
-  const section = page.locator('[data-seus-numeros]')
+  const section = page.locator(anchor)
   if (await section.count() > 0) {
     await section.first().scrollIntoViewIfNeeded()
     await page.waitForTimeout(400)
   }
 }
 
-async function shots(page: Page, name: string): Promise<void> {
+async function shots(page: Page, name: string, anchor = '[data-seus-numeros]'): Promise<void> {
   for (const dark of [false, true]) {
     for (const zoom of [1, 2] as const) {
-      await theme(page, dark, zoom)
+      await theme(page, dark, zoom, anchor)
       await page.screenshot({ path: join(SHOTS, `${name}-${dark ? 'escuro' : 'claro'}-${String(zoom * 100)}.png`) })
     }
   }
-  await theme(page, false, 1)
+  await theme(page, false, 1, anchor)
 }
 
 describe.skipIf(!run).sequential('Colheita 19a · Seus números, no app real', () => {
@@ -160,9 +160,37 @@ describe.skipIf(!run).sequential('Colheita 19a · Seus números, no app real', (
       const overview = await hostRpcOk<{ readonly needsYou: ReadonlyArray<{ readonly id: string; readonly title: string }> }>(page, 'getOverview', { workspaceId: tenant.workspaceId, projectId: tenant.projectId })
       throw new Error(`o alerta não apareceu na Visão geral; o host devolve needsYou=${JSON.stringify(overview.needsYou.map(item => item.title))}; texto da tela: ${(await page.locator('body').innerText()).slice(0, 600)}`)
     }
+    // Muse 05:22: a queda é um AVISO, não uma decisão: "Aviso · Seus números", nunca "Aguardando você · Equipe", e fora do que o rail de Aprovações conta.
+    expect(await page.locator('[data-indicator-notices]').getByText('Aviso · Seus números').isVisible()).toBe(true)
+    expect(await page.getByText(/Aguardando você · Equipe/u).count(), 'o aviso não é uma decisão da Equipe').toBe(0)
+    const asked = await hostRpcOk<{ readonly needsYou: ReadonlyArray<{ readonly title: string }> }>(page, 'getOverview', { workspaceId: tenant.workspaceId, projectId: tenant.projectId })
+    expect(asked.needsYou.some(item => item.title.includes('Vendas de ontem')), 'o host não manda a queda como decisão (rail de Aprovações)').toBe(false)
     await shots(page, 'alerta')
+    await shots(page, 'aviso', '[data-indicator-notices]')
     const alerted = await hostRpcOk<ReadonlyArray<{ readonly alert?: { readonly pct: number } }>>(page, 'listIndicators', { workspaceId: tenant.workspaceId, projectId: tenant.projectId })
     expect(alerted[0]?.alert?.pct).toBe(31)
+
+    // "Ver o número": rola até o cartão NA MESMA tela e põe o foco nele com o anel do DS por 1,5 s (sem ir para Aprovações).
+    const urlBefore = page.url()
+    await page.getByRole('button', { name: 'Ver o número' }).click()
+    await cardLocator.waitFor({ state: 'visible' })
+    const ringed = await page.waitForFunction(() => {
+      const el = document.querySelector('[data-indicator][data-spotlight="true"]')
+      return el !== null && document.activeElement === el
+    }, undefined, { timeout: 3_000 }).then(() => true, () => false)
+    expect(ringed, 'o cartão recebe o foco e o anel').toBe(true)
+    await page.waitForTimeout(500) // a rolagem suave termina antes da captura
+    await page.screenshot({ path: join(SHOTS, 'aviso-ver-o-numero-claro-100.png') })
+    expect(page.url(), 'nada de navegar').toBe(urlBefore)
+    await page.waitForFunction(() => document.querySelector('[data-spotlight="true"]') === null, undefined, { timeout: 5_000 })
+
+    // "Já vi": o aviso sai da lista; a borda âmbar do cartão fica até a próxima atualização.
+    await page.locator('[data-indicator-notices]').getByRole('button', { name: 'Já vi' }).click()
+    await page.locator('[data-indicator-notices]').waitFor({ state: 'detached', timeout: 15_000 })
+    expect(await cardLocator.getAttribute('data-indicator-alert'), 'a borda âmbar continua').toBe('true')
+    const dismissed = await hostRpcOk<ReadonlyArray<{ readonly alert?: { readonly seen?: boolean } }>>(page, 'listIndicators', { workspaceId: tenant.workspaceId, projectId: tenant.projectId })
+    expect(dismissed[0]?.alert?.seen, 'o host guardou o "Já vi"').toBe(true)
+    await shots(page, 'aviso-ja-vi')
 
     // 6. Tirar o número devolve o estado vazio; fixar sem teste é recusado pelo host.
     const refused = await hostRpc(page, 'pinIndicator', { workspaceId: tenant.workspaceId, projectId: tenant.projectId, testId: 'itest:nada', name: 'X', schedule: 'daily' })

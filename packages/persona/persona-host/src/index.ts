@@ -92,7 +92,7 @@ import { ActionBridge } from './action-bridge.ts'
 import { claudeConnectorBridge, type ConnectorBridge } from './connector-bridge.ts'
 import { flagsBootLine, resolveHostFlags, type HostFlagsView } from './flags.ts'
 import { CofreIdentityStore } from './e2ee-identity.ts'
-import { loadOrCreateIdentity } from '@deepseek-ai/dsh-persona-sync'
+import { loadOrCreateIdentity, parseInviteLink } from '@deepseek-ai/dsh-persona-sync'
 import { resolveTurnClose } from './turn-close-host.ts'
 import { ExternalActions, type ExternalActionDoc } from './external-actions.ts'
 import { ActivityUndo, activityUndoDeps } from './activity-undo.ts'
@@ -444,8 +444,15 @@ import type {
   ImportBatchView,
   ImportPreviewView,
   InviteIdRequest,
+  DecideJoinRequest,
+  InviteLinkView,
+  InvitePreview,
   InviteView,
   IssueInviteRequest,
+  JoinRequestView,
+  JoinStatus,
+  JoinTeamRequest,
+  PreviewInviteRequest,
   ListPlaybookRequest,
   MemoryView,
   MemoryWriteRequest,
@@ -3801,6 +3808,92 @@ export default class PersonaHost extends TypertRemoteService {
     return this.remoteTeam.connect(request, actor, displayName)
   }
 
+  /**
+   * F4: "Criar link de convite". The owner's host issues one invite (one person, 7 days, the team's name on it) and returns the link the person copies or sends.
+   * @param request - The invite to issue (an empty token is generated).
+   */
+  @Remote
+  async createInviteLink(request: IssueInviteRequest): Promise<InviteLinkView> {
+    if (this.remoteTeam.state(request) === undefined) throw new Error('remote-team-not-connected') // a link needs the hub: a local invite has nowhere to point
+    const invite = await this.issueInvite(request)
+    return this.remoteTeam.linkOf(request, invite)
+  }
+
+  /**
+   * F4: the screen a link opens shows the team BEFORE anybody asks to join. Nothing is created and nobody is asked: the strict parser, then the hub's public answer.
+   * @param request - The raw link and the hub's address (product configuration, never taken from the link).
+   */
+  @Remote
+  async previewInvite(request: PreviewInviteRequest): Promise<InvitePreview> {
+    return this.remoteTeam.preview(request.link, request.edgeUrl)
+  }
+
+  /**
+   * F4: the person pressed "Pedir para entrar". The link is read again, strictly, and must name THIS workspace; the request goes to the hub signed by this device and the
+   * state stays "offline / PENDING_APPROVAL" until the owner lets them in. Opening a link never gets here by itself.
+   * @param request - The local workspace of the team (its id is the link's team), the project, the raw link and the hub's address.
+   */
+  @Remote
+  async joinTeamFromLink(request: JoinTeamRequest): Promise<RemoteTeamState> {
+    this.requireWrite(request)
+    const parsed = parseInviteLink(request.link)
+    if (parsed === undefined || parsed.teamId !== request.workspaceId) throw new Error('invite-link-invalid')
+    const actor = this.actorOf(request.workspaceId)
+    if (actor === undefined) throw new Error('forbidden')
+    const displayName = this.product.listMembers(request.workspaceId).find(row => row.id === actor.id)?.displayName ?? actor.id
+    return this.remoteTeam.accept({ workspaceId: request.workspaceId, projectId: request.projectId, token: parsed.token, edgeUrl: request.edgeUrl }, actor, displayName)
+  }
+
+  /**
+   * F4: where MY request stands (the guest's screen after "Pedir para entrar"): `esperando_dono`, `aceito` (then sync: the keys arrive), `recusado`, `removido` or `sem_conexao`.
+   * @param request - The guest's local project.
+   */
+  @Remote
+  async getJoinStatus(request: ProjectScopeRequest): Promise<JoinStatus> {
+    this.requireProject(request)
+    return this.remoteTeam.joinStatus(request)
+  }
+
+  /**
+   * F4: "Cancelar pedido": withdraws a request the owner has not decided yet.
+   * @param request - The guest's local project.
+   */
+  @Remote
+  async cancelJoinRequest(request: ProjectScopeRequest): Promise<boolean> {
+    this.requireWrite(request)
+    await this.remoteTeam.cancelJoinRequest(request)
+    return true
+  }
+
+  /**
+   * F4: the people who followed the link and wait for the owner (the cards in Aprovações). Only the owner of the connected team sees them.
+   * @param request - Owner project.
+   */
+  @Remote
+  async listJoinRequests(request: ProjectScopeRequest): Promise<JoinRequestView[]> {
+    this.requireProject(request)
+    const actor = this.actorOf(request.workspaceId)
+    if (actor?.workspaceRole !== 'owner') throw new Error('forbidden')
+    return (await this.remoteTeam.joinRequests(request)).map(row => ({
+      id: row.id, actorId: row.actorId, displayName: row.displayName ?? null, requestedAt: row.requestedAt, securityCode: row.securityCode,
+    }))
+  }
+
+  /**
+   * F4: the owner lets one person in (the channel keys are wrapped for them, only for them) or says no.
+   * @param request - Owner project, the request and the decision.
+   * @returns True after the hub took the decision.
+   */
+  @Remote
+  async decideJoinRequest(request: DecideJoinRequest): Promise<boolean> {
+    this.requireWrite(request)
+    const actor = this.actorOf(request.workspaceId)
+    if (actor?.workspaceRole !== 'owner') throw new Error('forbidden')
+    if (request.allow) await this.remoteTeam.approveJoinRequest(request, request.requestId)
+    else await this.remoteTeam.denyJoinRequest(request, request.requestId)
+    return true
+  }
+
   /** @param request - Single-use token; the caller cannot choose a remote role. @returns Granted channel state. */
   @Remote
   async acceptInvite(request: AcceptRemoteInviteRequest): Promise<RemoteTeamState> {
@@ -4552,6 +4645,17 @@ export default class PersonaHost extends TypertRemoteService {
   putQuietWindow(request: PutQuietWindowRequest): QuietWindowView {
     this.requireProject(request)
     return this.screens.putQuiet(request)
+  }
+
+  /**
+   * Turn a quiet window off (the editor's "Desligar"). Putting the same window back is `putQuietWindow`, so the screen can offer "Desfazer" with the draft it kept.
+   * @param request - Window id.
+   * @returns Whether the window existed.
+   */
+  @Remote
+  deleteQuietWindow(request: ScreenDocRequest): boolean {
+    this.requireProject(request)
+    return this.screens.deleteQuiet(request.projectId, request.id)
   }
 
   /**

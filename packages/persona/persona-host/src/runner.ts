@@ -316,6 +316,7 @@ export async function resolveHostRunner(
     ...(request.authorityOf === undefined ? {} : { authorityFor: turn => request.authorityOf?.(turn.ticketId) }),
   })
   capture.onPartial = (text) => { partialSinks.get(session)?.(text) }
+  capture.onTool = (tool) => { toolSinks.get(session)?.(tool) }
   captures.set(session, capture)
   return session
 }
@@ -343,6 +344,8 @@ export interface TextCapture {
   onFirst?: (text: string) => void
   /** Every cumulative piece of text of the turn (streaming into the thread); wired by {@link setRunnerPartialSink}. */
   onPartial?: (text: string) => void
+  /** Item 12: each tool the turn calls reaches the per-turn tool sink (the background book counts them); wired by {@link setRunnerToolSink}. */
+  onTool?: (tool: string) => void
   question?: string
   /** The structured question the persona wrote (untrusted; the host reads it with `askInputOf`). */
   ask?: unknown
@@ -356,6 +359,7 @@ export interface TextCapture {
 
 const captures = new WeakMap<Runner, TextCapture>()
 const partialSinks = new WeakMap<Runner, (text: string) => void>()
+const toolSinks = new WeakMap<Runner, (tool: string) => void>()
 
 /**
  * Per-turn receiver of the text a runner is writing (cumulative). A cached warm runner serves many turns, so the sink is
@@ -366,6 +370,17 @@ const partialSinks = new WeakMap<Runner, (text: string) => void>()
 export function setRunnerPartialSink(runner: Runner, sink: ((text: string) => void) | undefined): void {
   if (sink === undefined) partialSinks.delete(runner)
   else partialSinks.set(runner, sink)
+}
+
+/**
+ * Per-turn receiver of each tool call a runner makes (the background book counts them). Like the partial sink: a warm runner serves many turns,
+ * so it is set when a Task turn starts, never fixed at creation.
+ * @param runner - Session runner.
+ * @param sink - Receiver of the tool name, or undefined to clear.
+ */
+export function setRunnerToolSink(runner: Runner, sink: ((tool: string) => void) | undefined): void {
+  if (sink === undefined) toolSinks.delete(runner)
+  else toolSinks.set(runner, sink)
 }
 
 /**
@@ -467,6 +482,7 @@ export function emitRunnerStep(runner: Runner, tool: string, at: string): void {
   capture.tools = [...(capture.tools ?? []), tool]
   capture.toolTimes = [...(capture.toolTimes ?? []), at]
   captures.set(runner, capture)
+  toolSinks.get(runner)?.(tool)
 }
 
 /**
@@ -499,6 +515,7 @@ export function tapTurn(turn: TurnRunner, capture: TextCapture): TurnRunner {
         capture.step = { tool, at: event.at }
         capture.tools = [...(capture.tools ?? []), tool]
         capture.toolTimes = [...(capture.toolTimes ?? []), event.at]
+        capture.onTool?.(tool)
       }
     }
     if (event.type === 'delta') {

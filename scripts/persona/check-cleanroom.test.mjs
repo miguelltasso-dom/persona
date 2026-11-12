@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { collectTargets, fingerprints, hash53, isAllowed, isIgnoredPath, loadAllow, marksInText, namesInText, normalizeLine, parseAddedLines, parseArgs, renderText, runCheck, stringLiterals } from './check-cleanroom.mjs'
+import { collectTargets, fingerprints, hash53, isAllowed, isIgnoredPath, loadAllow, marksInText, namesInText, normalizeLine, parseAddedLines, parseArgs, renderText, runCheck, splitIdentifiers, stringLiterals, jsxTexts } from './check-cleanroom.mjs'
 
 const CLI = join(dirname(fileURLToPath(import.meta.url)), 'check-cleanroom.mjs')
 const tmp = () => mkdtempSync(join(tmpdir(), 'cleanroom-'))
@@ -232,13 +232,75 @@ test('cache do índice: 1ª vez refaz, 2ª vem do cache, mudou o clone refaz; me
   } finally { rmSync(clone, { recursive: true, force: true }); rmSync(cache, { recursive: true, force: true }) }
 })
 
-test('clone ausente: avisa e passa; com --require-clone reprova', () => {
+test('clone ausente: REPROVA por padrão (falha fechada); só passa quando se diz que é de propósito', () => {
   const targets = new Map([['a.ts', 'tudo']])
   const miss = join(tmpdir(), 'cleanroom-nao-existe')
-  const soft = runCheck({ targets, readFile: () => 'ok\n', clone: miss })
-  assert.equal(soft.ok, true)
-  assert.match(soft.stats.cloneStatus, /clone não encontrado/u)
-  assert.equal(runCheck({ targets, readFile: () => 'ok\n', clone: miss, requireClone: true }).ok, false)
+  const closed = runCheck({ targets, readFile: () => 'ok\n', clone: miss })
+  assert.equal(closed.ok, false)
+  assert.match(closed.stats.cloneStatus, /clone não encontrado/u)
+  assert.equal(closed.findings[0].kind, 'clone')
+  const open = runCheck({ targets, readFile: () => 'ok\n', clone: miss, allowMissingClone: true })
+  assert.equal(open.ok, true)
+  assert.match(open.stats.cloneStatus, /clone não encontrado/u) // passa, mas o relatório continua dizendo que a regra de trecho não rodou
+  assert.equal(runCheck({ targets, readFile: () => 'ok\n', clone: false }).ok, true) // --no-clone é a forma explícita de desligar
+})
+
+test('P2-03 pontos cegos: a marca dentro de um identificador camelCase (useJev, fetchLodiPlan, CodariClient) reprova; palavra comum continua livre', () => {
+  const ids = (text) => marksInText(text).map((m) => m.rule)
+  assert.deepEqual(ids('export function useJev() {}'), ['Jev'])
+  assert.deepEqual(ids('await fetchLodiPlan(id)'), ['Lodi'])
+  assert.deepEqual(ids('new CodariClient()'), ['Codari'])
+  assert.deepEqual(ids('const v2Jev = 1'), ['Jev'])
+  // continuam livres: as letras sem fronteira de palavra
+  assert.deepEqual(ids('const projevento = 1 // Jevons'), [])
+  assert.deepEqual(ids('Melodia e GlodiX são só letras'), [])
+  assert.deepEqual(ids('subjectiveJevons'), [])
+})
+
+test('P2-03 pontos cegos: o nome interno em camelCase/snake/kebab e em qualquer caixa é acusado (answerAskChoices, AskChoices, ask-choices, StatusReply)', () => {
+  const ids = (text) => namesInText(text).map((m) => m.rule)
+  assert.deepEqual(ids('export async function answerAskChoices(id) {}'), ['ask_choices'])
+  assert.deepEqual(ids('type AskChoices = string'), ['ask_choices'])
+  assert.deepEqual(ids('const ask_choices = 1'), ['ask_choices'])
+  assert.deepEqual(ids('import x from "./ask-choices"'), ['ask_choices'])
+  assert.deepEqual(ids('const StatusReply = 1'), ['statusReply'])
+  assert.deepEqual(ids('moveToBackground() && ThreadTalker.start()'), ['talker', 'moveToBackground'])
+  assert.deepEqual(ids('whoHolds(x)'), ['whoholds'])
+  // vizinhos que NÃO são o nome
+  assert.deepEqual(ids('const taskChoices = 1; const askedChoices = 2'), [])
+  assert.deepEqual(ids('const statusRepliesCount = 1; const talkers = 2'), [])
+  assert.deepEqual(ids('askChoicesAside'), ['ask_choices']) // o nome seguido de outra palavra do identificador AINDA é o nome
+  assert.equal(splitIdentifiers('answerAskChoices'), 'answer_ask_choices')
+})
+
+test('P2-03 pontos cegos: texto SOLTO de JSX (sem aspas, também em várias linhas) entra nas impressões de texto', () => {
+  const FRASE = 'Aqui a equipe decide em conjunto o que fazer com cada pedido que chegou'
+  const solto = `<p className="x">${FRASE}.</p>`
+  assert.equal(jsxTexts(solto).some((item) => item.value.startsWith('Aqui a equipe')), true)
+  const multi = `<div>\n  <p>\n    ${FRASE},\n    sempre com a pessoa por perto.\n  </p>\n</div>`
+  assert.equal(jsxTexts(multi).length > 0, true)
+  // a impressão do JSX é a MESMA de uma string com a mesma frase: um arquivo nosso com `<p>frase</p>` casa com `const t = "frase"` do clone
+  const asJsx = fingerprints(`export const A = () => <p>${FRASE}.</p>\n`).filter((fp) => fp.kind === 'texto').map((fp) => fp.key)
+  const asString = fingerprints(`const t = "${FRASE}."\n`).filter((fp) => fp.kind === 'texto').map((fp) => fp.key)
+  assert.equal(asJsx.some((key) => asString.includes(key)), true)
+  // expressão `{...}` e atributo não viram texto; frase curta também não
+  assert.deepEqual(jsxTexts('<p>{valor}</p><b>oi</b>'), [])
+})
+
+test('P2-03 pontos cegos: o texto JSX idêntico ao do clone reprova de ponta a ponta (clone sintético)', () => {
+  const clone = mkdtempSync(join(tmpdir(), 'cleanroom-jsx-clone-'))
+  const FRASE = 'Aqui a equipe decide em conjunto o que fazer com cada pedido que chegou ate agora'
+  try {
+    mkdirSync(join(clone, 'src'), { recursive: true })
+    writeFileSync(join(clone, 'src', 'Tela.tsx'), `export const T = () => (\n  <section>\n    <p>${FRASE}.</p>\n  </section>\n)\n`)
+    const targets = new Map([['nosso/Aviso.tsx', 'tudo']])
+    const nosso = `export const Aviso = () => <p>${FRASE}.</p>\n`
+    const result = runCheck({ targets, readFile: () => nosso, clone })
+    assert.equal(result.ok, false)
+    assert.equal(result.findings.some((item) => item.kind === 'trecho' && item.rule === 'texto'), true)
+    const limpo = runCheck({ targets, readFile: () => 'export const Aviso = () => <p>Outro texto inteiramente diferente e proprio da nossa tela de avisos.</p>\n', clone })
+    assert.equal(limpo.ok, true)
+  } finally { rmSync(clone, { recursive: true, force: true }) }
 })
 
 test('git de verdade: pega modificado, staged e novo; ignora apagado e linha antiga', () => {

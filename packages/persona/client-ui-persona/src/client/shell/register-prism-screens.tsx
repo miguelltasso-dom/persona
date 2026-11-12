@@ -187,6 +187,8 @@ export function registerPrismScreens(
       },
       // Item 13: "Ligar a IA para a equipe toda". The generated client only knows the new methods after the host lib is rebuilt, so the face is typed by what the screen needs.
       teamConnectRemote: ctx.remote.persona as unknown as TeamConnectRemoteWire,
+      // Carbon P1-09: with no account signed in, the modal of the team connection takes the person to Configurações › Conexões.
+      openConnections: () => { shellHandle.actions.selectPanel('connections') },
       // Item 19a: "Seus números" talks to the same host Remote (the section only draws when the host has the five calls).
       indicatorsRemote: ctx.remote.persona,
       // P1-08: a number's alert is born without any message; its section asks the live store to re-read the Visão geral.

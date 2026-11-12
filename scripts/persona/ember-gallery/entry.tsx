@@ -372,16 +372,19 @@ const codeRow = (over: Partial<CodeRequestRow> = {}): CodeRequestRow => ({
 })
 const codeCard = (row: CodeRequestRow): ReactNode => thread(<CodeRequestCard row={row} t={cofreT} rowTag="div" onFill={async () => {}} onCancel={async () => {}} onRetry={() => {}} />)
 // Passada de leigo (Lumen L5/L6/L7). Dados de exemplo.
-const LEIGO_LABELS = { backlog: 'A fazer', in_progress: 'Fazendo', in_review: 'Em revisão', blocked: 'Bloqueado', done: 'Feito' }
+const LEIGO_LABELS = { todo: 'A fazer', backlog: 'A fazer', in_progress: 'Fazendo', in_review: 'Em revisão', blocked: 'Bloqueado', done: 'Feito' }
 const leigoCard = (id: string, title: string, column: KanbanCardModel['column'], extra: Partial<KanbanCardModel> = {}): ReactNode => (
   <KanbanCard dict={kanbanPt} card={{ id, title, projectId: 'p1', projectName: 'Padaria Lua', teamId: 't1', teamName: 'Marketing', column, waitingEvent: false, blocked: false, reviewApproved: false, ...extra }} draggingId={null} showProject={false} columnLabels={LEIGO_LABELS as never} onDragStart={() => {}} onDragEnd={() => {}} />
 )
+const BIA = { id: 'bia', name: 'Bia', initials: 'B' }
+const NINA = { id: 'nina', name: 'Nina', initials: 'N' }
 const leigoColumns = (): ReactNode => (
   <BoardColumns label="Quadro da equipe">
-    <BoardColumn name="A fazer" category="todo" categoryLabel="A fazer" count={1} emptyLabel="Nada aqui">{leigoCard('c0', 'Legenda do post de sexta', 'backlog')}</BoardColumn>
-    <BoardColumn name="Fazendo" category="doing" categoryLabel="Em andamento" count={1} emptyLabel="Nada aqui">{leigoCard('c1', 'Tabela de preços da semana', 'in_progress', { assignee: { id: 'nina', name: 'Nina', initials: 'N' }, assigneeState: 'working' })}</BoardColumn>
-    <BoardColumn name="Revisão do cliente" category="review" categoryLabel="Em revisão" count={1} emptyLabel="Nada aqui">{leigoCard('c2', 'Cartaz da promoção', 'in_review', { assignee: { id: 'bia', name: 'Bia', initials: 'B' }, assigneeState: 'resting' })}</BoardColumn>
-    <BoardColumn name="Feito" category="done" categoryLabel="Concluído" count={1} emptyLabel="Nada aqui">{leigoCard('c3', 'Foto do pão de queijo', 'done', { assignee: { id: 'bia', name: 'Bia', initials: 'B' }, assigneeState: 'resting' })}</BoardColumn>
+    <BoardColumn name="A fazer" category="todo" categoryLabel="A fazer" count={1} emptyLabel="Nada aqui">{leigoCard('c0', 'Legenda do post de sexta', 'todo', { assignee: BIA, assigneeState: 'resting' })}</BoardColumn>
+    <BoardColumn name="Fazendo" category="doing" categoryLabel="Em andamento" count={1} emptyLabel="Nada aqui">{leigoCard('c1', 'Tabela de preços da semana', 'in_progress', { assignee: NINA, assigneeState: 'working' })}</BoardColumn>
+    <BoardColumn name="Revisão do cliente" category="review" categoryLabel="Em revisão" count={1} emptyLabel="Nada aqui">{leigoCard('c2', 'Cartaz da promoção', 'in_review', { assignee: BIA, assigneeState: 'resting' })}</BoardColumn>
+    <BoardColumn name="Revisão interna" category="review" categoryLabel="Em revisão" count={1} emptyLabel="Nada aqui">{leigoCard('c4', 'Folheto de natal', 'in_review', { assignee: NINA, assigneeState: 'resting', reviewing: { personaId: 'bia' } as never })}</BoardColumn>
+    <BoardColumn name="Feito" category="done" categoryLabel="Concluído" count={1} emptyLabel="Nada aqui">{leigoCard('c3', 'Foto do pão de queijo', 'done', { assignee: BIA, assigneeState: 'resting' })}</BoardColumn>
   </BoardColumns>
 )
 const brainPageOf = (id: string, title: string, kind: BrainPageView['kind'], body = 'Corpo da página.'): BrainPageView => ({

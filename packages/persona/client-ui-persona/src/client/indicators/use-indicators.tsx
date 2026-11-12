@@ -6,7 +6,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 import type { PersonaTenantScope } from '../remote/persona-remote-types.ts'
 import type { IndicatorTestUi, IndicatorUi } from './indicators-model.ts'
-import { indicatorsRemoteFrom, listIndicators, pinIndicator, refreshIndicator, testIndicator, unpinIndicator } from './indicators-remote.ts'
+import { canDismissAlert, dismissIndicatorAlert, indicatorsRemoteFrom, listIndicators, pinIndicator, refreshIndicator, testIndicator, unpinIndicator } from './indicators-remote.ts'
 
 const POLL_MS = 60_000
 
@@ -23,6 +23,8 @@ export interface IndicatorsBinding {
   unpin(id: string): Promise<void>
   /** "Atualizar agora": the value stays while it updates. */
   refresh(id: string): Promise<void>
+  /** "Já vi" on a fall notice (the notice leaves the list at once; the card keeps its border). `undefined` = the host cannot take it. */
+  readonly dismissAlert: ((id: string) => Promise<void>) | undefined
 }
 
 export interface UseIndicatorsInput {
@@ -85,8 +87,25 @@ export function useIndicators({ remote, tenant }: UseIndicatorsInput): Indicator
     }
   }, [host, workspaceId, projectId])
 
+  const dismissAlert = useCallback(async (id: string): Promise<void> => {
+    if (host === undefined) throw new Error('sem host')
+    // The notice leaves the list at once; the host's answer (the number with its alert marked as seen) replaces the optimistic copy.
+    setItems(current => current.map(item => (item.id === id && item.alert !== undefined ? { ...item, alert: { ...item.alert, seen: true as const } } : item)))
+    try {
+      const fresh = await dismissIndicatorAlert(host, { workspaceId, projectId }, id)
+      setItems(current => current.map(item => (item.id === id ? fresh : item)))
+    } catch (error: unknown) {
+      setBump(value => value + 1) // the host knows the real state
+      throw error
+    }
+  }, [host, workspaceId, projectId])
+  const canDismiss = host !== undefined && canDismissAlert(host)
+
   const pinnedMessageIds = useMemo(() => new Set(items.map(item => item.sourceMessageId)), [items])
-  return useMemo(() => (ready ? { items, loaded, pinnedMessageIds, test, pin, unpin, refresh } : undefined), [ready, items, loaded, pinnedMessageIds, test, pin, unpin, refresh])
+  return useMemo(
+    () => (ready ? { items, loaded, pinnedMessageIds, test, pin, unpin, refresh, dismissAlert: canDismiss ? dismissAlert : undefined } : undefined),
+    [ready, items, loaded, pinnedMessageIds, test, pin, unpin, refresh, dismissAlert, canDismiss],
+  )
 }
 
 const IndicatorsContext = createContext<IndicatorsBinding | undefined>(undefined)

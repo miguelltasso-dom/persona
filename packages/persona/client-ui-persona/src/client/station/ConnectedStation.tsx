@@ -11,6 +11,7 @@ import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
 import { useRemoteProjectScope } from '../data/use-remote-project-scope.ts'
 import type { RemoteTenantGate } from '../data/use-remote-tenant-gate.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
+import type { LocalePanelProps } from '../locale/panel-dicts.ts'
 import { pt as stationDict, type StationKey } from '../locale/station/locales.ts'
 import { StationCard, type StationViewUi } from './StationCard.tsx'
 
@@ -22,7 +23,7 @@ function surfaceOf(gate: RemoteTenantGate, state: RemoteLoadState<StationViewUi>
   return 'ready'
 }
 
-export function ConnectedStation({ persona, useTenant, useShell }: LumenRemotePanelProps): ReactNode {
+export function ConnectedStation({ persona, useTenant, useShell, dicts }: LumenRemotePanelProps & LocalePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
@@ -39,7 +40,7 @@ export function ConnectedStation({ persona, useTenant, useShell }: LumenRemotePa
     setCurrent(await call())
   }, [])
 
-  const t = (key: StationKey, params?: Readonly<Record<string, string | number>>): string => bindLocale(stationDict, key, params)
+  const t = (key: StationKey, params?: Readonly<Record<string, string | number>>): string => bindLocale(dicts?.station ?? stationDict, key, params)
   const actions = view === undefined || scope === null ? {} : {
     onIssue: async () => {
       setCode(await unwrapRemote(await persona.issueStationCode({ workspaceId: scope.workspaceId, projectId: scope.projectId })))

@@ -12,6 +12,7 @@ import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
 import { useRemoteProjectScope } from '../data/use-remote-project-scope.ts'
 import type { RemoteTenantGate } from '../data/use-remote-tenant-gate.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
+import type { LocalePanelProps } from '../locale/panel-dicts.ts'
 import { pt as browserDict, type BrowserKey } from '../locale/browser/locales.ts'
 import { BrowserProfilesCard, type BrowserPersonaOption } from './BrowserProfilesCard.tsx'
 import { browserRows, type HostBrowserView } from './browser-wire.ts'
@@ -30,7 +31,7 @@ function surfaceOf(gate: RemoteTenantGate, state: RemoteLoadState<BrowserCardDat
   return (view ?? state.data.view).profiles.length === 0 ? 'empty' : 'ready'
 }
 
-export function ConnectedBrowserProfiles({ persona, useTenant, useShell }: LumenRemotePanelProps): ReactNode {
+export function ConnectedBrowserProfiles({ persona, useTenant, useShell, dicts }: LumenRemotePanelProps & LocalePanelProps): ReactNode {
   const { scope, gate, retryBootstrap } = useRemoteProjectScope(useTenant, useShell)
   const workspaceId = scope?.workspaceId
   const projectId = scope?.projectId
@@ -52,7 +53,7 @@ export function ConnectedBrowserProfiles({ persona, useTenant, useShell }: Lumen
     setCurrent(await unwrapRemote(await call()))
   }, [])
 
-  const t = (key: BrowserKey, params?: Readonly<Record<string, string | number>>): string => bindLocale(browserDict, key, params)
+  const t = (key: BrowserKey, params?: Readonly<Record<string, string | number>>): string => bindLocale(dicts?.browser ?? browserDict, key, params)
   const actions = view === undefined || scope === null ? {} : {
     onCreate: (name: string) => act(() => persona.createBrowserProfile({ workspaceId: scope.workspaceId, projectId: scope.projectId, name })),
     onRename: (profileId: string, name: string) => act(() => persona.renameBrowserProfile({ workspaceId: scope.workspaceId, projectId: scope.projectId, profileId, name })),

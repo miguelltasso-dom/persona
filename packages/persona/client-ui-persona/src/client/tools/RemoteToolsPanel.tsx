@@ -7,8 +7,9 @@ import type { LumenRemotePanelProps, PersonaRemoteClient } from '../data/lumen-i
 import { unwrapRemote } from '../data/remote-call.ts'
 import { usePersonaRemoteLoad } from '../data/use-persona-remote-load.ts'
 import { useRemoteProjectScope } from '../data/use-remote-project-scope.ts'
+import { ConnectedWho } from './ConnectedWho.tsx'
 import { ToolsView, type ToolsSurfaceState } from './ToolsView.tsx'
-import { readCatalog, readHealth, type ToolCatalog, type ToolHealthLine } from './tools-model.ts'
+import { readCatalog, readHealth, type ToolCard, type ToolCatalog, type ToolHealthLine } from './tools-model.ts'
 
 /** The two Remotes of item 26.4 / 26.8 (typed loosely: the screen reads what it needs and drops the rest). */
 interface ToolsWire {
@@ -47,6 +48,7 @@ export function RemoteToolsPanel({ persona, useTenant, useShell }: LumenRemotePa
       catalog={state.status === 'ready' ? state.data.catalog : undefined}
       health={state.status === 'ready' ? state.data.health : []}
       onRetry={() => { retryBootstrap(); retry() }}
+      {...(scope === null ? {} : { whoPanel: (card: ToolCard, close: () => void) => <ConnectedWho persona={persona} scope={{ workspaceId: scope.workspaceId, projectId: scope.projectId }} card={card} onClose={close} /> })}
     />
   )
 }

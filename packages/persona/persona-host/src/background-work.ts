@@ -30,6 +30,10 @@ export interface BackgroundWorkOptions {
 export class BackgroundWork {
   private readonly background = new Set<string>()
   private readonly tasks = new Map<string, Promise<void>>()
+  /** Tool calls seen in the open turn of each tracked Task (the 20th moves it to the background). */
+  private readonly seen = new Map<string, number>()
+  /** Per tracked Task: the way out of its wait for the clock (the tool-call trigger). */
+  private readonly detachers = new Map<string, () => void>()
   private readonly nowMs: () => number
   private readonly afterMs: number
   private readonly afterToolCalls: number
@@ -53,6 +57,11 @@ export class BackgroundWork {
     return this.background.has(ticketId)
   }
 
+  /** The Tasks running in the background right now (the host asks whether ANOTHER Task of the same persona is among them before it hands a runner out). */
+  ids(): string[] {
+    return [...this.background]
+  }
+
   /** How many Tasks are in the background right now. */
   size(): number {
     return this.background.size
@@ -69,11 +78,14 @@ export class BackgroundWork {
    */
   run(ticketId: string, task: Promise<void>, startedAt?: string, toolCalls = 0, onDetach?: (ticketId: string) => void): Promise<void> {
     this.tasks.set(ticketId, task)
+    this.seen.set(ticketId, toolCalls)
     const settle = (): void => {
       // A newer run of the same Task may already own the entry: only the promise that is still stored may clear it.
       if (this.tasks.get(ticketId) !== task) return
       this.tasks.delete(ticketId)
       this.background.delete(ticketId)
+      this.seen.delete(ticketId)
+      this.detachers.delete(ticketId)
     }
     task.then(settle, settle)
     if (this.isBackground(ticketId)) return Promise.resolve()
@@ -88,6 +100,7 @@ export class BackgroundWork {
       resolve()
     }, remaining)
     timer.unref()
+    this.detachers.set(ticketId, () => { clearTimeout(timer); this.detach(ticketId, onDetach); resolve() })
     task.then(() => { clearTimeout(timer); resolve() }, () => { clearTimeout(timer); resolve() })
     return promise
   }
@@ -106,6 +119,18 @@ export class BackgroundWork {
     return Math.max(0, this.afterMs - (this.nowMs() - started))
   }
 
+  /**
+   * One tool call in the open turn of a Task, as the runner streams it. The 20th moves the Task to the background even before the 4 minutes (the time
+   * trigger alone never saw a Task that works fast and long). A Task the book does not track (a talk turn, a triage) counts for nothing.
+   * @param ticketId - Task whose turn called the tool.
+   */
+  toolCalled(ticketId: string): void {
+    if (!this.tasks.has(ticketId)) return
+    const next = (this.seen.get(ticketId) ?? 0) + 1
+    this.seen.set(ticketId, next)
+    if (next >= this.afterToolCalls) this.detachers.get(ticketId)?.()
+  }
+
   /** Wait for every Task that is still running in the background (tests and any caller that must wait). Shutdown does not wait:
    * a Task cut by the app closing is recovered on the next boot, the same as any interrupted Task.
    */
@@ -117,6 +142,8 @@ export class BackgroundWork {
   reset(): void {
     this.tasks.clear()
     this.background.clear()
+    this.seen.clear()
+    this.detachers.clear()
   }
 
   private detach(ticketId: string, onDetach?: (ticketId: string) => void): void {

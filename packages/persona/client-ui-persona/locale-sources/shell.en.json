@@ -370,6 +370,8 @@
   "teamAi.refused.noAccount": "Sign in to a Claude or Codex account and try again.",
   "teamAi.refused.noOne": "Everyone on the team has AI now.",
   "teamAi.refused.failed": "I could not turn it on now. Try again.",
+  "teamAi.dialog.noAccount.text": "No AI subscription is signed in on this computer yet. Sign in to Claude, Codex or another engine in Connections and come back: the whole team connects at once.",
+  "teamAi.dialog.noAccount.action": "Open Connections",
   "rail.ai.unconfirmed": "{engine} · could not check",
   "rail.ai.retry": "Try again"
 }

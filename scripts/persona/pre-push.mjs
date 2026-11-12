@@ -16,6 +16,13 @@ if (process.env.PERSONA_PUSH_GATE !== 'persona') {
   process.exit(run('pnpm', ['run', 'typecheck']).status ?? 1)
 }
 
+// Head closure (Gauge, Keel 12/11): a stamp covers the tree the gate ran on, but the COMMIT is what leaves. Every relative import of HEAD must resolve inside HEAD (a new file
+// left without `git add` builds here and breaks the push). A few seconds of pure git, so it runs on EVERY persona push, stamp or not.
+if (run('node', ['scripts/persona/check-head-closure.mjs']).status !== 0) {
+  console.error('[pre-push] head closure FAILED: a relative import of HEAD does not resolve inside HEAD (a new file not added to the commit?). Fix and commit.')
+  process.exit(1)
+}
+
 const stampPath = join(root, '.maestri', 'tmp', 'persona-gate-ok.json')
 const tree = spawnSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: root, encoding: 'utf8' }).stdout.trim()
 if (existsSync(stampPath)) {

@@ -1,0 +1,80 @@
+/*
+ * "Seus números" · os avisos de queda dentro do cartão "Precisa de você" (P1-08). Mesmo ritmo das linhas de decisão da Visão geral (12 px de vão,
+ * fio suave entre linhas), mas o texto do aviso é o de um AVISO: "Aviso · Seus números". Só tokens `--persona-*`.
+ */
+.list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--persona-space-3);
+  padding: var(--persona-space-3) 0;
+  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
+.item:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.item:last-child {
+  padding-bottom: 0;
+}
+
+.icon {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border: var(--persona-border-width) solid var(--persona-outline);
+  border-radius: var(--persona-radius-s);
+  background: var(--persona-accent);
+  color: var(--persona-accent-ink);
+}
+
+/* Frase e botões num bloco só: a frase pede ao menos 14rem; sem essa largura os botões descem para baixo dela (janela estreita, zoom de 200%). */
+.body {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2) var(--persona-space-3);
+  min-width: 0;
+}
+
+.text {
+  display: flex;
+  flex: 1 1 14rem;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kind {
+  color: var(--persona-ink-soft);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 16px;
+}
+
+.title {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22px;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--persona-space-2);
+}

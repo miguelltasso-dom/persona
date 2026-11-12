@@ -61,6 +61,13 @@
   color: var(--persona-ink-soft);
 }
 
+/* P1-10: a house lock row = the switch beside its name (the name is the switch's accessible name). */
+.lockHead {
+  display: flex;
+  align-items: center;
+  gap: var(--persona-space-3);
+}
+
 /* UX-05: save row under the presets; primary (amber) only when something changed. */
 .saveRow {
   display: flex;

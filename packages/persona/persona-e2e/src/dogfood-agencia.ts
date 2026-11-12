@@ -99,7 +99,7 @@ export async function runAgenciaDogfood(): Promise<AgenciaDogfoodReport> {
     if (await page.getByRole('heading', { name: onboarding.step1Title }).count() > 0) {
       await page.getByPlaceholder(onboarding.step1Placeholder).fill('Miguel')
       await page.getByRole('button', { name: onboarding.continue, exact: true }).last().click()
-      await page.getByText(onboarding.step2VaultBadge).waitFor({ state: 'visible', timeout: 30_000 })
+      await page.getByLabel('Sobre a empresa').getByText(onboarding.step2VaultBadge, { exact: true }).waitFor({ state: 'visible', timeout: 30_000 })
       const byc = page.getByPlaceholder(/colar|Descreva/i).first()
       if (await byc.count() > 0) {
         await byc.fill(`${COMPANY}\n\n${BYC_PASTE}`)

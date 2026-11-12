@@ -20,7 +20,9 @@ const shapes = (svg: Element): string[] => [...svg.querySelectorAll('path, circl
   [el.tagName.toLowerCase(), ...[...el.attributes].map(a => `${a.name}=${a.value}`).sort()].join(' ')).sort() // stroke-only: order does not change the drawing
 const parse = (markup: string): Element => new DOMParser().parseFromString(markup, 'image/svg+xml').documentElement
 
-describe('UiIcon uses Brush glyphs', () => {
+// P2-02 (Keel, D-110): persona-assets/ is NOT in git (only the build is versioned), so on a clean clone there is no source to compare against. The suite is SKIPPED, and its name says why
+// (never a silent pass); on the owner's PC the folder exists, this runs and fails for real when a glyph drifts.
+describe.skipIf(!existsSync(dir))('UiIcon uses Brush glyphs (needs persona-assets/, not in git by D-110: skipped on a clean clone, runs on the owner PC)', () => {
   it('found the delivered glyphs', () => {
     expect(glyphs.length).toBeGreaterThanOrEqual(24)
   })

@@ -155,18 +155,18 @@ describe('Arquivos', () => {
 })
 
 describe('cartões do quadro · regra 0.2', () => {
-  it('"Trabalhando" é verde (o tom do vocabulário único), "Aguardando você" âmbar, "Travada" vermelho', () => {
+  it('o cartão em andamento diz "Bento está fazendo" em verde (o tom do vocabulário único); o estado da persona (Trabalhando, Esperando você, Precisa de ajuda) fica no rosto e no rail, nunca no cartão (Muse + Atlas, 12/11)', () => {
     expect(PERSONA_STATE_CHIP_TONE.working).toBe('success')
     const withState = (state: 'working' | 'waiting' | 'stuck') => ({ ...card(`s-${state}`, 'c1', 'in_progress'), assigneeState: state, assignee: { id: 'bento', name: 'Bento', initials: 'B' } })
-    for (const [state, label] of [['working', kanbanPt['chip.state.working']], ['waiting', kanbanPt['chip.state.waiting']], ['stuck', kanbanPt['chip.state.stuck']]] as const) {
+    for (const [state, label] of [['working', 'Bento está fazendo'], ['waiting', 'Bento está fazendo'], ['stuck', 'Bento está fazendo']] as const) {
       const view = render(
         <PreviewFrame brandLabel="Persona">
           <KanbanCard dict={kanbanPt} card={withState(state)} draggingId={null} showProject={false} columnLabels={{ todo: 'a', in_progress: 'b', in_review: 'c', blocked: 'd', done: 'e' }} onDragStart={vi.fn()} onDragEnd={vi.fn()} />
         </PreviewFrame>,
       )
       const chip = within(view.container).getByText(label)
-      const expected = PERSONA_STATE_CHIP_TONE[state]
-      expect(chip.className, state).toContain(expected)
+      expect(chip.className, state).toContain('success') // the card is being worked on: green, whatever the persona's own state is
+      expect(view.container.textContent, state).not.toMatch(/Trabalhando|Esperando você|Aguardando você|Precisa de ajuda|Travada|Descansando/u)
       view.unmount()
     }
   })

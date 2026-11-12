@@ -50,7 +50,7 @@ export async function walkOnboardingToStep5(
   await page.getByPlaceholder(onboarding.step1Placeholder).fill(name)
   await continueBtn.click()
 
-  await page.getByText(onboarding.step2VaultBadge).waitFor({ state: 'visible' })
+  await page.getByLabel('Sobre a empresa').getByText(onboarding.step2VaultBadge, { exact: true }).waitFor({ state: 'visible' })
   await page.getByPlaceholder('Descreva em linguagem natural ou cole um texto…')
     .fill('Agência Ponto — estúdio de sites e campanhas para PMEs. Cliente atual: Padaria Lua.')
   await shot?.('02-step2')

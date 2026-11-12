@@ -43,6 +43,17 @@ presenceOf(scope): Array<{ actor: string; name: string; state: 'online' | 'ausen
 ```
 Mapeamento do hub → tela: `online`→bolinha verde, `away`/`busy`→anel lavanda (ausente), sem socket→`fora` (sem bolinha). O dono aparece `online` só enquanto o PC dele está ligado: **sem o PC do dono as personas não respondem** (estado `Esperando <dono> voltar`, nunca erro técnico).
 
+## 2b. O que JÁ está no host (12/11 06:45, `@Remote` em PersonaHost; prova: `apps/persona-edge/tests/invite-link-flow.spec.ts`, 2 hosts reais × worker Miniflare)
+| Ação | Assinatura real (tipos em `persona-host/src/types.ts`) | Observação |
+|---|---|---|
+| Dono: criar link | `createInviteLink(IssueInviteRequest + teamName?) -> InviteLinkView { inviteId, link, expiresAt }` | 1 pessoa, 7 dias, nome da equipe limpo (≤ 80, sem controle); exige a equipe conectada ao hub |
+| Convidado: prévia | `previewInvite({ link, edgeUrl }) -> InvitePreview` | `{ ok:true, teamId, teamName\|null, projectId, expiresAt }` ou `{ ok:false, error }` com `LINK_INVALIDO` · `CONVITE_VENCIDO` · `CONVITE_USADO` · `CONVITE_REVOGADO` · `SEM_CONEXAO`; não cria nada e não pede nada |
+| Convidado: pedir | `joinTeamFromLink({ workspaceId, projectId, link, edgeUrl }) -> RemoteTeamState` | relê o link (estrito) e exige que o time do link seja `workspaceId`; o estado fica `offline` + `PENDING_APPROVAL` até o dono decidir |
+| Dono: cartões | `listJoinRequests(scope) -> JoinRequestView[]` | `{ id, actorId, displayName\|null, requestedAt, securityCode }`; só o dono da equipe |
+| Dono: decidir | `decideJoinRequest({ ...scope, requestId, allow }) -> boolean` | `allow:true` embrulha as chaves de canal só para a pessoa; `false` recusa; só o dono |
+
+**Ainda NÃO existe (próximas fatias):** o papel `conversar_e_aprovar` (ChoiceCards), `joinStatus`/`cancelJoinRequest`, `presenceOf` (a F3 já empurra a presença no WebSocket do hub; falta o host expor), a criação do workspace local da equipe ao aceitar (hoje o `workspaceId` local precisa ser o time do link: é a "2ª empresa no trilho", decisão de produto com Flint/Ember) e a abertura **a frio** por link (app fechado). O `edgeUrl` vem da configuração do produto (pergunta 3 abaixo), nunca do link. Uma mensagem de erro de uma ação `@Remote` chega à tela mascarada (`…`): a tela decide o texto pela PRÉVIA, não pelo erro do pedido.
+
 ## 3. Estados que a tela precisa (cada um com texto de Muse, sem jargão)
 | Tela | Estados |
 |---|---|

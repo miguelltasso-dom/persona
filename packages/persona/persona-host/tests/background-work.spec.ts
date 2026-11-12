@@ -155,3 +155,37 @@ it('driveTicket frees the work chain at 4 minutes and posts the promise line', a
   await run
   expect(backgroundWorkOf(h.orchestration).isBackground('t1')).toBe(false)
 })
+
+it('the 20th tool call of the open turn moves the Task to the background long before the 4 minutes; calls of a Task the book does not track count for nothing', async () => {
+  const detached: string[] = []
+  const book = new BackgroundWork({ afterMs: 60_000, afterToolCalls: 20, onDetach: (id) => { detached.push(id) } })
+  const { promise: task, resolve: finish } = Promise.withResolvers<undefined>()
+  book.toolCalled('ghost') // nobody runs it: nothing is kept
+  const run = book.run('t1', task.then(() => undefined))
+  for (let call = 0; call < 19; call += 1) book.toolCalled('t1')
+  expect(book.isBackground('t1')).toBe(false)
+  book.toolCalled('t1')
+  await run // the chain is free, the Task is still open
+  expect(book.isBackground('t1')).toBe(true)
+  expect(detached).toEqual(['t1'])
+  book.toolCalled('t1') // after the detach nothing changes (the line is said once)
+  expect(detached).toEqual(['t1'])
+  finish(undefined)
+  await book.whenIdle()
+  expect(book.isBackground('t1')).toBe(false)
+})
+
+it('a restarted run of the same Task counts from the calls it brings, not from the old turn', async () => {
+  const book = new BackgroundWork({ afterMs: 60_000, afterToolCalls: 20 })
+  const { promise: first, resolve: end } = Promise.withResolvers<undefined>()
+  void book.run('t2', first.then(() => undefined))
+  for (let call = 0; call < 15; call += 1) book.toolCalled('t2')
+  end(undefined)
+  await book.whenIdle()
+  const { promise: second, resolve: endSecond } = Promise.withResolvers<undefined>()
+  void book.run('t2', second.then(() => undefined))
+  for (let call = 0; call < 10; call += 1) book.toolCalled('t2')
+  expect(book.isBackground('t2')).toBe(false) // 15 + 10 would have detached it
+  endSecond(undefined)
+  await book.whenIdle()
+})

@@ -1,5 +1,32 @@
 const STORAGE_KEY = 'persona.onboarding.complete.v1'
 const STEP_DRAFT_KEY = 'persona.onboarding.step.v1'
+const DISPLAY_NAME_KEY = 'persona.onboarding.displayName.v1'
+
+/**
+ * The name the person typed in step 1 ("Como podemos te chamar?"). The member the app creates before the onboarding is called "Você" and the host keeps the first member it
+ * sees, so the typed name is remembered here and the greeting uses it while the member still has the placeholder (Muse L8: "Olá, Miguel!").
+ */
+export function writeOnboardingDisplayName(name: string): void {
+  if (typeof localStorage === 'undefined') return
+  const trimmed = name.trim()
+  if (trimmed === '') return
+  try {
+    localStorage.setItem(DISPLAY_NAME_KEY, trimmed)
+  } catch {
+    /* private mode */
+  }
+}
+
+/** @returns The name typed in step 1, or `undefined` when none was remembered. */
+export function readOnboardingDisplayName(): string | undefined {
+  if (typeof localStorage === 'undefined') return undefined
+  try {
+    const value = localStorage.getItem(DISPLAY_NAME_KEY)?.trim() ?? ''
+    return value === '' ? undefined : value
+  } catch {
+    return undefined
+  }
+}
 
 /** Optimistic cache: user finished step 5 in this browser (not authoritative vs host). */
 export function readOnboardingCacheComplete(): boolean {

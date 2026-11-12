@@ -183,6 +183,32 @@ test('E2E sucesso: o build REAL gera tudo, preserva o que é escrito à mão, ti
   } finally { rmSync(s.root, RM) }
 })
 
+test('P2-02 clone limpo (persona-assets/ fora do git, D-110): o build PULA com mensagem clara, exit 0, e o assets/ versionado fica EXATAMENTE como estava (sem trava nem staging)', async () => {
+  const s = await sandbox()
+  try {
+    rmSync(join(s.root, 'persona-assets'), RM) // um clone limpo: a fonte não existe
+    seedReal(s)
+    const before = tree(s.out)
+    const run = runBuild(s.root)
+    assert.equal(run.status, 0, run.stdout + run.stderr)
+    assert.match(run.stdout, /SKIP build-assets: .*persona-assets.*não existe.*D-110/u) // nunca em silêncio
+    assert.deepEqual(tree(s.out), before)
+    assert.deepEqual(leftovers(s), [])
+    assert.equal(existsSync(s.lock), false)
+  } finally { rmSync(s.root, RM) }
+})
+
+test('P2-02 no PC do dono (persona-assets/ existe) o build NÃO pula: uma fonte torta continua reprovando', async () => {
+  const s = await sandbox()
+  try {
+    seedReal(s)
+    writeFileSync(join(s.root, 'persona-assets/vivas/panda/mask.json'), '{ nao e json')
+    const run = runBuild(s.root)
+    assert.equal(run.status, 1, run.stdout + run.stderr)
+    assert.doesNotMatch(run.stdout, /SKIP build-assets/u)
+  } finally { rmSync(s.root, RM) }
+})
+
 test('E2E falha CEDO (mask.json/canvas torto): exit 1, mensagem das vivas, e o assets/ REAL fica EXATAMENTE como estava', async () => {
   const s = await sandbox()
   try {

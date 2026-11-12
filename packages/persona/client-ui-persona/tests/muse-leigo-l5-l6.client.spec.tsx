@@ -72,9 +72,10 @@ describe('L6 · o cartão feito diz quem fez', () => {
     expect(container.querySelector('[data-card-done-by]')).toBeNull()
   })
 
-  it('cartão em andamento continua mostrando o estado da persona', () => {
+  it('cartão em andamento diz o estado DO CARTÃO ("Bia está fazendo"), nunca o da persona (Muse + Atlas, 12/11)', () => {
     render(card({ ...DONE, column: 'in_progress', assigneeState: 'working' }))
     expect(screen.queryByText(/Feito por/u)).toBeNull()
-    expect(screen.getByText('Trabalhando')).toBeTruthy()
+    expect(screen.getByText('Bia está fazendo')).toBeTruthy()
+    expect(screen.queryByText('Trabalhando')).toBeNull()
   })
 })

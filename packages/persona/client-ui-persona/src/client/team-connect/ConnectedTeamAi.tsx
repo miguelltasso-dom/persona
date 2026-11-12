@@ -9,13 +9,15 @@ export interface ConnectedTeamAiProps extends PropsLocale<'persona.shell'> {
   readonly remote: TeamConnectRemoteWire | undefined
   readonly workspaceId: string | undefined
   readonly projectId: string | undefined
+  /** Carbon P1-09: opens Configurações › Conexões (the modal with no account to wake the team with points there). Absent = the old, disabled button. */
+  readonly onOpenConnections?: (() => void) | undefined
 }
 
 /**
  * Item 13: a faixa "N pessoas da equipe estão sem IA" na Visão geral, ligada ao host, e o modal que liga a equipe toda de uma vez. Sem host (ou sem o método) não há faixa:
  * a tela nunca afirma "sem IA" por falta de resposta. O host só conta quem teve o motor CONFIRMADO sem login/instalação; quem ainda está sendo conferido não entra.
  */
-export function ConnectedTeamAi({ t, remote, workspaceId, projectId }: ConnectedTeamAiProps): ReactNode {
+export function ConnectedTeamAi({ t, remote, workspaceId, projectId, onOpenConnections }: ConnectedTeamAiProps): ReactNode {
   const scope = useMemo(() => (workspaceId === undefined || projectId === undefined ? null : { workspaceId, projectId }), [workspaceId, projectId])
   const team = useTeamConnect(remote, scope, { enabled: scope !== null && remote !== undefined })
   const count = team.ai.without.length
@@ -37,6 +39,7 @@ export function ConnectedTeamAi({ t, remote, workspaceId, projectId }: Connected
         onStart={() => { void team.start() }}
         onRetryOne={(personaId) => { void team.retryOne(personaId) }}
         onClose={team.closeDialog}
+        onOpenConnections={onOpenConnections}
       />
     </>
   )

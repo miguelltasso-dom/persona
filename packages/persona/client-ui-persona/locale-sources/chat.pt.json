@@ -197,6 +197,8 @@
   "composer.autonomy.on-request": "Sempre pergunta",
   "composer.autonomy.propose": "Sugere e espera",
   "composer.autonomy.act-within-limits": "Decide o rotineiro",
+  "composer.autonomy.tip.on-request": "{name} sempre pergunta antes de qualquer ação.",
+  "composer.autonomy.tip.act-within-limits": "{name} decide o rotineiro dentro dos limites.",
   "subjects.complete": "Concluir assunto",
   "subjects.snooze3h": "Lembrar depois · 3 h",
   "subjects.snoozeTomorrow": "Lembrar depois · amanhã 9:00",

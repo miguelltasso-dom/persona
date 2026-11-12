@@ -2,7 +2,6 @@ import { Component, type ErrorInfo, type ReactNode } from 'react'
 import { ILLUSTRATIONS } from '../assets/generated-imports.ts'
 import { Button } from './Button.tsx'
 import { EmptyState } from './Feedback.tsx'
-import { UiIcon } from './icons.tsx'
 
 export interface ErrorStateProps {
   readonly title: ReactNode
@@ -27,7 +26,7 @@ export function ErrorState({ title, body, retryLabel, onRetry, detail, detailLab
           <>
             {body}
             {detail !== undefined && detail.length > 0 && (
-              <details style={{ marginTop: 8, fontSize: 12, color: 'var(--persona-ink-soft)' }}>
+              <details style={{ marginTop: 8, fontSize: 13, color: 'var(--persona-ink-soft)' }}>
                 <summary style={{ cursor: 'pointer' }}>{detailLabel}</summary>
                 <code style={{ display: 'block', marginTop: 6, userSelect: 'text', overflowWrap: 'anywhere' }}>{detail}</code>
               </details>
@@ -35,7 +34,8 @@ export function ErrorState({ title, body, retryLabel, onRetry, detail, detailLab
           </>
         )}
         action={retryLabel !== undefined && onRetry !== undefined ? (
-          <Button variant="primary" icon={<UiIcon name="arrowRight" size={18} strokeWidth={2.2} />} onClick={onRetry}>{retryLabel}</Button>
+          // Muse 12/11: "Tentar de novo" sem seta (a seta quer dizer "ir para"; aqui é refazer no mesmo lugar).
+          <Button variant="primary" onClick={onRetry}>{retryLabel}</Button>
         ) : undefined}
       />
     </div>

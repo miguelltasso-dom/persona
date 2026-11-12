@@ -6,6 +6,7 @@
 
 import type { ReactNode } from 'react'
 import type { LumenRemotePanelProps } from '../data/lumen-inject.ts'
+import type { LocalePanelProps } from '../locale/panel-dicts.ts'
 import { RemoteConnectionsPanel } from '../data/lumen-remote-panels.tsx'
 import { RemoteTeamCard } from '../members/RemoteTeamCard.tsx'
 import { ConnectedBrowserProfiles } from '../browser/ConnectedBrowserProfiles.tsx'
@@ -13,7 +14,7 @@ import { ConnectedStation } from '../station/ConnectedStation.tsx'
 import { SettingsScrollFrame } from './SettingsScrollFrame.tsx'
 import styles from './SettingsConnectionsTab.module.css'
 
-export function SettingsConnectionsTab(props: LumenRemotePanelProps): ReactNode {
+export function SettingsConnectionsTab(props: LumenRemotePanelProps & LocalePanelProps): ReactNode {
   return (
     <SettingsScrollFrame>
       <div className={styles.stack}>

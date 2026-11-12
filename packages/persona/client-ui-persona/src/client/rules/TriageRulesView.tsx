@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { Button, Card, ChoiceCards, Chip, Input, Screen, ScreenHeader } from '../primitives/index.ts'
+import { Button, Card, ChoiceCards, Chip, Input, Screen, ScreenHeader, Switch } from '../primitives/index.ts'
 import type { LocaleDict } from '../preview/locale-bind.ts'
 import { bindLocale } from '../preview/locale-bind.ts'
 import styles from './RulesProactivity.module.css'
@@ -8,6 +8,17 @@ import type { ProactivityLimits, QuietWindow, TriageRule, TriageSimulationLog } 
 import { pt as defaultDict } from '../locale/rules/locales.ts'
 
 export type RulesSurfaceState = 'loading' | 'error' | 'empty' | 'ready'
+
+/** The kinds of lock the host obeys (`getRuleKinds`); the screen offers only these (HONEST-1). */
+export type HouseLockKind = 'never-spend' | 'never-send' | 'never-publish' | 'never-delete' | 'never-hire'
+
+/** One lock as the card draws it: the switch state comes from the host (a saved rule of that kind), never from a local guess. */
+export interface HouseLockUi {
+  readonly kind: HouseLockKind
+  readonly on: boolean
+  /** How many times it really held something back; the line only exists when the host said so. */
+  readonly applied?: { readonly thisWeek: number; readonly lastWhat?: string | undefined } | undefined
+}
 
 export interface TriageRulesViewProps {
   readonly dict?: LocaleDict
@@ -24,6 +35,10 @@ export interface TriageRulesViewProps {
    * no "create rule" and no recipe is offered for something the team would not follow.
    */
   readonly obeyed?: { readonly quietWindows?: boolean; readonly newRules?: boolean } | undefined
+  /** P1-10: the locks the host obeys, with their state. Shown only with `obeyed.newRules` AND a handler (no dead switch). */
+  readonly houseLocks?: readonly HouseLockUi[] | undefined
+  /** Turns a lock on or off; a rejection means the host refused (the card says so and the switch stays where the host has it). */
+  readonly onToggleLock?: ((kind: HouseLockKind, on: boolean) => void | Promise<void>) | undefined
 }
 
 /** UX-05: budgets as plain-language presets; raw numbers only under "Personalizar". */
@@ -70,9 +85,32 @@ export function TriageRulesView({
   onRemoteRetry,
   onEmptyPrimary,
   obeyed,
+  houseLocks,
+  onToggleLock,
 }: TriageRulesViewProps): ReactNode {
   const t = (key: string, params?: Readonly<Record<string, string | number>>) => bindLocale(dict, key, params)
   const canCreateRules = obeyed?.newRules === true
+  const showLocks = canCreateRules && houseLocks !== undefined && houseLocks.length > 0 && onToggleLock !== undefined
+  const [lockBusy, setLockBusy] = useState<HouseLockKind | undefined>(undefined)
+  const [lockFailed, setLockFailed] = useState(false)
+  const toggleLock = (kind: HouseLockKind, on: boolean): void => {
+    if (onToggleLock === undefined || lockBusy !== undefined) return
+    setLockBusy(kind)
+    setLockFailed(false)
+    void Promise.resolve()
+      .then(() => onToggleLock(kind, on))
+      .catch(() => { setLockFailed(true) })
+      .finally(() => { setLockBusy(undefined) })
+  }
+  /** "Barrou 2 vezes esta semana · última: pagar pelo Gmail": only when the host said it happened (never a made-up count). */
+  const appliedLine = (applied: HouseLockUi['applied']): string | undefined => {
+    if (applied === undefined || applied.thisWeek <= 0) return undefined
+    const line = t(applied.thisWeek === 1 ? 'applied.week.one' : 'applied.week', { n: applied.thisWeek })
+    const what = applied.lastWhat?.trim() ?? ''
+    return what === '' ? line : t('applied.last', { line, what })
+  }
+  // With the lock card, the rules that ARE a lock live there (one switch each); the list keeps the free-text ones.
+  const listedRules = showLocks ? rules.filter(rule => rule.kind === undefined) : rules
   const [limits, setLimits] = useState<ProactivityLimits>(limitsProp ?? {
     maxProposalsPerDay: 3,
     tokensPerPersonaMonth: 500_000,
@@ -207,6 +245,28 @@ export function TriageRulesView({
         </div>
       </Card>
 
+      {showLocks && (
+        <Card padding="m" as="section" aria-labelledby="persona-rules-locks" title={t('locks.title')} eyebrow={t('locks.subtitle')}>
+          <ul className={styles.ruleList}>
+            {houseLocks.map((lock) => {
+              const nameId = `persona-lock-${lock.kind}`
+              const line = appliedLine(lock.applied)
+              return (
+                <li key={lock.kind} className={styles.ruleRow} data-house-lock={lock.kind}>
+                  <div className={styles.lockHead}>
+                    <Switch checked={lock.on} disabled={lockBusy !== undefined} labelledBy={nameId} onChange={(next) => { toggleLock(lock.kind, next) }} />
+                    <span id={nameId} className={styles.ruleText}>{t(`locks.${lock.kind}`)}</span>
+                  </div>
+                  <p className={styles.ruleMeta}>{t(`locks.${lock.kind}.hint`)}</p>
+                  {line !== undefined && <p className={styles.ruleMeta} data-lock-applied="">{line}</p>}
+                </li>
+              )
+            })}
+          </ul>
+          {lockFailed && <p className={styles.ruleMeta} role="alert">{t('locks.failed')}</p>}
+        </Card>
+      )}
+
       {obeyed?.quietWindows === true && (
         <Card padding="m" as="section" aria-labelledby="persona-rules-quiet" title={t('quiet.title')} eyebrow={t('quiet.subtitle')}>
           <ul className={styles.quietList}>
@@ -221,10 +281,12 @@ export function TriageRulesView({
 
       <Card padding="m" as="section" aria-labelledby="persona-rules-triage" title={t('triage.title')}>
         <ul className={styles.ruleList}>
-          {rules.map(rule => (
+          {listedRules.map(rule => (
             <li key={rule.id} className={styles.ruleRow}>
               <p className={styles.ruleText}>{rule.gateText}</p>
               <p className={styles.ruleMeta}>{rule.assessmentText}</p>
+              {/* HONEST-1: a rule that is only text is noted, not obeyed; the screen never promises anything about it. */}
+              {rule.enforced === false && <p className={styles.ruleMeta} data-rule-noted="">{t('rule.noted')}</p>}
               {/* "Última aplicação": a line only when the host said it (never an invented count). */}
               {rule.lastApplied !== undefined && rule.lastApplied.trim() !== '' && (
                 <p className={styles.ruleMeta} data-rule-last-applied="">{rule.lastApplied}</p>
@@ -235,7 +297,7 @@ export function TriageRulesView({
             </li>
           ))}
         </ul>
-        {rules.length === 0 && <p className={styles.ruleMeta}>{t('empty.title')}</p>}
+        {listedRules.length === 0 && <p className={styles.ruleMeta}>{t('empty.title')}</p>}
       </Card>
 
       <Card padding="m" as="section" aria-labelledby="persona-rules-log" title={t('log.title')} eyebrow={t('log.subtitle')}>

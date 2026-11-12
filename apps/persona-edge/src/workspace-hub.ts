@@ -132,6 +132,12 @@ export class WorkspaceHub implements DurableObject {
         const input: JoinRequestInput = await request.json()
         return await this.requestJoin(workspaceId, rest[1] ?? '', input)
       }
+      if (rest[0] === 'join-requests' && rest[1] === 'mine' && rest.length === 2 && request.method === 'GET') {
+        return this.myJoinRequest(request.headers.get('x-persona-actor') ?? '')
+      }
+      if (rest[0] === 'join-requests' && rest[1] === 'mine' && rest[2] === 'cancel' && rest.length === 3 && request.method === 'POST') {
+        return this.cancelMyJoinRequest(request.headers.get('x-persona-actor') ?? '')
+      }
       if (rest[0] === 'join-requests' && rest.length === 1 && request.method === 'GET') {
         const denied = this.denyOwner(request)
         if (denied !== undefined) return denied
@@ -386,8 +392,11 @@ export class WorkspaceHub implements DurableObject {
       grant: input.grant,
       ...(input.ttlMs === undefined ? {} : { ttlMs: input.ttlMs }),
     })
-    this.putInvite({ ...invite, token: await inviteTokenDigest(invite.token) })
-    return Response.json({ invite })
+    // F4: the team's name rides with the invite (a plain extra field of the stored body: `Invite` itself is the domain's and does not know it).
+    const teamName = cleanTeamName(input.teamName)
+    const stored: Invite & { teamName?: string } = { ...invite, token: await inviteTokenDigest(invite.token), ...(teamName === undefined ? {} : { teamName }) }
+    this.putInvite(stored)
+    return Response.json({ invite: { ...invite, ...(teamName === undefined ? {} : { teamName }) } })
   }
 
   /**
@@ -609,13 +618,17 @@ export class WorkspaceHub implements DurableObject {
       if (method === 'POST') return this.refuse('AUTH_NOT_INTERNAL')
     }
     headers.delete('x-persona-internal')
+    // F4: a person who has only ASKED (not a member yet) reads, and may cancel, THEIR OWN request: signed with the key they asked with, which is the only key the hub knows for them.
+    const mine = rest[0] === 'join-requests' && rest[1] === 'mine' && (method === 'GET' ? rest.length === 2 : method === 'POST' && rest[2] === 'cancel' && rest.length === 3)
     const selfCertified = (method === 'POST' && rest[0] === 'members' && rest.length === 1 && !this.hasActiveMembers())
       || (method === 'POST' && rest[0] === 'invites' && rest[2] === 'request' && rest.length === 3)
     const proof = selfCertified ? proofOf(bytes) : undefined
     if (selfCertified && proof === undefined) return this.refuse('AUTH_MALFORMED')
     const result = await verifyRequest(
       { method, target: `${url.pathname}${url.search}`, authorization: headers.get('authorization'), body: bytes },
-      actor => (proof === undefined ? this.getMember(actor)?.keys?.signing : actor === proof.actor ? proof.signing : undefined),
+      actor => (proof === undefined
+        ? this.getMember(actor)?.keys?.signing ?? (mine ? this.latestJoinRequestOf(actor)?.keys.signing : undefined)
+        : actor === proof.actor ? proof.signing : undefined),
       new SqlReplayStore(this.sql),
       Date.now(),
     )
@@ -642,6 +655,34 @@ export class WorkspaceHub implements DurableObject {
     )
   }
 
+  /** @returns The newest request this person made (the key they asked with is in it), or `undefined`. */
+  private latestJoinRequestOf(actorId: string): JoinRequest | undefined {
+    const body = firstBody(this.sql.all('SELECT body FROM join_request WHERE actor_id = ? ORDER BY rowid DESC LIMIT 1', [actorId]))
+    return body === undefined ? undefined : JSON.parse(body) as JoinRequest
+  }
+
+  /**
+   * F4: where THEIR request stands (`pending`, `approved`, `denied` or `cancelled`). The call is signed with the key they asked with, so a person reads only their own.
+   * @param actorId - The verified caller.
+   */
+  myJoinRequest(actorId: string): Response {
+    const mine = this.latestJoinRequestOf(actorId)
+    if (mine === undefined) return Response.json({ code: 'NO_REQUEST' }, { status: 404 })
+    return Response.json({ request: { id: mine.id, status: mine.decision ?? 'pending', requestedAt: mine.requestedAt, ...(mine.decidedAt === undefined ? {} : { decidedAt: mine.decidedAt }) } })
+  }
+
+  /**
+   * F4: "Cancelar pedido". Only a request nobody decided yet can be withdrawn; it leaves the owner's list.
+   * @param actorId - The verified caller.
+   */
+  cancelMyJoinRequest(actorId: string): Response {
+    const mine = this.latestJoinRequestOf(actorId)
+    if (mine === undefined) return Response.json({ code: 'NO_REQUEST' }, { status: 404 })
+    if (mine.decidedAt !== undefined) return Response.json({ code: 'ALREADY_DECIDED', status: mine.decision }, { status: 409 })
+    this.decide(mine, 'cancelled')
+    return Response.json({ request: { id: mine.id, status: 'cancelled' } })
+  }
+
   private getJoinRequest(id: string): JoinRequest | undefined {
     const body = firstBody(this.sql.all('SELECT body FROM join_request WHERE id = ?', [id]))
     return body === undefined ? undefined : JSON.parse(body) as JoinRequest
@@ -654,7 +695,7 @@ export class WorkspaceHub implements DurableObject {
     })
   }
 
-  private decide(request: JoinRequest, decision: 'approved' | 'denied'): void {
+  private decide(request: JoinRequest, decision: 'approved' | 'denied' | 'cancelled'): void {
     this.putJoinRequest({ ...request, decidedAt: Date.now(), decision })
   }
 
@@ -939,7 +980,7 @@ export interface JoinRequest {
   readonly keys: MemberKeys
   readonly requestedAt: number
   readonly decidedAt?: number
-  readonly decision?: 'approved' | 'denied'
+  readonly decision?: 'approved' | 'denied' | 'cancelled'
 }
 
 /** One channel key sealed for one member (see `persona-sync/channel-crypto.ts#KeyWrap`). Opaque to the hub. */
@@ -992,6 +1033,20 @@ class SqlReplayStore implements ReplayStore {
     this.sql.exec('INSERT INTO seen_sig (sig, expires_at) VALUES (?, ?)', [sig, expiresAt])
     return true
   }
+}
+
+/**
+ * @param value - A team name from the owner's device.
+ * @returns It without control or invisible characters, on one line, at most 80 long; `undefined` when nothing is left.
+ */
+function cleanTeamName(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const spaced = [...value].map((char) => {
+    const code = char.codePointAt(0) ?? 0
+    return code < 32 || (code >= 127 && code <= 159) || (code >= 0x200b && code <= 0x200f) || (code >= 0x2028 && code <= 0x202e) ? ' ' : char
+  }).join('')
+  const cleaned = spaced.replace(/\s+/gu, ' ').trim().slice(0, 80).trim()
+  return cleaned === '' ? undefined : cleaned
 }
 
 /** @returns 128 random bits as base64url (the id of a join request). `crypto.randomUUID` is restricted by the repo lint, and this needs nothing beyond the Worker runtime. */
@@ -1051,6 +1106,8 @@ export interface InviteInput {
   readonly token: string
   readonly grant: Grant
   readonly ttlMs?: number
+  /** The team's name, shown by the screen a link opens (cleaned and capped here; absent is fine). */
+  readonly teamName?: string
   readonly now?: number
 }
 

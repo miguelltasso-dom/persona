@@ -5,6 +5,9 @@
   box-sizing: border-box;
   z-index: 40;
   display: grid;
+  /* Flint 12/11 (Ember, app real): a linha do grid é a caixa do scrim, para o diálogo poder se limitar a ELA e não só à janela. */
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
   place-items: center;
   padding: var(--persona-modal-gutter);
   background: var(--persona-scrim);
@@ -19,7 +22,8 @@
   flex-direction: column;
   width: min(560px, 100%);
   /* 2 gutters + 4 px for rounding and the float shadow, so it never passes the bottom (Quill, 640×360). */
-  max-height: calc(100dvh - 2 * var(--persona-modal-gutter) - 4px);
+  /* ...e à caixa do scrim: quando uma tela cria um bloco de contenção (o scrim cobre só a área principal, não a janela), 100dvh passa da base (3 px, Ember). */
+  max-height: min(calc(100% - 4px), calc(100dvh - 2 * var(--persona-modal-gutter) - 4px));
   overflow: hidden;
   padding: var(--persona-space-8) 0;
   background: var(--persona-card);

@@ -266,5 +266,11 @@
   "projects.history.back": "Voltar ao quadro",
   "projects.options": "Opções",
   "boards.filterLabel": "Filtrar projetos",
-  "card.doneBy": "Feito por {name}"
+  "card.doneBy": "Feito por {name}",
+  "card.state.todo": "Na fila de {name}",
+  "card.state.doing": "{name} está fazendo",
+  "card.state.reviewing": "{name} está revisando",
+  "card.state.client": "Esperando o cliente",
+  "card.state.waitingYou": "Esperando você",
+  "card.state.stopped": "Parado"
 }

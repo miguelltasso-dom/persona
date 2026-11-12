@@ -298,6 +298,18 @@ export class ScreensHost {
   }
 
   /**
+   * Turn a quiet window OFF by removing it. What it held back stays in the book (the history is the team's); putting the same window back is `putQuiet`.
+   * @param projectId - Tenant.
+   * @param id - Window.
+   * @returns Whether the window existed.
+   */
+  deleteQuiet(projectId: string, id: string): boolean {
+    if (this.screens.get<QuietWindowView>(projectId, KIND_QUIET, id) === undefined) return false
+    this.screens.delete(projectId, KIND_QUIET, id)
+    return true
+  }
+
+  /**
    * @param request - Window.
    */
   putQuiet(request: PutQuietWindowRequest): QuietWindowView {

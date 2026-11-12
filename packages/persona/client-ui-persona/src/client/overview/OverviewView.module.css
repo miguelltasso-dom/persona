@@ -104,6 +104,13 @@
   padding-top: 0;
 }
 
+/* Os avisos de "Seus números" abaixo das decisões: o mesmo fio suave entre linhas. */
+.noticesAfter {
+  margin-top: var(--persona-space-3);
+  padding-top: var(--persona-space-3);
+  border-top: var(--persona-border-width) solid var(--persona-outline-soft);
+}
+
 .attentionIcon {
   display: grid;
   place-items: center;

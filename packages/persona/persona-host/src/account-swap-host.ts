@@ -285,6 +285,7 @@ export class AccountSwapHost {
     if (doc.undone) return { undone: false, reason: 'already-undone' }
     const active = this.deps.screens.get<{ accountId: string }>(projectId, ACTIVE, doc.personaId)?.accountId
     if (active !== doc.to.accountId) return { undone: false, reason: 'stale' }
+    if (this.deps.accounts.get(doc.from.accountId) === undefined) return { undone: false, reason: 'stale' } // a conta que ela deixou foi removida
     this.deps.screens.put(projectId, ACTIVE, doc.personaId, { accountId: doc.from.accountId })
     this.deps.screens.put(projectId, HOLD, doc.personaId, { personaId: doc.personaId, accountId: doc.from.accountId, since: this.now() })
     this.deps.screens.put(projectId, SWAP, swapId, { ...doc, undone: true, undoneAt: this.now() })

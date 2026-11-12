@@ -8,7 +8,7 @@
 
 import type { HarnessCall, HarnessMcpPorts, HarnessToolName } from '@deepseek-ai/dsh-persona-runners'
 import type { BoardActivity } from './harness-boards.ts'
-import type { HarnessActivity, HarnessIdentity } from './harness-routines.ts'
+import { HarnessForbidden, type HarnessActivity, type HarnessIdentity } from './harness-routines.ts'
 import type { HireActivity } from './harness-hiring.ts'
 import type { HarnessPorts } from './harness-ports.ts'
 import type { SchedulePreset } from './rrule-lite.ts'
@@ -77,7 +77,14 @@ export function harnessMcpPorts(harness: HarnessPorts, options: HarnessDispatchO
   const tools: HarnessToolName[] = [...BOARD_TOOLS, ...(harness.routines === undefined ? [] : ROUTINE_TOOLS), ...(harness.hiring === undefined ? [] : HIRE_TOOLS), ...(options.opinion === undefined ? [] : OPINION_TOOLS), ...(harness.vaultCode === undefined ? [] : ['ask_vault_code'] as const), ...(harness.browserLogin === undefined ? [] : ['browser_login'] as const)]
   return {
     tools,
-    call: (input: HarnessCall): Promise<string> => Promise.resolve(run(harness, options, input)),
+    call: (input: HarnessCall): Promise<string> => {
+      try {
+        return Promise.resolve(run(harness, options, input))
+      } catch (error: unknown) {
+        if (error instanceof HarnessForbidden) return Promise.resolve(refuse('forbidden', 'Você não faz parte deste projeto; nada foi feito.'))
+        throw error
+      }
+    },
   }
 }
 

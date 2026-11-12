@@ -158,6 +158,7 @@ import { OpinionTool, withOpinionTool } from './opinion-host.ts'
 import { engineSeesImages } from './turn-images.ts'
 import { svgBlocksIn, svgToPng } from './svg-to-png.ts'
 import { BoardPorts } from './harness-boards.ts'
+import { releaseAccountDocs, sameAccountHome } from './account-docs.ts'
 import { HarnessPorts } from './harness-ports.ts'
 import { TeamTools, withTeamTools } from './harness-team.ts'
 import { RoutinePorts } from './harness-routines.ts'
@@ -7769,6 +7770,7 @@ export default class PersonaHost extends TypertRemoteService {
     const id = `${request.provider}:${labelKey}`
     if (this.accounts.get(id) !== undefined) throw new Error('conflict')
     const home = request.homeDir ?? isolatedAccountHome(this.requireActor(request.workspaceId).id, request.provider, id)
+    if (this.accounts.list(request.workspaceId).some(row => sameAccountHome(row.homeDir, home))) throw new Error('conflict') // duas contas na mesma pasta derrubariam todo turno do motor (SHARED_HOME)
     this.accounts.create({
       id,
       workspaceId: request.workspaceId,
@@ -7787,6 +7789,8 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireMachineOwner(request) // Carbon P0-13: the accounts the machine signs in with are the owner's
     if (this.accounts.get(request.accountId)?.workspaceId !== request.workspaceId) throw new Error('not-found')
     this.accounts.delete(request.accountId)
+    // Varias contas: nenhum assento, hold ou limite fica apontando para a conta que saiu; a sessao quente de quem a usava e solta.
+    for (const gone of releaseAccountDocs({ screens: this.screens.screens, product: this.product }, request.workspaceId, request.accountId)) this.orchestration.evictWarmRunners(gone.projectId, gone.personaId)
     return true
   }
 
@@ -8225,7 +8229,11 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     const stored = this.usage.listQuota(request.projectId, request.provider)
       .filter(row => request.accountId === undefined || row.accountId === request.accountId)
-    if (stored.length > 0) return stored.map(toOfficialView)
+    // Gauge 15:54: who PAYS is the owner's business: a member reads the quota (windows, use, refill) but not which account it is (the label is the e-mail's local part). Fails closed: no session member in a
+    // workspace that has members = not the owner.
+    const actor = this.actorOf(request.workspaceId)
+    const sees = actor === undefined ? this.product.listMembers(request.workspaceId).length === 0 : actor.workspaceRole === 'owner'
+    if (stored.length > 0) return stored.map(row => (sees ? toOfficialView(row) : withoutAccountIdentity(toOfficialView(row))))
     const providers = request.provider === undefined ? ['claude', 'codex', 'dsh'] : [request.provider]
     return providers.map(provider => ({ provider, origin: 'unavailable' as const, windows: [] }))
   }
@@ -9563,7 +9571,9 @@ export default class PersonaHost extends TypertRemoteService {
     const seats = this.accounts.list(workspaceId, provider)
     this.accountSwap.expireLimits(projectId)
     const swap = storedSwapPolicy(this.accounts, workspaceId, provider, persona.id)
-    const last = this.screens.screens.get<{ accountId: string }>(projectId, 'active_account', persona.id)
+    const bound = this.screens.screens.get<{ accountId: string }>(projectId, 'active_account', persona.id)
+    // Varias contas / D-116: um assento que ESTA maquina nao tem (a persona veio de outro computador, ou a conta foi removida) nao e assento: cai no que ha aqui (o doc e regravado abaixo).
+    const last = bound !== undefined && seats.some(row => row.id === bound.accountId) ? bound : undefined
     // Desfazer holds the persona on the account she went back to: the policy must not take her away again until it clears.
     const held = last?.accountId !== undefined && this.accountSwap.isHeld(projectId, persona.id, last.accountId)
     const resolved = resolveAccountSeat({
@@ -9927,6 +9937,15 @@ export default class PersonaHost extends TypertRemoteService {
     if (project.rootPath === undefined || project.rootPath === '') return undefined
     return project.rootPath
   }
+}
+
+/** The quota a MEMBER reads: the same windows, with no account id, no account label and no vendor detail. */
+function withoutAccountIdentity(view: OfficialQuotaView): OfficialQuotaView {
+  const { accountId, accountLabel, detail, ...rest } = view
+  void accountId
+  void accountLabel
+  void detail
+  return rest
 }
 
 function toOfficialView(row: import('@deepseek-ai/dsh-persona-store').StoredOfficialQuota): OfficialQuotaView {

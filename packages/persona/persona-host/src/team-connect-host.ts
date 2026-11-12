@@ -32,6 +32,8 @@ export interface TeamConnectHostDeps {
   readonly loginStatus: (homeDir: string) => string
   /** The persona audit line (`setPersonaEngine` writes one). */
   readonly audit?: (projectId: string, personaId: string, action: string) => void
+  /** D-116 (regra 2): whether the persona's HOME is this computer. Absent = every persona is home here (a single computer). */
+  readonly homeHere?: (personaId: string) => boolean
 }
 
 /**
@@ -69,7 +71,7 @@ export function teamConnectPorts(deps: TeamConnectHostDeps): TeamConnectPorts {
     team: (projectId) => {
       const workspaceId = deps.product.getProject(projectId)?.workspaceId
       const seats = workspaceId === undefined ? [] : deps.accounts.list(workspaceId)
-      return deps.product.listPersonas(projectId).map((row) => {
+      return deps.product.listPersonas(projectId).filter(row => deps.homeHere?.(row.id) !== false).map((row) => {
         const seatId = deps.screens.get<{ accountId: string }>(projectId, ACTIVE, row.id)?.accountId
         const seat = seatId === undefined ? undefined : seats.find(item => item.id === seatId)
         // Carbon P1-09: only a seat with its OWN home speaks for her (the default home is what the probe already says): that home is logged in or out, a fact and never a doubt.
@@ -83,6 +85,7 @@ export function teamConnectPorts(deps: TeamConnectHostDeps): TeamConnectPorts {
     applyEngine: (projectId, personaId, cli) => {
       const persona = deps.product.getPersona(personaId)
       if (persona === undefined) throw new Error('persona-not-found')
+      if (deps.homeHere?.(personaId) === false) throw new Error('home-elsewhere') // D-116: a sessao dela esta em outro computador
       deps.product.updatePersona({ ...persona, runner: { kind: 'cli', cli, model: ENGINE_DEFAULT_MODEL }, updatedAt: deps.orchestration.now() }, projectId)
       // Carbon P1-08: a seat of the engine she LEFT is not her active account on the new one (it would be read for a persona that no longer runs on it).
       const kept = deps.screens.get<{ accountId: string }>(projectId, ACTIVE, personaId)?.accountId
@@ -94,7 +97,7 @@ export function teamConnectPorts(deps: TeamConnectHostDeps): TeamConnectPorts {
       const workspaceId = deps.product.getProject(projectId)?.workspaceId
       const persona = deps.product.getPersona(personaId)
       const seat = workspaceId === undefined ? undefined : deps.accounts.list(workspaceId).find(row => row.id === accountId)
-      if (seat === undefined || persona === undefined || persona.runner.kind !== 'cli' || persona.runner.cli !== seat.provider) return
+      if (seat === undefined || persona === undefined || persona.runner.kind !== 'cli' || persona.runner.cli !== seat.provider || deps.homeHere?.(personaId) === false) return
       if (deps.screens.get<{ accountId: string }>(projectId, ACTIVE, personaId)?.accountId === seat.id) return // the same seat again: nothing changed, her session stays
       deps.screens.put(projectId, ACTIVE, personaId, { accountId: seat.id })
       deps.orchestration.evictWarmRunners(projectId, personaId) // Carbon P1-08: her warm session still holds the account she had (the engine did not change, so applyEngine did not drop it)

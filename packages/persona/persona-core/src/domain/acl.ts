@@ -77,6 +77,14 @@ function hasRole(actor: Actor, role: SystemRole): boolean {
   return actor.systemRoles?.includes(role) === true
 }
 
+/**
+ * Marco M3: a Coordenacao e a responsavel do quadro DE UM PROJETO (uma persona pertence a um projeto, e a coordenacao e unica por projeto). O papel vale nele, nao no workspace: a responsavel de A
+ * nao le nem escreve o quadro, o canal, a rotina ou a regra da casa do projeto B.
+ */
+function coordinates(actor: Actor, projectId: string | undefined): boolean {
+  return hasRole(actor, 'coordination') && (projectId === undefined || inProject(actor, projectId))
+}
+
 function inDm(actor: Actor, dmId: string, memberIds: readonly string[]): boolean {
   return memberIds.includes(actor.id) || actor.dmIds?.includes(dmId) === true
 }
@@ -101,11 +109,13 @@ function vaultReadable(actor: Actor, resource: Extract<AclResource, { type: 'vau
 function vaultWritable(actor: Actor, resource: Extract<AclResource, { type: 'vault' }>): boolean {
   if (resource.status === 'revoked') return false
   if (isGuest(actor)) return false
+  // Marco M3: o registro de um projeto (com projectId) so e escrito por quem esta nele; o do workspace (sem projectId) segue como era.
+  if (!isOwner(actor) && resource.projectId !== undefined && !inProject(actor, resource.projectId)) return false
   if (resource.kind === 'constraint' || resource.kind === 'decision') {
-    return isOwner(actor) || hasRole(actor, 'coordination')
+    return isOwner(actor) || coordinates(actor, resource.projectId)
   }
   if (!vaultReadable(actor, resource)) return false
-  return isOwner(actor) || actor.workspaceRole === 'member' || hasRole(actor, 'coordination')
+  return isOwner(actor) || actor.workspaceRole === 'member' || coordinates(actor, resource.projectId)
 }
 
 /**
@@ -149,7 +159,7 @@ export function can(actor: Actor, action: AclAction, resource: AclResource): boo
       if (action === 'write' || action === 'reply') {
         return hasRole(actor, 'coordination') && (isOwner(actor) || inProject(actor, resource.projectId))
       }
-      if (action === 'decide') return hasRole(actor, 'coordination')
+      if (action === 'decide') return coordinates(actor, resource.projectId)
       return false
     case 'dm':
       if (action === 'read' || action === 'write' || action === 'reply' || action === 'recall') {
@@ -157,13 +167,14 @@ export function can(actor: Actor, action: AclAction, resource: AclResource): boo
       }
       return false
     case 'ticket': {
+      // Marco M3: a coordenacao conduz o quadro do projeto dela (coordinates); o vigia le entre projetos (alarme) e nunca escreve.
       const participates = isOwner(actor) || inProject(actor, resource.projectId)
-        || resource.assigneeId === actor.id || hasRole(actor, 'coordination') || hasRole(actor, 'watchdog')
+        || resource.assigneeId === actor.id || hasRole(actor, 'watchdog')
       if (action === 'read' || action === 'follow') return participates
       if (action === 'write' || action === 'create') {
-        return isOwner(actor) || hasRole(actor, 'coordination') || resource.assigneeId === actor.id
+        return isOwner(actor) || coordinates(actor, resource.projectId) || resource.assigneeId === actor.id
       }
-      if (action === 'decide') return hasRole(actor, 'coordination')
+      if (action === 'decide') return coordinates(actor, resource.projectId)
       if (action === 'delete') return isOwner(actor)
       return false
     }
@@ -197,7 +208,7 @@ export function can(actor: Actor, action: AclAction, resource: AclResource): boo
     case 'routine':
       if (action === 'read') return isOwner(actor) || inProject(actor, resource.projectId)
       if (action === 'write' || action === 'create' || action === 'delete') {
-        return isOwner(actor) || hasRole(actor, 'coordination')
+        return isOwner(actor) || coordinates(actor, resource.projectId)
       }
       return false
   }

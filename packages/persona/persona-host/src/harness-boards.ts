@@ -12,7 +12,7 @@
 import type { Ticket } from '@deepseek-ai/dsh-persona-engine'
 import type { ProductRepos, ScreenRepos } from '@deepseek-ai/dsh-persona-store'
 import type { BoardsHost } from './boards.ts'
-import type { HarnessFailureCode, HarnessIdentity } from './harness-routines.ts'
+import { HarnessForbidden, type HarnessFailureCode, type HarnessIdentity } from './harness-routines.ts'
 import type { CloseSprintView, ProjectBoardView, SprintView } from './types.ts'
 
 /** The harness failures plus `conflict` (a rule of the flow refused it, e.g. the result still waits for Aplicar/Descartar). */
@@ -76,11 +76,13 @@ export class BoardPorts {
 
   /** @param who - Acting persona. @returns The project's board (read-only: cards, columns, so she can name them). */
   read(who: HarnessIdentity): ProjectBoardView {
+    this.assertMine(who)
     return this.deps.boards.getProjectBoard(who.projectId)
   }
 
   /** @param who - Acting persona. @returns The project's sprints (read-only). */
   sprints(who: HarnessIdentity): SprintView[] {
+    this.assertMine(who)
     return this.deps.boards.listSprints(who.projectId)
   }
 
@@ -194,6 +196,12 @@ export class BoardPorts {
   }
 
   // ---- rules ----------------------------------------------------------------
+
+  /** Marco M3: a persona reads the board of HER project only (the writes were already fenced by `authorize`). */
+  private assertMine(who: HarnessIdentity): void {
+    const persona = this.deps.product.getPersona(who.personaId)
+    if (persona === undefined || persona.projectId !== who.projectId) throw new HarnessForbidden()
+  }
 
   /** D-084: a person's request authorizes the verb; the persona's own initiative follows her autonomy. */
   private authorize(who: HarnessIdentity): BoardRefusal | undefined {

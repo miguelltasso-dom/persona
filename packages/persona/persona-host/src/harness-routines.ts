@@ -46,6 +46,18 @@ export interface HarnessIdentity {
 
 export type HarnessFailureCode = 'forbidden' | 'not-found' | 'invalid' | 'limit'
 
+/**
+ * Marco M3 (cerca de projeto): the READ ports return views, not results, so a persona that names a project that is not hers is refused by THROWING this (stable `code`); the tool dispatch turns it
+ * into the typed `forbidden` refusal. Nothing of the other project is read.
+ */
+export class HarnessForbidden extends Error {
+  readonly code = 'forbidden'
+  constructor() {
+    super('forbidden: a persona acts only in her own project')
+    this.name = 'HarnessForbidden'
+  }
+}
+
 /** What the activity feed shows (contracts/harness-tools.md §4); the UI writes the words. */
 export interface HarnessActivity {
   readonly verb: 'routine_create' | 'routine_update' | 'routine_pause'
@@ -111,6 +123,8 @@ export class RoutinePorts {
 
   /** @param who - Acting persona. @returns The project's routines (read-only, so the persona can avoid duplicates). */
   list(who: HarnessIdentity): RoutineView[] {
+    const persona = this.deps.product.getPersona(who.personaId)
+    if (persona === undefined || persona.projectId !== who.projectId) throw new HarnessForbidden()
     const now = Date.parse(this.deps.now())
     return this.deps.routines.list(who.projectId).map(routine => routineViewOf(routine, readRoutineSpec(this.deps.screens, who.projectId, routine.id), now))
   }

@@ -2457,7 +2457,49 @@ export class Orchestration {
     this.runtime(projectId)
   }
 
+  /** What boot recovery held back until the engine is ready: model runs that would fail because nobody had probed the engine yet. */
+  private deferredRecoveries: Array<{ readonly projectId: string; readonly job: () => Promise<void> }> = []
+
+  /**
+   * Boot recovery re-runs what the last session left interrupted (a reply that never finished, a conversation nobody answered, a Task that was running). Each of those starts the MODEL, and at the boot
+   * nobody has probed the engine yet: the persona's runner cannot resolve, the Task goes `blocked` and the #geral gets a `run-error` card on EVERY reopen. So they WAIT until the engine says `ready`
+   * (and say nothing while they wait); the host runs them when it does (`resumeDeferredRecoveries`). A scripted/test host has no engine to wait for.
+   * @param projectId - Tenant.
+   * @param job - The recovery run.
+   * @returns Whether the job was held back (the caller must not run it now).
+   */
+  private deferUntilEngine(projectId: string, job: () => Promise<void>): boolean {
+    if (this.scripted || this.engineReadinessOf?.().state === 'ready') return false
+    this.deferredRecoveries.push({ projectId, job })
+    return true
+  }
+
+  /**
+   * The engine is ready: run, once and in order, what boot recovery held back for the project.
+   * @param projectId - Tenant.
+   */
+  resumeDeferredRecoveries(projectId: string): void {
+    const mine = this.deferredRecoveries.filter(item => item.projectId === projectId)
+    if (mine.length === 0) return
+    this.deferredRecoveries = this.deferredRecoveries.filter(item => item.projectId !== projectId)
+    for (const item of mine) {
+      this.work = this.work.then(item.job).catch((error: unknown) => {
+        if (error instanceof Error && /not open/i.test(error.message)) return
+        throw error
+      })
+    }
+  }
+
+  /**
+   * @param projectId - Tenant.
+   * @returns How many recovery runs still wait for the engine.
+   */
+  deferredRecoveriesOf(projectId: string): number {
+    return this.deferredRecoveries.filter(item => item.projectId === projectId).length
+  }
+
   private async recover(rt: ProjectRuntime, projectId: string): Promise<void> {
+    if (this.deferUntilEngine(projectId, () => this.recover(rt, projectId))) return
     const ticket = rt.repo.tickets.list().find(item => latestAssignment(item)?.state === 'running')
     if (ticket === undefined) return
     const trigger = rt.repo.triggers.get(ticket.origin.triggerId)
@@ -3969,6 +4011,7 @@ export class Orchestration {
         this.finishStopped(event, speaker, row.id, row.body)
         continue
       }
+      if (this.deferUntilEngine(projectId, () => this.finishReply(rt, event, speaker))) continue
       await this.finishReply(rt, event, speaker)
     }
   }
@@ -4067,6 +4110,7 @@ export class Orchestration {
         occurredAt: row.occurredAt,
         deleted: row.deleted === 1,
       }
+      if (this.deferUntilEngine(projectId, () => this.finishReply(rt, event, speaker))) continue
       await this.finishReply(rt, event, speaker)
     }
   }

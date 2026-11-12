@@ -4615,6 +4615,7 @@ export default class PersonaHost extends TypertRemoteService {
       for (const project of this.product.listProjects(workspace.id)) {
         this.accountSwap.expireLimits(project.id)
         this.orchestration.resumeEngineTriggers(project.id)
+        this.orchestration.resumeDeferredRecoveries(project.id) // boot recovery held back until an engine is ready (no error card at the reopen)
         // A Task the quota window stopped runs again now that an engine is ready (IV-7).
         void this.orchestration.resumeQuotaWaiting(project.id).catch((error: unknown) => {
           // The row stays out of the list only after it ran or went stale; a failure here leaves the Ticket blocked for Retomar.

@@ -30,7 +30,7 @@ import { FILE_WRITE_TOOLS, insideRoot, targetOfFileTool } from './draft-path.ts'
 import { authorityCell, preAllowAfterOrigin, verdictFor, type AuthorityKind } from '../authority/authority-table.ts'
 import { BROWSER_SERVER, browserToolOf, judgeBrowserTool } from '../authority/browser-policy.ts'
 import { redactToolOutput, secretWindowOpen } from '../authority/secret-window.ts'
-import { headOfCommand, isBroadReadRoot, isSecretPath, judgeCommand } from '../authority/command-policy.ts'
+import { headOfCommand, isBroadReadRoot, isSecretPath, judgeCommand, reachesGitMetadata } from '../authority/command-policy.ts'
 import type { ToolLevel } from './tool-level.ts'
 
 /** Classes that never pass without asking, whatever the host lists in `preAllow`. */
@@ -502,7 +502,9 @@ export class PermissionGate {
       const cwd = typeof event.cwd === 'string' && event.cwd !== '' ? event.cwd : undefined
       const root = this.noDraft ? undefined : this.draftRoot ?? cwd
       const target = targetOfFileTool(event.tool_input)
-      if (root === undefined || target === undefined || !insideRoot(root, target, cwd ?? root)) {
+      // P0-B (Mend, S3): nor the `.git` of a repository (folder or file, its 8.3 name): only git writes there; a `.git/config` or a `.git` FILE (`gitdir: evil`) of the persona's runs
+      // her programs on the next `git add` (`filter.*.clean`), whatever the shell judge says.
+      if (root === undefined || target === undefined || !insideRoot(root, target, cwd ?? root) || reachesGitMetadata(target, root, cwd ?? root)) {
         // Carbon P1-01: the refusal is on record (class and word, never the path), so the host never takes a write the gate denied for proof that something was saved.
         this.noteRefusal(tool, 'file', 'write')
         return decision('deny', OUTSIDE_DRAFT_REASON)

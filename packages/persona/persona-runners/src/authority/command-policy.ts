@@ -1,6 +1,7 @@
 /**
  * COLHEITA item 8: the deterministic command judge. Given the text of ONE shell call (bash or PowerShell) it says what the call is (`ActionKind`); the authority table
- * (`authority-table.ts`) then turns that into allow / ask / deny. No model, no network, no clock; the only I/O is the `realpath` of what already exists, through `insideRoot`.
+ * (`authority-table.ts`) then turns that into allow / ask / deny. No model, no network, no clock; the only I/O is the `realpath` of what already exists (through `insideRoot`) and, for
+ * `git`, a look at the disk for the repository git would take (`lstat` and the first bytes of a `.git` file or `HEAD`; git itself is never run).
  *
  * What it promises, and what it does not:
  *  - It is a FILTER for the honest path, not a sandbox. Reading a command line is not a security boundary: past the command a line names, nothing is followed (a script
@@ -10,8 +11,9 @@
  *  - A command line is as bad as its worst command (`worstOf`).
  */
 
+import { closeSync, existsSync, lstatSync, openSync, readSync, realpathSync, type Stats } from 'node:fs'
 import { homedir } from 'node:os'
-import { basename, isAbsolute, resolve } from 'node:path'
+import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path'
 import { insideRoot } from '../resolve/draft-path.ts'
 import { worstOf, type ActionKind } from './authority-table.ts'
 
@@ -21,6 +23,88 @@ export interface CommandContext {
   readonly draftRoot?: string
   /** The CLI's working directory when it made the call (where a relative path is read from). Default: the draft. */
   readonly cwd?: string
+  /** P0-B (Mend, S3): the repository git takes when it starts in a folder. Default {@link findGitRepository} (the disk); tests inject their own. */
+  readonly gitRootOf?: (dir: string) => GitRepositoryFound | undefined
+}
+
+/** What git finds when it looks for its repository from a folder. */
+export interface GitRepositoryFound {
+  /** The entry git takes: a `.git` folder, a `.git` file (`gitdir: ...`), or a folder that is itself a repository. */
+  readonly entry: string
+  /**
+   * `dir`: a `.git` folder that is not a link, with a valid `HEAD`, `objects/` and `refs/`; `file`: a `.git` file whose `gitdir:` line is in `gitdir`; `other`: anything else git may
+   * take (a folder that looks like a bare repository, a link, a `.git` file it cannot read).
+   */
+  readonly kind: 'dir' | 'file' | 'other'
+  /** For `file`: the folder its `gitdir:` line names, absolute. */
+  readonly gitdir?: string
+}
+
+const SMALL_READ = 1024
+
+/** The first bytes of a file as text, or `undefined` when it cannot be read (a persona can make the file huge: never read all of it). */
+function headOfFile(path: string): string | undefined {
+  let fd: number | undefined
+  try {
+    fd = openSync(path, 'r')
+    const buffer = Buffer.alloc(SMALL_READ)
+    const length = readSync(fd, buffer, 0, SMALL_READ, 0)
+    return buffer.subarray(0, length).toString('utf8')
+  } catch (error) {
+    void error
+    return undefined
+  } finally {
+    if (fd !== undefined) closeSync(fd)
+  }
+}
+
+function lstatOf(path: string): Stats | undefined {
+  try { return lstatSync(path) } catch (error) { void error; return undefined }
+}
+
+function isDirectory(path: string): boolean {
+  return lstatOf(path)?.isDirectory() === true
+}
+
+/** git's own test (`is_git_directory`) for a folder that IS a repository: a valid `HEAD`, and `objects/` + `refs/` (or a `commondir` for a worktree's folder). */
+function isValidGitDir(path: string): boolean {
+  const head = headOfFile(join(path, 'HEAD'))
+  if (head === undefined || !/^(ref:\s*refs\/|[0-9a-f]{40})/u.test(head)) return false
+  if (existsSync(join(path, 'commondir'))) return true
+  return isDirectory(join(path, 'objects')) && isDirectory(join(path, 'refs'))
+}
+
+/** A folder git may take as a repository by itself (bare): WIDER than git's test on purpose (any `HEAD` file next to `objects/` or `commondir`), so nothing git would take is missed. */
+function looksLikeGitDir(path: string): boolean {
+  return lstatOf(join(path, 'HEAD'))?.isFile() === true && (existsSync(join(path, 'objects')) || existsSync(join(path, 'commondir')))
+}
+
+/**
+ * P0-B (Mend, S3): the repository git takes when it starts in `dir`, the way git looks for it (no git is run): in each folder from `dir` up, first a `.git` entry (a folder that is a
+ * valid repository, or a `.git` FILE, which git follows or dies on), then the folder itself as a repository. A `.git` folder that is not a valid repository is skipped, as git skips it.
+ * @param dir - The folder git starts in (absolute).
+ * @returns What git would take, or `undefined` when there is no repository up to the root (git then stops with an error).
+ */
+export function findGitRepository(dir: string): GitRepositoryFound | undefined {
+  let current = resolve(dir)
+  for (let guard = 0; guard < 512; guard++) {
+    const dotGit = join(current, '.git')
+    const stat = lstatOf(dotGit)
+    if (stat !== undefined) {
+      if (stat.isSymbolicLink()) return { entry: dotGit, kind: 'other' }
+      if (stat.isFile()) {
+        const line = /^gitdir:[ \t]*(.+?)[ \t\r]*$/mu.exec(headOfFile(dotGit) ?? '')?.[1]
+        return line === undefined || line === '' ? { entry: dotGit, kind: 'other' } : { entry: dotGit, kind: 'file', gitdir: resolve(current, line) }
+      }
+      if (stat.isDirectory() && isValidGitDir(dotGit)) return { entry: dotGit, kind: 'dir' }
+      if (!stat.isDirectory()) return { entry: dotGit, kind: 'other' }
+    }
+    if (looksLikeGitDir(current)) return { entry: current, kind: basename(current).toLowerCase() === '.git' && isValidGitDir(current) ? 'dir' : 'other' }
+    const parent = dirname(current)
+    if (parent === current) return undefined
+    current = parent
+  }
+  return { entry: current, kind: 'other' }
 }
 
 /** What one command line is. */
@@ -379,11 +463,177 @@ function hasBracketClass(text: string): boolean {
   return false
 }
 
+/**
+ * P0-B (Mend, S3): a segment that IS the `.git` of a repository as Windows opens it. `pathSegments` already cut case, trailing dots/spaces and NTFS streams; what is left is the 8.3 short
+ * name NTFS gives `.git` (`GIT~1`, `GIT~2`... or the hashed `GIxxxx~N` after four of them). `.gitignore`, `.github`, `digit~1.txt` are not.
+ */
+function isGitSegment(segment: string): boolean {
+  return segment === '.git' || /^git~[0-9]+$/u.test(segment) || /^gi[0-9a-f]{4}~[0-9]+$/u.test(segment)
+}
+
+/**
+ * P0-B (Mend, S3): a path that names the `.git` of a repository (folder OR file) or anything inside it. Only git writes there: a `.git` FILE (`gitdir: evil`) or a folder that becomes
+ * the `.git` hands git a config of the persona's (`filter.*.clean`, hooks), which runs programs on the next `git add`. Exported for the file-writing tools' gate.
+ * @param path - A path as written in a tool call (`/` or `\`, relative or absolute).
+ */
+export function isGitMetadataPath(path: string): boolean {
+  return pathSegments(path).some(isGitSegment)
+}
+
+/**
+ * P0-B (Mend, S3): whether a path a call writes reaches the `.git` of a repository, folder or file: as written (`sub/.git`, `GIT~1/config`), as read from the working folder inside the
+ * draft (`cd .git && echo x > config`), or by the real name of what already exists (the 8.3 name or a link of an existing `.git`). For the shell judge and the file-writing tools' gate.
+ * @param path - The path as written in the call.
+ * @param draftRoot - The draft (absolute); without it only the written text is read.
+ * @param cwd - Where a relative path is read from.
+ */
+export function reachesGitMetadata(path: string, draftRoot: string | undefined, cwd: string | undefined): boolean {
+  if (isGitMetadataPath(path)) return true
+  if (draftRoot === undefined || cwd === undefined) return false
+  const absolute = resolve(cwd, shellPath(path))
+  const inDraft = (root: string, target: string): string | undefined => {
+    const way = relative(root, target)
+    return way === '' || isAbsolute(way) || way === '..' || way.startsWith('../') || way.startsWith('..\\') ? undefined : way
+  }
+  const written = inDraft(resolve(draftRoot), absolute)
+  if (written !== undefined && isGitMetadataPath(written)) return true
+  const real = inDraft(realOfExisting(draftRoot), realOfExisting(absolute))
+  return real !== undefined && isGitMetadataPath(real)
+}
+
 /** Carbon P0-04: a path strictly INSIDE a `.git` directory (a hook, the config...): a raw write there is code that runs later; git itself manages those files. */
 function isGitInternalPath(path: string): boolean {
   const segments = pathSegments(path)
-  const at = segments.lastIndexOf('.git')
+  let at = -1
+  segments.forEach((segment, index) => { if (isGitSegment(segment)) at = index })
   return at >= 0 && at < segments.length - 1
+}
+
+/**
+ * P0-B (Mend, S3): long options of the programs whose options a rule here reads. getopt_long takes ANY unique prefix (`sort --out=X` IS `--output=X`, `cp --target=D` IS
+ * `--target-directory=D`), so a rule written for the full name must see the name the prefix stands for. A long option the table does not know, or a prefix of two, is not read
+ * (`unknown`). From the GNU tools' `--help` (coreutils 8.32-9.x, grep 3.x), ripgrep 14 and tree 2.x.
+ */
+const GREP_LONG = [
+  '--after-context', '--basic-regexp', '--before-context', '--binary', '--binary-files', '--byte-offset', '--color', '--colour', '--context', '--count', '--dereference-recursive',
+  '--devices', '--directories', '--exclude', '--exclude-dir', '--exclude-from', '--extended-regexp', '--file', '--files-with-matches', '--files-without-match', '--fixed-strings',
+  '--help', '--ignore-case', '--include', '--initial-tab', '--invert-match', '--label', '--line-buffered', '--line-number', '--line-regexp', '--max-count', '--no-filename',
+  '--no-ignore-case', '--no-messages', '--null', '--null-data', '--only-matching', '--perl-regexp', '--quiet', '--recursive', '--regexp', '--silent', '--text', '--unix-byte-offsets',
+  '--version', '--with-filename', '--word-regexp',
+]
+const LONG_OPTIONS: Readonly<Record<string, readonly string[]>> = {
+  sort: [
+    '--batch-size', '--buffer-size', '--check', '--compress-program', '--debug', '--dictionary-order', '--field-separator', '--files0-from', '--general-numeric-sort', '--help',
+    '--human-numeric-sort', '--ignore-case', '--ignore-leading-blanks', '--ignore-nonprinting', '--key', '--merge', '--month-sort', '--numeric-sort', '--output', '--parallel',
+    '--random-sort', '--random-source', '--reverse', '--sort', '--stable', '--temporary-directory', '--unique', '--version', '--version-sort', '--zero-terminated',
+  ],
+  uniq: ['--all-repeated', '--check-chars', '--count', '--group', '--help', '--ignore-case', '--repeated', '--skip-chars', '--skip-fields', '--unique', '--version', '--zero-terminated'],
+  date: ['--date', '--debug', '--file', '--help', '--iso-8601', '--reference', '--resolution', '--rfc-2822', '--rfc-3339', '--rfc-email', '--set', '--universal', '--utc', '--version'],
+  cp: [
+    '--archive', '--attributes-only', '--backup', '--context', '--copy-contents', '--debug', '--dereference', '--force', '--help', '--interactive', '--keep-directory-symlink', '--link',
+    '--no-clobber', '--no-dereference', '--no-preserve', '--no-target-directory', '--one-file-system', '--parents', '--preserve', '--recursive', '--reflink', '--remove-destination',
+    '--sparse', '--strip-trailing-slashes', '--suffix', '--symbolic-link', '--target-directory', '--update', '--verbose', '--version',
+  ],
+  mv: [
+    '--backup', '--context', '--debug', '--exchange', '--force', '--help', '--interactive', '--no-clobber', '--no-copy', '--no-target-directory', '--strip-trailing-slashes', '--suffix',
+    '--target-directory', '--update', '--verbose', '--version',
+  ],
+  grep: GREP_LONG,
+  egrep: GREP_LONG,
+  fgrep: GREP_LONG,
+  rg: [
+    '--after-context', '--auto-hybrid-regex', '--before-context', '--binary', '--block-buffered', '--byte-offset', '--case-sensitive', '--color', '--colors', '--column', '--context',
+    '--context-separator', '--count', '--count-matches', '--crlf', '--debug', '--dfa-size-limit', '--encoding', '--engine', '--field-context-separator', '--field-match-separator',
+    '--file', '--files', '--files-with-matches', '--files-without-match', '--fixed-strings', '--follow', '--generate', '--glob', '--glob-case-insensitive', '--heading', '--help',
+    '--hidden', '--hostname-bin', '--hyperlink-format', '--iglob', '--ignore-case', '--ignore-file', '--ignore-file-case-insensitive', '--include-zero', '--invert-match', '--json',
+    '--line-buffered', '--line-number', '--line-regexp', '--max-columns', '--max-columns-preview', '--max-count', '--max-depth', '--max-filesize', '--mmap', '--multiline',
+    '--multiline-dotall', '--no-auto-hybrid-regex', '--no-binary', '--no-block-buffered', '--no-byte-offset', '--no-column', '--no-config', '--no-context-separator', '--no-crlf',
+    '--no-encoding', '--no-filename', '--no-follow', '--no-glob-case-insensitive', '--no-heading', '--no-hidden', '--no-ignore', '--no-ignore-dot', '--no-ignore-exclude',
+    '--no-ignore-file-case-insensitive', '--no-ignore-files', '--no-ignore-global', '--no-ignore-messages', '--no-ignore-parent', '--no-ignore-vcs', '--no-include-zero',
+    '--no-invert-match', '--no-json', '--no-line-buffered', '--no-line-number', '--no-max-columns-preview', '--no-messages', '--no-mmap', '--no-multiline', '--no-multiline-dotall',
+    '--no-one-file-system', '--no-pcre2', '--no-pcre2-unicode', '--no-pre', '--no-require-git', '--no-search-zip', '--no-sort-files', '--no-stats', '--no-text', '--no-trim',
+    '--no-unicode', '--null', '--null-data', '--one-file-system', '--only-matching', '--passthru', '--passthrough', '--path-separator', '--pcre2', '--pcre2-unicode', '--pcre2-version',
+    '--pre', '--pre-glob', '--pretty', '--quiet', '--regex-size-limit', '--regexp', '--replace', '--require-git', '--search-zip', '--smart-case', '--sort', '--sort-files', '--sortr',
+    '--stats', '--stop-on-nonmatch', '--text', '--threads', '--trace', '--trim', '--type', '--type-add', '--type-clear', '--type-list', '--type-not', '--unicode', '--unrestricted',
+    '--version', '--vimgrep', '--with-filename', '--word-regexp',
+  ],
+  tree: [
+    '--charset', '--condense', '--device', '--dirsfirst', '--du', '--fflinks', '--filelimit', '--filesfirst', '--fromfile', '--fromtabfile', '--gitfile', '--gitignore', '--help',
+    '--hintro', '--houtro', '--ignore-case', '--info', '--infofile', '--inodes', '--matchdirs', '--metafirst', '--noreport', '--nolinks', '--opt-toggle', '--prune', '--si', '--sort',
+    '--timefmt', '--version',
+  ],
+}
+
+/**
+ * The words of a call with every long option written as the full name its prefix stands for (`--out=x` → `--output=x`); `undefined` when one is unknown or ambiguous. `--` and
+ * everything after it are operands.
+ */
+function expandLongOptions(known: readonly string[], args: readonly Word[]): Word[] | undefined {
+  const out: Word[] = []
+  let operandsOnly = false
+  for (const arg of args) {
+    if (operandsOnly || !arg.text.startsWith('--') || arg.text === '--') {
+      if (arg.text === '--') operandsOnly = true
+      out.push(arg)
+      continue
+    }
+    const equals = arg.text.indexOf('=')
+    const written = (equals < 0 ? arg.text : arg.text.slice(0, equals)).toLowerCase()
+    const full = known.includes(written) ? [written] : known.filter(option => option.startsWith(written))
+    if (full.length !== 1 || (arg.expands && /[$%`~]/u.test(written))) return undefined
+    out.push({ text: `${full[0] ?? ''}${equals < 0 ? '' : arg.text.slice(equals)}`, expands: arg.expands })
+  }
+  return out
+}
+
+/**
+ * Long options that make a git command write a file it names, run a program, or act on another repository. git takes a unique prefix (`--out=X` IS `--output=X`): a written name that
+ * is a prefix of one of these, or starts with one, is held (`unknown`). Hooks, `core.fsmonitor` and the rest of the repository's config are the business of {@link findGitRepository}.
+ */
+const GIT_RISKY_LONG: readonly string[] = [
+  '--output', '--output-directory', '--exec', '--exec-path', '--upload-pack', '--receive-pack', '--open-files-in-pager', '--unsafe-paths', '--build-fake-ancestor', '--git-dir',
+  '--work-tree',
+]
+
+function isGitRiskyLong(text: string): boolean {
+  if (!text.startsWith('--') || text.length < 3) return false
+  const written = text.split('=')[0] ?? text
+  return GIT_RISKY_LONG.some(risky => risky.startsWith(written) || written.startsWith(risky))
+}
+
+/** git commands that do not take an existing repository (they make one, or only print). */
+const GIT_WITHOUT_REPOSITORY: ReadonlySet<string> = new Set(['init', 'help', 'version', 'clone'])
+
+/** The folder a `.git/worktrees/NAME` folder belongs to (`…/.git`), or `undefined` when `gitdir` is not one: the only `.git` file git makes itself (`git worktree add`). */
+function worktreeRepositoryOf(gitdir: string | undefined): string | undefined {
+  if (gitdir === undefined) return undefined
+  const parts = resolve(gitdir).split(/[\\/]/u)
+  const n = parts.length
+  if (n < 4 || (parts[n - 1] ?? '') === '' || (parts[n - 2] ?? '').toLowerCase() !== 'worktrees' || (parts[n - 3] ?? '').toLowerCase() !== '.git') return undefined
+  return resolve(gitdir, '..', '..')
+}
+
+function samePath(a: string, b: string): boolean {
+  const flat = (path: string): string => {
+    const full = resolve(path)
+    return process.platform === 'win32' ? full.toLowerCase() : full
+  }
+  return flat(a) === flat(b)
+}
+
+/** The real path of what exists of `path` (8.3 names and links resolved by the OS), the rest appended as written. */
+function realOfExisting(path: string): string {
+  let current = resolve(path)
+  const rest: string[] = []
+  while (!existsSync(current)) {
+    const parent = dirname(current)
+    if (parent === current) break
+    rest.unshift(basename(current))
+    current = parent
+  }
+  let real = current
+  try { real = realpathSync.native(current) } catch (error) { void error }
+  return join(real, ...rest)
 }
 
 /** Commands whose `-t` takes a DIRECTORY (the destination), so it can be written glued to other short options or to the directory itself. */
@@ -460,10 +710,12 @@ class Judge {
   private readonly findings: Finding[] = []
   private readonly draftRoot: string | undefined
   private cwd: string | undefined
+  private readonly gitRootOf: (dir: string) => GitRepositoryFound | undefined
 
   constructor(context: CommandContext) {
     this.draftRoot = context.draftRoot
     this.cwd = context.cwd ?? context.draftRoot
+    this.gitRootOf = context.gitRootOf ?? findGitRepository
   }
 
   add(kind: ActionKind, verb: string, reason: string): void {
@@ -483,13 +735,45 @@ class Judge {
     return insideRoot(this.draftRoot, shellPath(word.text), this.cwd)
   }
 
+  /**
+   * P0-B (Mend, S3): whether a written path reaches the `.git` of a repository, folder or file: as written (`sub/.git`, `GIT~1/config`), as read from the working folder
+   * (`cd .git && echo x > config`), or by the real name of what already exists (the 8.3 name or a link of an existing `.git`).
+   */
+  private reachesGit(word: Word): boolean {
+    return word.expands ? isGitMetadataPath(word.text) : reachesGitMetadata(word.text, this.draftRoot, this.cwd)
+  }
+
+  /**
+   * P0-B (Mend, S3): whether the repository git takes from the working folder is one the persona cannot have written: the draft's own `.git` (its folder, or the `.git` file of a
+   * worktree the product made, pointing into a `.git/worktrees/`), a `.git` FOLDER git made inside the draft (`git init sub`), or a worktree of one of those. A `.git` file the
+   * persona wrote (`gitdir: evil`), a folder that looks like a repository, or a repository outside the draft (its index is not the draft's) is not. No draft: nothing could be
+   * written, so whatever repository is there is not the persona's; no repository: git stops with an error.
+   */
+  private gitRepositoryOwned(): boolean {
+    if (this.draftRoot === undefined) return true
+    const found = this.gitRootOf(resolve(this.cwd ?? this.draftRoot))
+    if (found === undefined) return true
+    const draft = resolve(this.draftRoot)
+    const inside = (path: string): boolean => insideRoot(draft, path, draft)
+    const madeByGitInside = (path: string): boolean => inside(path) && basename(path).toLowerCase() === '.git' && isDirectory(path) && lstatOf(path)?.isSymbolicLink() !== true && isValidGitDir(path)
+    const repository = found.kind === 'file' ? worktreeRepositoryOf(found.gitdir) : undefined
+    if (samePath(found.entry, join(draft, '.git'))) {
+      if (found.kind === 'dir') return true
+      return found.kind === 'file' && repository !== undefined && (!inside(repository) || madeByGitInside(repository))
+    }
+    if (!inside(found.entry)) return false
+    if (found.kind === 'dir') return madeByGitInside(found.entry)
+    return found.kind === 'file' && repository !== undefined && madeByGitInside(repository)
+  }
+
   /** Every operand a change touches must be inside the draft. */
   private operandsKind(verb: string, operands: readonly Word[], inside: ActionKind, outside: ActionKind): void {
     if (operands.length === 0) { this.add('unknown', verb, 'no-operand'); return }
     for (const operand of operands) {
       if (isSecretPath(operand.text)) { this.add('secret', verb, 'secret-path'); continue }
-      // P0-B: the `.git` folder itself counts (`mv sub .git`, `cp -r sub .git`, `mkdir .git`): a folder that BECOMES the `.git` brings its hooks and config.
-      if (isGitInternalPath(operand.text) || pathSegments(operand.text).includes('.git')) { this.add(outside, verb, 'git-internals'); continue }
+      // P0-B: the `.git` folder itself counts (`mv sub .git`, `cp -r sub .git`, `mkdir .git`): a folder that BECOMES the `.git` brings its hooks and config. S3: and its 8.3 name,
+      // and a path that reaches it from the working folder.
+      if (this.reachesGit(operand)) { this.add(outside, verb, 'git-internals'); continue }
       const within = this.within(operand)
       if (within === undefined) this.add(operand.expands ? 'unknown' : outside, verb, operand.expands ? 'expands' : 'no-draft')
       else this.add(within ? inside : outside, verb, within ? 'draft-path' : 'outside-draft')
@@ -514,7 +798,8 @@ class Judge {
       if (isSink(target.text)) continue
       if (redirect.op === '<') { this.secretOperands(verb === '' ? '<' : verb, [target]); if (isSecretPath(target.text)) this.add('secret', verb, 'secret-input'); continue }
       if (isSecretPath(target.text)) { this.add('secret', verb, 'secret-path'); continue }
-      if (isGitInternalPath(target.text)) { this.add('outside-change', verb === '' ? redirect.op : verb, 'git-internals'); continue }
+      // P0-B (Mend, S3): the `.git` itself too (`echo gitdir: evil > sub/.git` makes a repository of the persona's), its 8.3 name, and through the working folder.
+      if (this.reachesGit(target)) { this.add('outside-change', verb === '' ? redirect.op : verb, 'git-internals'); continue }
       const within = this.within(target)
       if (within === undefined) this.add(target.expands ? 'unknown' : 'outside-change', verb === '' ? redirect.op : verb, target.expands ? 'expands' : 'no-draft')
       else this.add(within ? 'draft-change' : 'outside-change', verb === '' ? redirect.op : verb, within ? 'draft-redirect' : 'outside-redirect')
@@ -541,8 +826,12 @@ class Judge {
     this.command(name, rest, simple, depth)
   }
 
-  private command(name: string, args: readonly Word[], simple: Simple, depth: number): void {
+  private command(name: string, written: readonly Word[], simple: Simple, depth: number): void {
     if (NEVER_NAMES.has(name)) { this.add('never', name, 'never-listed'); return }
+    // P0-B (Mend, S3): a long option is the full name its unique prefix stands for (`sort --out=X` IS `--output=X`); one the table does not know, or a prefix of two, is not read.
+    const known = LONG_OPTIONS[name]
+    const args = known === undefined ? written : expandLongOptions(known, written)
+    if (args === undefined) { this.add('unknown', name, 'unknown-long-option'); return }
     if (simple.piped && (SHELL_NAMES.has(name) || name === 'cmd')) { this.add('never', name, 'pipe-into-shell'); return }
     if (args.length > 0 && args.every(arg => READ_FLAGS_ONLY.has(arg.text)) && !SHELL_NAMES.has(name)) { this.add('read', name, 'version-or-help'); return }
     if (SHELL_NAMES.has(name)) { this.shell(name, args, depth); return }
@@ -568,6 +857,8 @@ class Judge {
    * target option, must have EVERY operand inside (a PowerShell `-Destination` can come before or after the source).
    */
   private changeOf(name: string, rawArgs: readonly Word[]): void {
+    // P0-B (Mend, S3): `zip -TT CMD` / `--unzip-command CMD` runs CMD to test the archive.
+    if (name === 'zip' && rawArgs.some(arg => /^-[A-Za-z0-9]*TT/u.test(arg.text) || (arg.text.length >= 5 && '--unzip-command'.startsWith(arg.text.split('=')[0]?.toLowerCase() ?? '')))) { this.add('unknown', name, 'runs-program'); return }
     const args = TARGET_OPTION_COMMANDS.has(name) ? splitTargetOptions(rawArgs) : rawArgs
     const operands = args.filter(arg => !isFlag(arg.text))
     const targetOption = args.some(arg => ['-t', '-T', '--target-directory', '--no-target-directory'].includes(arg.text))
@@ -586,10 +877,15 @@ class Judge {
     if (name === 'find' && texts.some(text => ['-exec', '-execdir', '-ok', '-okdir', '-delete', '-fprint', '-fprint0', '-fprintf', '-fls'].includes(text))) { this.add('unknown', name, 'runs-or-deletes'); return }
     if (name === 'sort' && texts.some(text => text === '-o' || text.startsWith('--output') || /^-[a-z0-9]*o/u.test(text))) { this.add('unknown', name, 'writes-file'); return } // Carbon P0-05b: `-oFILE`, `-rnoFILE` write too; P0-A: so does a cluster that ENDS in `o` (`-uo FILE`)
     if (name === 'sort' && texts.some(text => text.startsWith('--compress-program'))) { this.add('unknown', name, 'runs-program'); return } // Carbon CP-12: the temp-file compressor is a program
+    // P0-B (Mend, S3): `--files0-from=LIST` prints the files NAMED inside LIST (a secret path the judge never sees).
+    if (name === 'sort' && texts.some(text => text.startsWith('--files0-from'))) { this.add('unknown', name, 'reads-file-list'); return }
     if (name === 'tree' && texts.some(text => text === '-o' || text.startsWith('--output') || /^-[a-z0-9]*o/u.test(text))) { this.add('unknown', name, 'writes-file'); return } // Carbon CP-12
+    // P0-B (Mend, S3): `tree -R` writes `00Tree.html` into every folder it lists (case matters: `-r` is reverse order).
+    if (name === 'tree' && args.some(arg => /^-[A-Za-z0-9]*R/u.test(arg.text) && !arg.text.startsWith('--'))) { this.add('unknown', name, 'writes-file'); return }
     // Carbon CP-6: `uniq INPUT OUTPUT` writes the second operand: every path operand must lie inside the draft, as for any change.
     if (name === 'uniq' && args.filter(arg => !isFlag(arg.text)).length >= 2) { this.changeOf(name, args); return }
-    if ((name === 'grep' || name === 'rg' || name === 'egrep' || name === 'fgrep') && texts.some(text => text.startsWith('--pre'))) { this.add('unknown', name, 'runs-program'); return }
+    // P0-B (Mend, S3): ripgrep's `--hostname-bin` is a program it runs, like `--pre`.
+    if ((name === 'grep' || name === 'rg' || name === 'egrep' || name === 'fgrep') && texts.some(text => text.startsWith('--pre') || text.startsWith('--hostname-bin'))) { this.add('unknown', name, 'runs-program'); return }
     if (name === 'date' && texts.some(text => text === '-s' || text.startsWith('--set'))) { this.add('never', name, 'sets-clock'); return }
     if (name === 'printenv' && (args.length === 0 || texts.some(text => SECRET_VARIABLE.test(text)))) { this.add('secret', name, 'dumps-environment'); return }
     // Carbon CP-9: a jq program that names `env` / `$ENV` dumps the environment, like `printenv` (a `.env` KEY of the file read is not the environment).
@@ -608,7 +904,7 @@ class Judge {
     if (targets.length === 0) { this.add('unknown', name, 'no-operand'); return }
     for (const target of targets) {
       if (isSecretPath(target.text)) { this.add('secret', name, 'secret-path'); continue }
-      if (isGitInternalPath(target.text)) { this.add('delete', name, 'git-internals'); continue }
+      if (isGitInternalPath(target.text) || this.reachesGit(target)) { this.add('delete', name, 'git-internals'); continue }
       if (isBroadTarget(target.text)) { this.add('never', name, 'broad-target'); continue }
       const within = this.within(target)
       if (within === undefined) this.add(target.expands ? 'unknown' : 'delete', name, target.expands ? 'expands' : 'no-draft')
@@ -706,7 +1002,11 @@ class Judge {
     const texts = operands.map(arg => arg.text.toLowerCase())
     const flags = new Set(texts.filter(text => text.startsWith('-')))
     const verb = `git ${subName}`
-    if (texts.some(text => text.startsWith('--output') || text.startsWith('--exec') || text === '--upload-pack' || text.startsWith('--upload-pack=') || text.startsWith('--receive-pack'))) { this.add('unknown', verb, 'git-runs-or-writes'); return }
+    // P0-B (Mend, S3): git takes a unique prefix of a long option (`git diff --out=X` IS `--output=X`): a prefix of a risky option is that option.
+    if (texts.some(text => text.startsWith('--output') || text.startsWith('--exec') || text === '--upload-pack' || text.startsWith('--upload-pack=') || text.startsWith('--receive-pack') || isGitRiskyLong(text))) { this.add('unknown', verb, 'git-runs-or-writes'); return }
+    // P0-B (Mend, S3): the repository's config runs programs (`filter.*.clean` on `git add`, `diff.external`, textconv, a signing program...). Only a repository the persona cannot
+    // have written is taken without the person: a `.git` FILE of hers (`gitdir: evil`), a folder of hers that looks like a repository, or one outside the draft is held.
+    if (!GIT_WITHOUT_REPOSITORY.has(subName) && !this.gitRepositoryOwned()) this.add('unknown', verb, 'git-repository-not-draft')
     // P0-B: `git init --template=DIR` / `--separate-git-dir=DIR` (git takes any unique prefix) fill the new `.git` from a folder the persona wrote: its hooks and config then run on the next commit.
     if (subName === 'init' && texts.some(text => /^--(?:t|se)/u.test(text))) { this.add('unknown', verb, 'git-init-template'); return }
     // Carbon CP-4: `git grep -O<cmd>` / `--open-files-in-pager=<cmd>` run a program on the matches (case matters: `-o` is `--only-matching`, so the ORIGINAL text is read).
@@ -769,7 +1069,7 @@ class Judge {
       for (const path of gitPathOperands(operands)) {
         const within = this.within(markRiskyGlob(path))
         if (isSecretPath(path.text)) this.add('secret', verb, 'secret-path')
-        else if (isGitInternalPath(path.text)) this.add('outside-change', verb, 'git-internals')
+        else if (isGitInternalPath(path.text) || this.reachesGit(path)) this.add('outside-change', verb, 'git-internals')
         else if (within === undefined) this.add(path.expands || isRiskyGlob(path.text) ? 'unknown' : 'outside-change', verb, path.expands || isRiskyGlob(path.text) ? 'expands' : 'no-draft')
         else if (within === false) this.add('outside-change', verb, 'outside-draft')
       }

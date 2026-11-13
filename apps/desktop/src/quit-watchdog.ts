@@ -39,7 +39,8 @@ export interface QuitWatchdogOptions {
 
 /**
  * The helper program (plain Node, CommonJS). Polls `pid`; once `graceMs` passes with the process still alive it ends the process together with
- * the tree below it (`taskkill /T /F`; on other systems the children, then the process). It never exits non-zero and never throws to the caller.
+ * the tree below it (`taskkill /T /F`; on other systems the children, then the process).
+ * It never exits non-zero and never throws to the caller.
  * @param pid - Process to supervise.
  * @param imageName - Executable file name the PID must still carry.
  * @param graceMs - Grace period before the kill.

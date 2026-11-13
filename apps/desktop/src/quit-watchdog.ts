@@ -17,8 +17,12 @@
 import { spawn, type ChildProcess } from 'node:child_process'
 import { basename } from 'node:path'
 
-/** Time the process gets to leave on its own after "Sair" before the watchdog ends the tree. */
-export const QUIT_WATCHDOG_GRACE_MS = 3_000
+/**
+ * Time the process gets to leave on its own after "Sair" before the watchdog ends the tree. It is only the net under a quit that never ends:
+ * measured 12/11 (S3b), the own cleanup (the Host's graceful stop) took longer than the former 3 s, so the watchdog killed the tree and
+ * the quit took 5-8 s. 5 s lets a slow but healthy quit finish by itself.
+ */
+export const QUIT_WATCHDOG_GRACE_MS = 5_000
 
 export interface QuitWatchdogOptions {
   /** The main process to supervise (`process.pid`). */

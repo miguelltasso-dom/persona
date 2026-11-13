@@ -9,15 +9,24 @@ export type DesktopBackendState =
   | { readonly phase: 'reconnecting'; readonly message: string }
   | { readonly phase: 'error'; readonly message: string; readonly failure: unknown }
 
-/** Host-death recovery: three tries with backoff, then a visible error. */
+/**
+ * Host-death recovery: three tries with backoff, then a visible error. A host that then stays ready for `stableMs` earns the whole budget
+ * back (M4: a machine that runs 24 h must not die on "the 4th crash of its life").
+ */
 export interface DesktopBackendReconnect {
   readonly attempts: number
   readonly backoffMs: readonly number[]
   readonly message: string
   readonly wait?: (ms: number) => Promise<void>
+  /** How long a ready host must have lasted before its failure counts as a fresh one; default {@link HOST_STABLE_MS}. */
+  readonly stableMs?: number
+  /** Clock (tests); default `Date.now`. */
+  readonly now?: () => number
 }
 
 export const HOST_RECONNECT_BACKOFF_MS = [15_000, 30_000, 60_000] as const
+/** The ready time after which a host failure starts a new recovery budget (Onyx's `stableMs`, same 10 minutes). */
+export const HOST_STABLE_MS = 10 * 60_000
 
 /** The error state for one failure: rendered message plus the failure itself. */
 function errorState(failure: unknown): DesktopBackendState {
@@ -54,6 +63,8 @@ export class DesktopBackendController<Host extends DesktopBackendHost> {
   private lastPrepare: (() => Promise<void>) | undefined
   private reconnectLeft = 0
   private recovering = false
+  /** When the current host became ready; consumed by the first failure it has. */
+  private readyAt: number | undefined
 
   /**
    * @param createHost - Allocate a child and route its fatal failures to the supplied callback.
@@ -103,6 +114,7 @@ export class DesktopBackendController<Host extends DesktopBackendHost> {
         // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
         if (!attempt.cancelled) {
           if (!this.recovering) this.reconnectLeft = this.reconnect?.attempts ?? 0
+          this.readyAt = (this.reconnect?.now ?? Date.now)()
           this.update({ phase: 'ready' })
         }
       } catch (error) {
@@ -158,12 +170,22 @@ export class DesktopBackendController<Host extends DesktopBackendHost> {
     return attempt.cleanup
   }
 
+  /** A host that stayed ready long enough (default 10 min) was a healthy one: its failure is a fresh crash, not the next of a loop. */
+  private earnBudgetBack(): void {
+    const readyAt = this.readyAt
+    this.readyAt = undefined
+    const policy = this.reconnect
+    if (readyAt === undefined || policy === undefined) return
+    if ((policy.now ?? Date.now)() - readyAt >= (policy.stableMs ?? HOST_STABLE_MS)) this.reconnectLeft = policy.attempts
+  }
+
   private failed(attempt: Attempt<Host>, error: Error): void {
     if (this.attempt !== attempt || attempt.cancelled) return
     attempt.failure = error
     if (this.current.phase !== 'ready' && this.current.phase !== 'reconnecting') return
     attempt.cancelled = true
     const cleanup = this.cleanup(attempt)
+    this.earnBudgetBack()
     if (this.reconnectLeft > 0 && !this.closed && this.stopping === undefined) {
       const left = this.reconnectLeft
       this.reconnectLeft -= 1

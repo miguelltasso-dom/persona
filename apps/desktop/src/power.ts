@@ -1,47 +1,45 @@
-/** Sleep/energy: block suspension only while a run is live; catch-up after a clock jump. */
+/**
+ * Sleep/energy on the desktop side: catch-up after a clock jump or an OS resume. The desktop NO LONGER holds Windows awake (D Keel
+ * 14:44): the
+ * only sleep blocker is the host's `PowerKeeper`, which decides by the station state (paired and running, a live turn or an open card). Two
+ * independent blockers had two owners and the renderer's one, fed by a window that may be hidden in the tray, was wrong for a 24 h machine
+ * and held Windows awake for every ordinary user (contradicting "only with a paired station").
+ */
 
 export const CATCH_UP_BURST = 3
 export const CLOCK_JUMP_MS = 60_000
 
-export interface PowerSaveBlockerPort {
-  start(type: 'prevent-app-suspension'): number
-  stop(id: number): boolean
-}
-
 export interface DesktopPowerOptions {
-  readonly blocker: PowerSaveBlockerPort
   readonly onCatchUp: (limit: number) => void
   readonly clock?: () => number
   readonly burst?: number
 }
 
 /**
- * Hold `prevent-app-suspension` only while an assignment is running (never the screen).
+ * Catch-up requests for the host's scheduler; it never asks the OS to stay awake.
  */
 export class DesktopPower {
-  private blockId: number | undefined
   private lastTick: number
   private running = 0
 
-  /** @param options - Electron powerSaveBlocker and Vigia catch-up sink. */
+  /** @param options - The Vigia catch-up sink and an optional clock. */
   constructor(private readonly options: DesktopPowerOptions) {
     this.lastTick = (options.clock ?? Date.now)()
   }
 
+  /** How many assignments the renderer reported live (informational: nothing here holds the machine awake). */
+  get runningAssignments(): number {
+    return this.running
+  }
+
   /**
-   * Update how many assignments are live.
+   * Record how many assignments are live.
    * @param count - Running assignments.
    */
   setRunningAssignments(count: number): void {
     this.running = Math.max(0, count)
-    if (this.running > 0) this.ensureBlock()
-    else this.releaseBlock()
   }
 
-  /**
-   * Resume or a jumped clock: ask the host for a burst-limited Vigia catch-up.
-   * @param at - Optional instant (tests).
-   */
   /**
    * OS resume: always ask the host for a burst-limited Vigia catch-up.
    * @param at - Optional instant (tests).
@@ -59,19 +57,8 @@ export class DesktopPower {
     if (jumped) this.options.onCatchUp(this.options.burst ?? CATCH_UP_BURST)
   }
 
-  /** Drop the blocker (quit). */
+  /** Quit: nothing is held, so nothing to release. */
   dispose(): void {
-    this.releaseBlock()
-  }
-
-  private ensureBlock(): void {
-    if (this.blockId !== undefined) return
-    this.blockId = this.options.blocker.start('prevent-app-suspension')
-  }
-
-  private releaseBlock(): void {
-    if (this.blockId === undefined) return
-    this.options.blocker.stop(this.blockId)
-    this.blockId = undefined
+    this.running = 0
   }
 }

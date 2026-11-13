@@ -10,6 +10,26 @@ import { prepareVaultProof, readVaultProof } from './persona-vault-proof.mjs'
 import { componentsGateOf } from './components-gate.mjs'
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
+
+/**
+ * Playwright's `page.screenshot` can hang on the boot-error page of the packaged app (measured 17:40 on d2135706cd and on the older 752e85396a:
+ * "fonts loaded" and then nothing for 120 s) while the raw CDP capture of the same page works. The screenshot is evidence, not the assertion, so
+ * after 15 s fall back to `Page.captureScreenshot` instead of failing the whole proof.
+ * @param {import('playwright').Page} page - The application page.
+ * @param {string} path - Where the PNG goes.
+ */
+async function savePng(page, path) {
+  try {
+    await page.screenshot({ timeout: 15_000, path })
+  } catch (error) {
+    if (!String(error?.message).includes('Timeout')) throw error
+    const session = await page.context().newCDPSession(page)
+    const shot = await session.send('Page.captureScreenshot', { format: 'png', fromSurface: true })
+    writeFileSync(path, Buffer.from(shot.data, 'base64'))
+    await session.detach().catch(() => undefined)
+    console.log(JSON.stringify({ screenshotFallback: path }))
+  }
+}
 const require = createRequire(import.meta.url)
 const builder = createRequire(require.resolve('electron-builder'))
 const asar = createRequire(builder.resolve('app-builder-lib'))('@electron/asar')
@@ -143,10 +163,10 @@ for (const dark of (process.argv.includes('--light-only') ? [false] : [false, tr
         .catch(async () => { throw new Error(`forced ${dark ? 'dark' : 'light'} theme did not reach the first frame: ${JSON.stringify(await themeSeen())}`) })
       theme = { firstFrame: await themeSeen() }
     }
-    await page.screenshot({ timeout: 120_000, path: join(output, dark ? 'dark-first-frame.png' : 'light-first-frame.png') })
+    await savePng(page, join(output, dark ? 'dark-first-frame.png' : 'light-first-frame.png'))
     if (dark) {
       await page.locator('#boot-error-title').waitFor({ state: 'visible', timeout: 65000 })
-      await page.screenshot({ timeout: 120_000, path: join(output, 'dark-boot-error.png') })
+      await savePng(page, join(output, 'dark-boot-error.png'))
       const focused = await page.locator('#boot-retry').evaluate(button => button.getRootNode().activeElement === button)
       if (!focused) throw new Error('Retry did not receive focus')
       await page.getByRole('button', { name: 'Tentar de novo', exact: true }).click()
@@ -164,7 +184,7 @@ for (const dark of (process.argv.includes('--light-only') ? [false] : [false, tr
         .catch(async () => { throw new Error(`forced ${dark ? 'dark' : 'light'} theme did not reach the mounted app: ${JSON.stringify(await themeSeen())}`) })
       theme = { ...theme, mounted: await themeSeen() }
     }
-    await page.screenshot({ timeout: 120_000, path: join(output, dark ? 'dark-onboarding.png' : 'light-onboarding.png') })
+    await savePng(page, join(output, dark ? 'dark-onboarding.png' : 'light-onboarding.png'))
     const text = await page.locator('#root').innerText()
     const resources = await page.evaluate(() => performance.getEntriesByType('resource')
       .map(entry => ({ path: new URL(entry.name).pathname, durationMs: Math.round(entry.duration) }))

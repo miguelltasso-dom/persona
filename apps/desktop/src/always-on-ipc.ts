@@ -52,6 +52,26 @@ export function isAlwaysOnResolved(value: unknown): value is { kind: 'resolved';
     && rec.eventIds.every(id => typeof id === 'string' && id.length > 0)
 }
 
+/** At most this many windows cross the wire. */
+export const MAX_QUIET_WINDOWS = 16
+const HH_MM = /^(?:[01]\d|2[0-3]):[0-5]\d$/u
+
+/**
+ * Validate the quiet windows the renderer sends so the desktop toast obeys the "Janela de silêncio" the person saved (HONEST-1).
+ * Anything that is not exactly `{ kind: 'quiet', windows: [{ start: 'HH:MM', end: 'HH:MM' }, ...] }` is refused (≤ 16 windows).
+ * @param value - Untrusted IPC argument.
+ */
+export function isAlwaysOnQuiet(value: unknown): value is { kind: 'quiet'; windows: { start: string; end: string }[] } {
+  if (typeof value !== 'object' || value === null) return false
+  const rec = value as Record<string, unknown>
+  if (rec.kind !== 'quiet' || !Array.isArray(rec.windows) || rec.windows.length > MAX_QUIET_WINDOWS) return false
+  return rec.windows.every((window: unknown) => {
+    if (typeof window !== 'object' || window === null) return false
+    const item = window as Record<string, unknown>
+    return typeof item.start === 'string' && HH_MM.test(item.start) && typeof item.end === 'string' && HH_MM.test(item.end)
+  })
+}
+
 /**
  * Coerce a running-assignment count from IPC.
  * @param value - Untrusted IPC argument.

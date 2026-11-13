@@ -193,6 +193,8 @@ export class DesktopHostProcess {
    * @param packageManager - Bundled pnpm entry and Node launcher directory, scoped to package operations.
    * @param onPlatformSession - Private credential updates for embedded Platform views.
    * @param onPluginOperation - Optional diagnostic sink; malformed records are ignored without failing the Host.
+   * @param onComputerUse - D-117 / M9: consumes a `persona-computer-use` message from the child (the loop's request to the executor in
+   *   Electron main) and returns whether it was one. It runs BEFORE the event check below, which kills the child on an unknown message.
    */
   constructor(
     private readonly node: string,
@@ -206,7 +208,27 @@ export class DesktopHostProcess {
 
     private readonly onPlatformSession?: (session: PlatformSession | null) => void,
     private readonly onPluginOperation?: (record: PluginOperationRecord) => void,
+    private readonly onComputerUse?: (message: unknown) => boolean,
   ) {}
+
+  /**
+   * The last line the child wrote to stderr that starts with `prefix` (the Host's own diagnostics, e.g. `[persona-host] quitPhases {...}`).
+   * @param prefix - How the line starts.
+   * @returns The line, or undefined when there is none.
+   */
+  lastStderrLine(prefix: string): string | undefined {
+    return this.stderr.split('\n').map(line => line.trim()).findLast(line => line.startsWith(prefix))
+  }
+
+  /**
+   * Send a computer-use reply or push (`persona-computer-use`) to the child. A no-op when the child is gone or the channel is closed.
+   * @param message - The wire message built by the computer-use bridge.
+   */
+  postComputerUse(message: unknown): void {
+    const child = this.child
+    if (child === undefined || !child.connected) return
+    try { child.send(message as never, (_error) => { /* the child fails closed on its own deadline */ }) } catch (error) { void error }
+  }
 
   /**
    * Start this child once and await its Web application URL.
@@ -233,6 +255,7 @@ export class DesktopHostProcess {
     child.stderr?.on('data', (chunk: string) => { this.stderr = (this.stderr + chunk).slice(-MAX_HOST_DIAGNOSTIC_CHARS) })
     child.stdout?.pipe(process.stdout)
     child.on('message', (message: unknown) => {
+      if (this.onComputerUse?.(message) === true) return
       if (isPersonaVaultHostRequest(message)) {
         child.send(handlePersonaVaultRequest(message), (_error) => {
           // Host still owns the request timeout if the reply cannot be delivered.

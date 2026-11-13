@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest'
@@ -360,4 +360,76 @@ it.each([undefined, '', 7])('rejects malformed Platform account identity %s on p
   await expect(host.start()).rejects.toThrow('invalid IPC event')
   expect(changed.mock.calls).toEqual([[null]])
   await host.stop()
+})
+
+describe('computer-use bridge channel (D-117 / M9)', () => {
+  const CHILD = `
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+process.on('message', message => {
+  if (message.type === 'persona-computer-use') writeFileSync(join(process.argv[3], 'computer-use-' + String(message.requestId ?? message.op)), JSON.stringify(message))
+  if (message.type === 'shutdown') process.send({ type: 'shutdown-complete' }, () => process.disconnect())
+})
+process.send({ type: 'ready', url: 'http://127.0.0.1:1/?token=fixture' })
+process.send({ type: 'persona-computer-use', requestId: 1, op: 'observe' })
+process.send({ type: 'persona-computer-use', op: 'stop', requestId: 1 })
+`
+
+  it('consumes the child\'s persona-computer-use messages before the event check (the child is NOT killed) and posts replies back', async () => {
+    const runtime = projectWithHost(CHILD)
+    const seen: unknown[] = []
+    const failure = vi.fn()
+    const holder: { host?: DesktopHostProcess } = {}
+    const consume = (message: unknown): boolean => {
+      if (typeof message !== 'object' || message === null || (message as { type?: unknown }).type !== 'persona-computer-use') return false
+      seen.push(message)
+      if ((message as { op?: unknown }).op === 'observe') {
+        holder.host?.postComputerUse({ type: 'persona-computer-use', requestId: 1, op: 'observe', held: false })
+      }
+      return true
+    }
+    const host = new DesktopHostProcess(
+      process.execPath, runtime, runtime, undefined, process.env, failure, undefined, undefined, undefined, undefined, consume,
+    )
+    holder.host = host
+    hosts.push(host)
+    await host.start()
+    await vi.waitFor(() => { expect(seen).toHaveLength(2) })
+    expect(seen).toEqual([
+      { type: 'persona-computer-use', requestId: 1, op: 'observe' },
+      { type: 'persona-computer-use', op: 'stop', requestId: 1 },
+    ])
+    await vi.waitFor(() => { expect(readFileSync(join(runtime, 'computer-use-1'), 'utf8')).toContain('"held":false') })
+    expect(failure).not.toHaveBeenCalled()
+  })
+
+  it('without a handler (or when it does not consume the message) the old rule stands: an unknown message fails the host', async () => {
+    const runtime = projectWithHost(`
+process.send({ type: 'persona-computer-use', requestId: 1, op: 'observe' })
+${HTTP_HOST}`)
+    const failure = vi.fn()
+    const host = new DesktopHostProcess(
+      process.execPath, runtime, runtime, undefined, process.env, failure, undefined, undefined, undefined, undefined, () => false,
+    )
+    hosts.push(host)
+    await expect(host.start()).rejects.toThrow('invalid IPC event')
+  })
+
+  it('postComputerUse is a harmless no-op before the child starts and after it is gone', () => {
+    const host = new DesktopHostProcess(process.execPath, '.', '.')
+    expect(() => { host.postComputerUse({ type: 'persona-computer-use', op: 'held', held: true }) }).not.toThrow()
+  })
+})
+
+describe('the Host\'s own diagnostics line (BUG-QUIT-1: quitPhases)', () => {
+  it('lastStderrLine returns the LAST stderr line that starts with the prefix, and undefined when there is none', async () => {
+    const runtime = projectWithHost(`
+process.stderr.write('noise\\n[persona-host] quitPhases {"work":1}\\nmore noise\\n[persona-host] quitPhases {"work":2}\\n')
+${HTTP_HOST}`)
+    const host = hostProcess(runtime)
+    expect(host.lastStderrLine('[persona-host] quitPhases')).toBeUndefined()
+    await host.start()
+    await vi.waitFor(() => { expect(host.lastStderrLine('[persona-host] quitPhases')).toBe('[persona-host] quitPhases {"work":2}') })
+    expect(host.lastStderrLine('[persona-host] nothing')).toBeUndefined()
+  })
 })

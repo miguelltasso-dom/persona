@@ -195,7 +195,11 @@ describe('W3-5 computer-use bind', () => {
     expect(win.find('Ok')?.id).toBe('ok')
     expect(createWindowsUiaPort(() => 'not-json').snapshot()).toEqual([])
     expect(WINDOWS_UIA_SNAPSHOT_SCRIPT).toContain('UIAutomationClient')
-    expect(WINDOWS_UIA_SNAPSHOT_SCRIPT).not.toMatch(/ValuePattern|ValueProperty/u)
+    // D-117: the snapshot reads the text of an editable field (so a step can check what was typed) ONLY behind the password guard, never
+    // before it.
+    expect(WINDOWS_UIA_SNAPSHOT_SCRIPT.match(/ValuePattern/gu)).toHaveLength(1)
+    expect(WINDOWS_UIA_SNAPSHOT_SCRIPT.indexOf('ValuePattern')).toBeGreaterThan(WINDOWS_UIA_SNAPSHOT_SCRIPT.indexOf('if (-not $pwd) {'))
+    expect(WINDOWS_UIA_SNAPSHOT_SCRIPT).not.toMatch(/ValueProperty/u)
     expect(WINDOWS_UIA_INVOKE_SCRIPT).toContain('InvokePattern')
     expect(WINDOWS_UIA_INVOKE_SCRIPT).not.toMatch(/ValuePattern|ValueProperty/u)
     expect(WINDOWS_UIA_SETVALUE_SCRIPT).toContain('IsPasswordProperty')

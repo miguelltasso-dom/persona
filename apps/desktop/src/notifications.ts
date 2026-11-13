@@ -10,12 +10,23 @@ function linkViewOf(kind: 'needs-you' | 'review' | 'question' | 'failed' | 'done
   return 'thread'
 }
 
+/** One "Janela de silêncio" the person saved: HH:MM to HH:MM (a wrap such as 20:00–08:00 includes midnight; the end is exclusive). */
+export interface QuietWindow {
+  readonly start: string
+  readonly end: string
+}
+
 /** Policy from Anvil Remote `getAttentionPolicy` (Status contract). */
 export interface DesktopAttentionPolicy {
   readonly delivery: 'summary' | 'ping'
   readonly proposalBudget: number
   readonly quietStart: string
   readonly quietEnd: string
+  /**
+   * HONEST-1: the windows the person SAVED. When present they replace `quietStart`/`quietEnd`: no window means no silence, and any of
+   * several windows holds the toast.
+   */
+  readonly quietWindows?: readonly QuietWindow[]
 }
 
 export interface DesktopAttentionEvent {
@@ -106,6 +117,26 @@ export function inQuietWindow(at: Date, start: string, end: string): boolean {
   return from < to ? minutes >= from && minutes < to : minutes >= from || minutes < to
 }
 
+/**
+ * The toast policy of the desktop from the quiet windows the person saved (HONEST-1, Atlas 11/11). Nothing is held in secret: with no
+ * window
+ * there is no silence. Delivery and budget are the ones the desktop always used.
+ * @param windows - The saved windows (`listQuietWindows`, sent by the renderer on the attention channel).
+ */
+export function toastPolicyFrom(windows: readonly QuietWindow[]): DesktopAttentionPolicy {
+  return { delivery: 'ping', proposalBudget: DEFAULT_BUDGET, quietStart: '00:00', quietEnd: '00:00', quietWindows: windows }
+}
+
+/**
+ * Whether `at` is held by the policy: any saved window, or (policies without windows) the single quiet window.
+ * @param at - Instant.
+ * @param policy - Toast policy.
+ */
+export function inQuietPolicy(at: Date, policy: DesktopAttentionPolicy): boolean {
+  if (policy.quietWindows !== undefined) return policy.quietWindows.some(window => inQuietWindow(at, window.start, window.end))
+  return inQuietWindow(at, policy.quietStart, policy.quietEnd)
+}
+
 function dayKey(at: Date): string {
   return `${String(at.getFullYear())}-${String(at.getMonth() + 1).padStart(2, '0')}-${String(at.getDate()).padStart(2, '0')}`
 }
@@ -143,7 +174,7 @@ export class DesktopNotifications {
     const now = this.options.clock?.now() ?? new Date()
     this.rollDay(now)
     const policy = this.options.policy()
-    if (inQuietWindow(now, policy.quietStart, policy.quietEnd)) {
+    if (inQuietPolicy(now, policy)) {
       this.pending.push(event)
       this.quietPending = true
       return
@@ -171,7 +202,7 @@ export class DesktopNotifications {
     if (!this.quietPending) return
     const now = this.options.clock?.now() ?? new Date()
     const policy = this.options.policy()
-    if (this.options.isAppFocused() || inQuietWindow(now, policy.quietStart, policy.quietEnd)) return
+    if (this.options.isAppFocused() || inQuietPolicy(now, policy)) return
     this.flushSummary(now)
     this.quietPending = false
   }
@@ -194,7 +225,7 @@ export class DesktopNotifications {
     if (this.pending.length === 0) return
     if (this.options.isAppFocused()) return
     const policy = this.options.policy()
-    if (inQuietWindow(now, policy.quietStart, policy.quietEnd)) return
+    if (inQuietPolicy(now, policy)) return
     const held = this.pending
     this.pending = []
     const first = held[0]

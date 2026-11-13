@@ -30,7 +30,6 @@ import {
   Menu,
   Notification,
   powerMonitor,
-  powerSaveBlocker,
   nativeImage,
   nativeTheme,
   protocol,
@@ -52,11 +51,11 @@ import { installTeachCapture } from './teach-ipc.ts'
 import { createTeachRecordingChrome } from './teach-chrome.ts'
 import { createTeachPill } from './teach-pill.ts'
 import { teachSourceView } from './teach-sources.ts'
-import { createComputerUseComHost, installComputerUseBind } from './computer-use-bind.ts'
+import { installComputerUseBind } from './computer-use-bind.ts'
 import { interpretOverlayConsole } from './computer-use-cursor-renderer.ts'
 import { overlayBrowserWindowOptions, overlayMouseIgnore } from './computer-use-overlay.ts'
-import { desktopComputerUseActions } from './computer-use-ports.ts'
-import { spawnSync } from 'node:child_process'
+import { createComputerUseMainBridge } from './computer-use-bridge.ts'
+import { createExecutorActions, createExecutorActPort, createExecutorObservePort, createPowerShellRunner } from './computer-use-executor.ts'
 import { installMicrophonePermissions } from './microphone-permissions.ts'
 import { DesktopBackendController } from './backend-controller.ts'
 import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
@@ -106,13 +105,19 @@ import { DesktopBackgroundNotice } from './background-notice.ts'
 import { applyPersonaDesktopIdentity, PERSONA_PRODUCT_NAME, PERSONA_PROTOCOL, resolvePersonaProcessHome, personaUpdatesEnabled, shouldShowDeepSeekWelcome } from './product.ts'
 import { applyChromiumResourceBudget } from './resource-budget.ts'
 import { skipUpdaterAtBoot, skipWelcomeAtBoot } from './cold-start.ts'
-import { DesktopLoginItem } from './login-item.ts'
+import { DesktopLoginItem, launchedInBackground } from './login-item.ts'
+import { decideRecovery } from './station-recovery.ts'
+import { patchStationState, readStationState } from './station-state.ts'
+import {
+  applyStartupChoice, reconcileStartupAtBoot, recordOrderlyExit, schtasksExec, watchdogFiles, windowsUserId, type StationStartupDeps,
+} from './station-startup.ts'
+import { StationWatchdog, type AutostartPlan } from './station-watchdog.ts'
 import { readPersonaShellPrefs, writePersonaShellPrefs } from './shell-prefs.ts'
-import { DesktopNotifications, policyFromAutonomy } from './notifications.ts'
+import { DesktopNotifications, toastPolicyFrom, type QuietWindow } from './notifications.ts'
 import { allowShellNavigation, hardenSession, isExternalHttpUrl, secureWebPreferences, windowOpenAction } from './secure-shell.ts'
 import { copyPersonaDiagnostic, createPersonaLogger, personaLogsDir } from './persona-log.ts'
 import { reconnectingPageUrl } from './reconnecting-page.ts'
-import { ALWAYS_ON_IPC, isAlwaysOnAttention, isAlwaysOnResolved, needsYouCountValue, runningAssignmentCount } from './always-on-ipc.ts'
+import { ALWAYS_ON_IPC, isAlwaysOnAttention, isAlwaysOnQuiet, isAlwaysOnResolved, needsYouCountValue, runningAssignmentCount } from './always-on-ipc.ts'
 import { applyThemeOverride, themeOverrideArguments } from './theme-override.ts'
 import { DesktopPower } from './power.ts'
 import { backupPersonaHome, restorePersonaBackup } from './backup.ts'
@@ -479,7 +484,8 @@ async function main(): Promise<void> {
   const forcedTheme = applyThemeOverride(nativeTheme, process.env, process.argv)
   const desktopSettings = await readDesktopSettings(app.getPath('userData'))
   void pruneCrashReports(app.getPath('logs'))
-  const personaLogger = createPersonaLogger(resolvePersonaProcessHome())
+  const stationHome = resolvePersonaProcessHome()
+  const personaLogger = createPersonaLogger(stationHome)
   void personaLogger.rotate().catch((error: unknown) => { console.error(error) })
   void personaLogger.write('main', `desktop start v${app.getVersion()}`).catch((error: unknown) => { console.error(error) })
   // Opening time by phase (`<PERSONA_HOME>/logs/boot-*.log`): the packaged boot is measured here, not guessed from outside.
@@ -548,6 +554,9 @@ async function main(): Promise<void> {
     if (failure?.status === 'rejected') throw failure.reason
   }
   let enteredWorkspace = false
+  // M4: the login item of a station starts with --background. The first workspace entry then opens no window (the host and the tray run);
+  // the Welcome still shows when a sign-in is missing, and any later "open" (tray, second launch, deep link) shows the window as usual.
+  let backgroundStart = launchedInBackground(process.argv)
   // NSIS passes --updated when it launches the application after installation.
   let raiseAfterUpdate = process.platform === 'win32' && process.argv.includes('--updated')
   let shellInstallerOwnsQuit = false
@@ -666,6 +675,27 @@ async function main(): Promise<void> {
   const platformView = new DesktopPlatformView(join(app.getAppPath(), 'lib', 'preload-platform-account.cjs'),
     () => locale.id === 'zh-CN' ? 'zh_CN' : 'en_US', process.platform === 'win32' ? 'win32' : 'darwin',
     owner => isMandatory() || updateOverlays.input(owner).blocked)
+  // D-117 / M9: the bridge to the executor of the computer-use loop, which runs in the Host child (set below, once the overlay bind
+  // exists).
+  const computerUseBridge: { current: ReturnType<typeof createComputerUseMainBridge> | undefined } = { current: undefined }
+  let currentHost: DesktopHostProcess | undefined
+  /**
+   * M4: the Host fell for good on a paired station. At the ceiling of falls (the Onyx rule, copied in `station-recovery.ts`) the desktop,
+   * the only writer of `station.json` while no Host is alive, pauses the station; the person turns it back on from the Team screen.
+   */
+  const pauseStationAtCeiling = (): void => {
+    if (process.env.VITEST === 'true') return
+    const station = readStationState(stationHome)
+    if (!station.paired || !station.running) return
+    const now = Date.now()
+    const decision = decideRecovery({
+      reason: 'host-failed', crashesInWindow: station.crashes ?? 0, now, paired: true,
+      ...(station.lastStartAt === undefined ? {} : { previousRunMs: now - station.lastStartAt }),
+    })
+    if (!decision.pauseStation) return
+    try { patchStationState(stationHome, { running: false, pausedBy: 'queda' }) } catch (error) { console.error(error) }
+    void personaLogger.write('main', `station paused: ${decision.note}`).catch((error: unknown) => { console.error(error) })
+  }
   const backend = new DesktopBackendController((onFailure) => {
     const hostInspectPort = developmentHostInspectPort(development)
     const host = new DesktopHostProcess(resources.node, resources.dsh, activeProject,
@@ -688,7 +718,8 @@ async function main(): Promise<void> {
           segmentBytes: 256 * 1024, recordBytes: 4096, queuedBytes: 64 * 1024,
         })
         operationJournal.enqueue(JSON.stringify(record))
-      })
+      }, message => computerUseBridge.current?.handle(message) === true)
+    currentHost = host
     return {
       start: async () => {
         if (process.env.PERSONA_TEST_BOOT_FAILURE === '1') throw new Error('Forced startup failure')
@@ -757,6 +788,9 @@ async function main(): Promise<void> {
       resolveDragResource: (address: string, signal?: AbortSignal) => host.resolveDragResource(address, signal),
     }
   }, (state) => {
+    // The host left (fall, reconnect, stop): every UIA call in flight is cancelled and the overlay closes (the child fails closed on its
+    // side).
+    if (state.phase !== 'ready') computerUseBridge.current?.abortAll()
     if (state.phase === 'reconnecting') {
       backendReady = false
       if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
@@ -770,11 +804,13 @@ async function main(): Promise<void> {
       void navigateMain(applicationUrl).catch((error: unknown) => { reportFatal(error, 'main') })
     }
     if (state.phase === 'error') {
+      pauseStationAtCeiling()
       showBootFailure(state.failure)
     }
     else if (!shuttingDown) backendReady = state.phase === 'ready'
   }, process.env.VITEST === 'true' ? undefined : {
-    attempts: 3,
+    // M4: nobody watches a paired station, so the Host gets five tries (the ceiling of falls) before the station is paused.
+    attempts: readStationState(stationHome).paired ? 5 : 3,
     backoffMs: HOST_RECONNECT_BACKOFF_MS,
     message: currentDesktopLocale().messages.reconnecting,
   })
@@ -1053,37 +1089,31 @@ async function main(): Promise<void> {
   })
   let computerUseBind!: ReturnType<typeof installComputerUseBind>
   computerUseBind = installComputerUseBind(() => mainWindow, {
-    ...createComputerUseComHost({
-      spawn: (command, args, env) => {
-        const result = spawnSync(command, [...args], {
-          encoding: 'utf8', windowsHide: true, timeout: 8_000, env,
-        })
-        return { stdout: result.stdout ?? '', status: result.status }
-      },
-      displays: () => screen.getAllDisplays().map(display => ({
-        id: display.id,
-        bounds: display.bounds,
-        scaleFactor: display.scaleFactor,
-      })),
-      createWindow: (spec) => {
-        const overlay = new BrowserWindow({
-          ...overlayBrowserWindowOptions(spec),
-          webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
-        })
-        overlay.setAlwaysOnTop(true, spec.alwaysOnTopLevel)
-        overlay.setIgnoreMouseEvents(spec.ignoreMouseEvents.ignore, { forward: spec.ignoreMouseEvents.forward })
-        overlay.webContents.on('console-message', (_event, _level, message) => {
-          const action = interpretOverlayConsole(message)
-          if (action === undefined) return
-          if (action.kind === 'devolver') computerUseBind.resumeHeld()
-          else {
-            const ignore = overlayMouseIgnore(action.hovered)
-            overlay.setIgnoreMouseEvents(ignore.ignore, { forward: ignore.forward })
-          }
-        })
-        return overlay
-      },
-    }),
+    // No synchronous UIA here any more (it blocked the main process up to 8 s): the executor below runs PowerShell asynchronously and
+    // cancellable.
+    displays: () => screen.getAllDisplays().map(display => ({
+      id: display.id,
+      bounds: display.bounds,
+      scaleFactor: display.scaleFactor,
+    })),
+    createWindow: (spec) => {
+      const overlay = new BrowserWindow({
+        ...overlayBrowserWindowOptions(spec),
+        webPreferences: { sandbox: true, contextIsolation: true, nodeIntegration: false },
+      })
+      overlay.setAlwaysOnTop(true, spec.alwaysOnTopLevel)
+      overlay.setIgnoreMouseEvents(spec.ignoreMouseEvents.ignore, { forward: spec.ignoreMouseEvents.forward })
+      overlay.webContents.on('console-message', (_event, _level, message) => {
+        const action = interpretOverlayConsole(message)
+        if (action === undefined) return
+        if (action.kind === 'devolver') computerUseBind.resumeHeld()
+        else {
+          const ignore = overlayMouseIgnore(action.hovered)
+          overlay.setIgnoreMouseEvents(ignore.ignore, { forward: ignore.forward })
+        }
+      })
+      return overlay
+    },
     subscribeHook: (listener) => {
       const window = mainWindow
       if (window === undefined) return () => undefined
@@ -1103,13 +1133,33 @@ async function main(): Promise<void> {
       return () => { globalShortcut.unregister(accelerator) }
     },
   })
-  desktopComputerUseActions(computerUseBind)
+  // The executor of the computer-use loop (scoped to the window the run chose, async and cancellable) behind the host-child bridge.
+  const executorDeps = {
+    runScript: createPowerShellRunner(),
+    // Persona itself is never a target: this process and every process Electron started (renderers, GPU, the overlay).
+    personaPids: (): readonly number[] => [process.pid, ...app.getAppMetrics().map(metric => metric.pid)],
+    held: (): boolean => computerUseBind.held(),
+  }
+  const executorObserver = createExecutorObservePort(executorDeps)
+  computerUseBridge.current = createComputerUseMainBridge({
+    observer: executorObserver,
+    actPort: createExecutorActPort(executorDeps, executorObserver),
+    mcp: createExecutorActions(executorDeps),
+    send: (message) => { currentHost?.postComputerUse(message) },
+    begin: (runId, personaId) => { computerUseBind.control.begin(personaId ?? runId) },
+    idle: () => { computerUseBind.release() },
+  })
+  // The person took the controls (any path: physical input, Devolver, the renderer) or gave them back: tell the child within 250 ms.
+  const heldTimer = setInterval(() => { computerUseBridge.current?.notifyHeld(computerUseBind.held()) }, 250)
+  heldTimer.unref()
   installMicrophonePermissions(session.defaultSession, () => mainWindow?.webContents)
   hardenSession(session.defaultSession)
   const shortcuts = installDesktopShortcuts(() => mainWindow, app.getPath('userData'),
     process.platform === 'darwin' ? 'macos' : process.platform === 'win32' ? 'windows' : 'linux', () => { refreshApplicationMenu() }, window => updateOverlays.input(window))
   app.on('will-quit', () => {
     shortcuts.dispose()
+    clearInterval(heldTimer)
+    computerUseBridge.current?.abortAll()
     computerUseBind.close()
   })
 
@@ -1466,20 +1516,43 @@ async function main(): Promise<void> {
       try { app.setLoginItemSettings(settings) } catch { /* Test doubles omit setLoginItemSettings. */ }
     },
   })
-  void readPersonaShellPrefs(app.getPath('userData')).then((prefs) => {
-    loginItem.setOpenAtLogin(prefs.startWithWindows)
+  // M4: with a paired station "open with Windows" is a scheduled task that also keeps the app up; otherwise the ordinary Run key.
+  const startupDeps: StationStartupDeps = {
+    home: stationHome,
+    watchdog: new StationWatchdog({ exec: schtasksExec(), ...watchdogFiles(app.getPath('temp')) }),
+    loginItem,
+    exe: process.execPath,
+    userId: process.platform === 'win32' ? windowsUserId() : '',
+  }
+  // The saved choice (the Run key alone no longer says it: with a station the task carries it and the Run key stays off).
+  let startupOn = false
+  const reportStartup = (plan: AutostartPlan): void => {
+    // The screen text for this (the machine refused the task) is Muse's; until then the log says it and the Run key still works.
+    if (plan.mechanism === 'run-key' && plan.notice !== undefined) {
+      void personaLogger.write('main', `autostart: the Task Scheduler refused the watchdog (${plan.notice}); the Run key opens the app without supervision`)
+        .catch((error: unknown) => { console.error(error) })
+    }
+  }
+  const startupChoice = (accepted: boolean): Promise<void> => applyStartupChoice(accepted, startupDeps).then(reportStartup)
+  void readPersonaShellPrefs(app.getPath('userData')).then(async (prefs) => {
+    startupOn = prefs.startWithWindows
+    // Unit tests of the shell never reach the real Task Scheduler.
+    if (process.env.VITEST === 'true' || process.platform !== 'win32') loginItem.setOpenAtLogin(prefs.startWithWindows)
+    else reportStartup(await reconcileStartupAtBoot(prefs.startWithWindows, startupDeps))
   }).catch((error: unknown) => { console.error(error) })
+  // D Keel 14:44: the host's PowerKeeper is the ONLY sleep blocker (paired station + live work); the desktop only asks for catch-up.
   const desktopPower = new DesktopPower({
-    blocker: powerSaveBlocker,
     onCatchUp: (limit) => {
       if (mainWindow !== undefined && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send(ALWAYS_ON_IPC.catchUp, { limit })
       }
     },
   })
+  // HONEST-1: the toast obeys the "Janela de silêncio" the person SAVED (the renderer sends `{ kind: 'quiet', windows }`); none saved =
+  // no silence.
+  let quietWindows: readonly QuietWindow[] = []
   const desktopNotifications = new DesktopNotifications({
-    // Anvil Remote `getAutonomy` (proposalBudget / silenceStart / silenceEnd) — default until host posts it.
-    policy: () => policyFromAutonomy({ delivery: 'ping', proposalBudget: 3, silenceStart: '22:00', silenceEnd: '07:00' }),
+    policy: () => toastPolicyFrom(quietWindows),
     localeId: () => currentDesktopLocale().id,
     isAppFocused: () => mainWindow !== undefined && !mainWindow.isDestroyed()
       && mainWindow.isVisible() && mainWindow.isFocused(),
@@ -1506,6 +1579,11 @@ async function main(): Promise<void> {
   app.once('will-quit', () => { clearInterval(notificationTimer) })
   ipcMain.on(ALWAYS_ON_IPC.attention, (event, payload: unknown) => {
     assertDesktopSender(event, ['app'])
+    if (isAlwaysOnQuiet(payload)) {
+      quietWindows = payload.windows
+      desktopNotifications.flushQuietHours()
+      return
+    }
     if (isAlwaysOnResolved(payload)) {
       desktopNotifications.resolve(payload.eventIds)
       return
@@ -1655,10 +1733,12 @@ async function main(): Promise<void> {
     {
       label: currentDesktopLocale().messages.startWithWindows,
       type: 'checkbox',
-      checked: loginItem.openAtLogin,
+      checked: startupOn,
       click: (item) => {
         const enabled = item.checked === true
-        loginItem.setOpenAtLogin(enabled)
+        startupOn = enabled
+        if (process.env.VITEST === 'true' || process.platform !== 'win32') loginItem.setOpenAtLogin(enabled)
+        else void startupChoice(enabled).catch((error: unknown) => { console.error(error) })
         void readPersonaShellPrefs(app.getPath('userData')).then(async (prefs) => {
           await writePersonaShellPrefs(app.getPath('userData'), { ...prefs, startWithWindows: enabled })
         }).catch((error: unknown) => { console.error(error) })
@@ -1866,11 +1946,18 @@ async function main(): Promise<void> {
     })
     return window
   }
-  const enterWorkspace = async ({ activate = true }: { activate?: boolean } = {}): Promise<void> => {
+  type EnterOptions = { activate?: boolean; background?: boolean }
+  const enterWorkspace = async ({ activate = true, background = false }: EnterOptions = {}): Promise<void> => {
     if (quitting) return
     const window = mainWindow ?? createMainWindow()
     await navigateMain(applicationUrl)
     if (isQuitting() || recovery.active || window.isDestroyed()) return
+    if (background) {
+      // Loaded but never shown: the window opens when the owner asks for it (`focusPrimaryWindow`).
+      enteredWorkspace = true
+      boot.mark('workspace:background')
+      return
+    }
     if (activate) window.show()
     else window.showInactive()
     enteredWorkspace = true
@@ -1963,7 +2050,9 @@ async function main(): Promise<void> {
       raiseAfterUpdate = false
       await showWelcome()
     } else {
-      await enterWorkspace()
+      const background = backgroundStart
+      backgroundStart = false
+      await enterWorkspace({ background })
     }
   }
   focusPrimaryWindow = () => {
@@ -2011,17 +2100,27 @@ async function main(): Promise<void> {
    * the watchdog (a detached helper) ends only OUR tree if even that does not happen.
    */
   const endProcess = async (): Promise<void> => {
+    boot.mark('quit:end-process')
     try {
       await Promise.race([
         Promise.all([session.defaultSession.cookies.flushStore(), Promise.resolve(session.defaultSession.flushStorageData())]),
         new Promise<void>((resolve) => { setTimeout(resolve, 1500) }),
       ])
     } catch (error) { console.error(error) }
+    boot.mark('quit:flushed')
     // The `will-quit` listeners (global shortcuts, input hook, power monitor, timers) release what they hold; `app.exit` does not emit it.
     try { app.emit('will-quit', { preventDefault: () => undefined }) } catch (error) { console.error(error) }
+    boot.mark('quit:exit')
     app.exit(0)
   }
+  const orderlyExit = (deliberate: boolean): Promise<void> => {
+    if (process.env.VITEST === 'true') return Promise.resolve()
+    const wait = new Promise<void>((resolve) => { setTimeout(resolve, 2000).unref() })
+    return Promise.race([recordOrderlyExit(startupDeps, { deliberate }), wait]).catch((error: unknown) => { console.error(error) })
+  }
   const finishQuit = (): void => {
+    // The quit is measured by phase like the opening (`<PERSONA_HOME>/logs/boot-*.log`, marks `quit:*`): the exit time is not guessed.
+    boot.mark('quit:finish')
     armQuitWatchdog({ pid: process.pid, execPath: process.execPath })
     quitting = true
     shuttingDown = true
@@ -2039,7 +2138,20 @@ async function main(): Promise<void> {
     // rest: the `will-quit` listener that used to close them does not run when "Sair" ends the application this way.
     computerUseBind.release()
     void Promise.all([stopOperationReports(), Promise.resolve(mandatoryPolicy?.dispose()).then(() => policyAuth?.dispose()),
-      backend.close().then(async () => { await operationJournal?.drain(500) }, async (error: unknown) => {
+      backend.close().then(async () => {
+        boot.mark('quit:backend-closed')
+        // The Host reports how long each phase of ITS close took (`[persona-host] quitPhases {...}`): keep it next to the quit marks.
+        const phases = currentHost?.lastStderrLine('[persona-host] quitPhases')
+        if (phases !== undefined) void personaLogger.write('host', phases).catch((error: unknown) => { console.error(error) })
+        // The Host is down (the only moment the desktop may write `station.json`): a paired station remembers the orderly exit, and
+        // when the person chose "Sair" the watchdog stands down (it stays on at the end of the Windows session). Never longer than 2 s.
+        const orderly = orderlyExit(!sessionEnding)
+        await operationJournal?.drain(500)
+        boot.mark('quit:journal-drained')
+        await orderly
+        boot.mark('quit:station-recorded')
+      }, async (error: unknown) => {
+        boot.mark('quit:backend-close-failed')
         await operationJournal?.drain(500)
         throw error
       }),
@@ -2060,6 +2172,8 @@ async function main(): Promise<void> {
       tray?.dispose()
       updateDialog.dispose()
       mandatoryUI?.dispose()
+      // The Host was stopped for the installation: the update is an orderly exit, and the new version comes back on its own.
+      void orderlyExit(false)
       // Installation preparation already awaited Platform storage cleanup.
       void platformView.dispose().catch((error: unknown) => { console.error(error) })
       return

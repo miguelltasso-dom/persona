@@ -1,5 +1,7 @@
 /** Electron single-instance ownership before any Desktop profile lifecycle begins. */
 
+import { launchedInBackground } from './login-item.ts'
+
 /** Minimal Electron application operations needed for instance ownership. */
 export interface DesktopSingleInstanceApplication {
   requestSingleInstanceLock(): boolean
@@ -24,6 +26,9 @@ export function claimDesktopSingleInstance(
     return false
   }
   application.on('second-instance', (_event, argv) => {
+    // The station's watchdog launches `Persona.exe --background` on a timer and after a failure; when the owner is alive that launch is the
+    // answer "still running" and must not pull its window up in front of the person.
+    if (launchedInBackground(argv ?? [])) return
     focusOwner()
     const href = (argv ?? []).find(argument => typeof argument === 'string' && argument.startsWith('persona://'))
     if (href !== undefined) onLink?.(href)

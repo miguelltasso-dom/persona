@@ -194,6 +194,98 @@ describe('desktop backend controller', () => {
     await controller.close()
   })
 
+  /** A controller whose clock the test moves; every started host is ready at once. */
+  function clocked(stableMs?: number) {
+    let clock = 1_000_000
+    const states: DesktopBackendState[] = []
+    let starts = 0
+    let fail!: (error: Error) => void
+    const wait = vi.fn(async (ms: number) => { void ms })
+    const controller = new DesktopBackendController((onFailure) => {
+      fail = onFailure
+      starts += 1
+      return { start: vi.fn(async () => {}), stop: vi.fn(async () => {}) }
+    }, state => states.push(state), {
+      attempts: 3,
+      backoffMs: [15_000, 30_000, 60_000],
+      message: 'Reconectando…',
+      wait,
+      now: () => clock,
+      ...(stableMs === undefined ? {} : { stableMs }),
+    })
+    return {
+      controller, states, wait, starts: () => starts,
+      fail: (error: Error) => { fail(error) }, advance: (ms: number) => { clock += ms },
+    }
+  }
+
+  it('a host that stayed ready for 10 minutes earns the whole budget back: 24 h is not "the 4th crash of its life"', async () => {
+    const f = clocked()
+    await f.controller.start(async () => {})
+    for (let crash = 1; crash <= 8; crash += 1) {
+      f.advance(11 * 60_000)
+      f.fail(new Error(`host died ${String(crash)}`))
+      await vi.waitFor(() => { expect(f.starts()).toBe(crash + 1) })
+      await vi.waitFor(() => { expect(f.controller.state.phase).toBe('ready') })
+    }
+    expect(f.states.some(item => item.phase === 'error')).toBe(false)
+    // every recovery was the FIRST of a fresh budget: the shortest backoff each time
+    expect(f.wait.mock.calls.map(call => call[0])).toEqual(Array.from({ length: 8 }, () => 15_000))
+    await f.controller.close()
+  })
+
+  it('a crash loop never earns it back: 4 failures each 9 min 59 s after the host was ready still end in the error', async () => {
+    const f = clocked()
+    await f.controller.start(async () => {})
+    for (let crash = 1; crash <= 3; crash += 1) {
+      f.advance(10 * 60_000 - 1_000)
+      f.fail(new Error(`host died ${String(crash)}`))
+      await vi.waitFor(() => { expect(f.starts()).toBe(crash + 1) })
+      await vi.waitFor(() => { expect(f.controller.state.phase).toBe('ready') })
+    }
+    f.advance(10 * 60_000 - 1_000)
+    f.fail(new Error('host died 4'))
+    await vi.waitFor(() => { expect(f.controller.state.phase).toBe('error') })
+    expect(f.wait.mock.calls.map(call => call[0])).toEqual([15_000, 30_000, 60_000])
+    expect(f.starts()).toBe(4)
+    await f.controller.close()
+  })
+
+  it('the stable time is a parameter (the soak uses another one), and exactly at the threshold the budget is back', async () => {
+    const f = clocked(5_000)
+    await f.controller.start(async () => {})
+    for (let crash = 1; crash <= 5; crash += 1) {
+      f.advance(5_000)
+      f.fail(new Error(`host died ${String(crash)}`))
+      await vi.waitFor(() => { expect(f.starts()).toBe(crash + 1) })
+      await vi.waitFor(() => { expect(f.controller.state.phase).toBe('ready') })
+    }
+    expect(f.states.some(item => item.phase === 'error')).toBe(false)
+    await f.controller.close()
+  })
+
+  it('the refill is one-shot per host: after a long healthy run three quick crashes spend the budget and the fourth errors', async () => {
+    const f = clocked()
+    await f.controller.start(async () => {})
+    f.advance(30 * 60_000)
+    f.fail(new Error('host died after 30 min'))
+    await vi.waitFor(() => { expect(f.starts()).toBe(2) })
+    await vi.waitFor(() => { expect(f.controller.state.phase).toBe('ready') })
+    // the budget was refilled by the long run (3), one is spent on the recovery above: two quick ones spend the rest
+    f.advance(1_000)
+    f.fail(new Error('quick 1'))
+    await vi.waitFor(() => { expect(f.starts()).toBe(3) })
+    await vi.waitFor(() => { expect(f.controller.state.phase).toBe('ready') })
+    f.advance(1_000)
+    f.fail(new Error('quick 2'))
+    await vi.waitFor(() => { expect(f.starts()).toBe(4) })
+    await vi.waitFor(() => { expect(f.controller.state.phase).toBe('ready') })
+    f.advance(1_000)
+    f.fail(new Error('quick 3'))
+    await vi.waitFor(() => { expect(f.controller.state.phase).toBe('error') })
+    await f.controller.close()
+  })
+
   it('propagates cleanup failure and prevents retry from overlapping the remaining child', async () => {
     const f = fixture()
     f.ready.resolve()

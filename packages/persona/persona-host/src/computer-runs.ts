@@ -305,7 +305,7 @@ export class ComputerRuns {
    * @param runId - The run.
    * @param forced - The runner had to be killed: the line says the last step may already have gone out.
    */
-  actReturned(runId: string, forced = false): ComputerRun | undefined {
+  actReturned(runId: string, forced: boolean = false): ComputerRun | undefined {
     const run = this.runs.get(runId)
     if (run === undefined || run.state !== 'parando') return run
     return this.close(run, 'parada', forced ? 'Parada; o último passo já tinha saído.' : 'Parada.')

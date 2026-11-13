@@ -39,6 +39,11 @@ test('controle-altura: clicável fora de 32/40/48 reprova; selo só de leitura e
   for (const ok of ['.chip{height:32px}', '.chip{height:40px}', '.chip{min-height:48px}', '.badge{height:22px}', '.counter{height:24px}', '.chip svg{height:16px}', '.chip::before{height:20px}', '.tabUnderline::after{height:2px}', '.chip{height:100%}', '.row{cursor:pointer;min-height:56px}', '.chip{height:auto}']) assert.deepEqual(lint(ok), [], ok)
 })
 
+test('controle-altura: o token do celular NÃO tem escala própria (Keel 18:25): --mobile-touch-min vale 48 (a régua) e o que não está na régua continua acusado', () => {
+  assert.deepEqual(lint('.touch{cursor:pointer;min-height:var(--mobile-touch-min)}', { defs: { '--mobile-touch-min': '48px' } }), []) // na régua: passa sem exceção
+  assert.deepEqual(rules(lint('.touch{cursor:pointer;min-height:var(--mobile-touch-min)}', { defs: { '--mobile-touch-min': '44px' } })), ['controle-altura']) // fora da régua: acusado, sem lista de exceções
+})
+
 test('controle-altura: só o último compound conta (descendente não herda) e :not()/is() não enganam', () => {
   assert.equal(isClickableSelector('.toolbar .icon'), false)
   assert.equal(isClickableSelector('.toolbar .iconButton'), true)
@@ -74,6 +79,8 @@ test('animacao-infinita: infinite fora da lista permitida reprova', () => {
   assert.deepEqual(rules(lint('.a{animation-iteration-count:infinite}')), ['animacao-infinita'])
   assert.deepEqual(lint('.a{animation:persona-rail-pulse var(--m) ease infinite}'), []) // a bolinha de quem trabalha
   assert.deepEqual(lint('.a{animation:persona-rec-pulse var(--m) ease infinite}'), []) // o ponto de gravação (item 20)
+  assert.deepEqual(lint('.a{animation:livingBreathe var(--m) ease infinite alternate}'), []) // a respiração do rosto vivo (item 21; só transform, pausada e desligada em reduced-motion)
+  assert.deepEqual(rules(lint('.a{animation:livingBreathing var(--m) ease infinite}')), ['animacao-infinita']) // o nome é exato: um parecido continua reprovado
   assert.deepEqual(lint('.a{animation:x var(--m) ease 2}'), [])
   assert.deepEqual(lint('.a{animation:x var(--m) ease infinite}', { file: 'x.css' }).map((v) => v.rule), ['animacao-infinita']) // vale também fora de módulo
 })

@@ -1,5 +1,24 @@
 # Prism — relatos (mais recente no topo)
 
+
+
+## 2026-11-12 22:45 - D-122 componentes em preparacao
+
+- `responsible/WhereWorksField.tsx`: seletor opcional do computador independente do publico da persona; `locale-sources/hire.{pt,en}.json` e `src/client/locale/hire/locales.ts`: textos provisorios. `responsible/MoveTeam.tsx`: lote sequencial por callback, parada apos chamada corrente, recusas e resultado incerto, confirmacao de casa antes de mostrar estado ativo; ainda sem montagem, sem chamadas reais e sem selecao de equipe/destino no app.
+- `where-works.client.spec.tsx`: 13/13 passou. `move-team.client.spec.tsx`: 2/2 passou (a primeira execucao falhou por erro no adaptador de locale do teste; corrigido). `check-pkg client-ui-persona`: OK in 79.5s. Bundle client exit 0. Boot anterior ao lote: bootstrap gate OK, console errors (0); boot apos lote em curso.
+- Nao ha importadores de WhereWorksField, MovePersonaDialog, WhereRunsCard e ComputersPanel. Meu espaco aguarda desenho Muse; canal pessoal deve nascer no projeto pessoal, nao em projeto compartilhado (Keel 22:42). A montagem, acesso aos Remotes e prova no fluxo real permanecem pendentes. Build:check agregado nao executado.
+
+## 2026-11-12 22:14 - W4 casa: bundle e boot final
+
+- Sincronizei `src/client/locale/onboarding/locales.ts` com `locale-sources/onboarding.pt.json`. O relato abaixo lista os arquivos da escolha e instrucao. Copy final pt/en da Muse pendente.
+- `node scripts/persona/with-lock.mjs "Prism W4 locale e bundle" --exclusive -- ...`: exit 0, bundle concluido em 23,755 s. `node scripts/persona/with-lock.mjs "Prism W4 ui boot" --lock build -- node scripts/persona/ui-boot-check.mjs`: exit 0, bootstrap gate OK (visible: Atlas), console errors (0). Capturas: `.maestri/tmp/shots/persona-light.png` e `persona-dark.png`. Teste 1/1 e check-pkg OK registrados abaixo, sem repeticao.
+- Pendente: copy e aceite da Muse; o gate capturou a pergunta inicial, nao os dois caminhos. `build:artifacts` e `build:check` agregado nao executados nesta retomada.
+
+## 2026-11-12 22:04 — W4 casa da equipe (em validação)
+
+- Primeiro uso: `OnboardingWizard.tsx` e `OnboardingShellOverlay.tsx` perguntam se este computador será a casa; Sim segue o onboarding com sugestão de computador 24 h, Não mostra instrução e permite voltar. Textos provisórios em `locale-sources/onboarding.{pt,en}.json`; cartão da Estação com texto de casa/clientes em `locale-sources/station.{pt,en}.json`, dicionários gerados. Sem mudanças no host ou Remote. Princípio RCD: caminho curto até o primeiro valor.
+- `computer-home-onboarding.client.spec.tsx`: vitest **1 arquivo, 1 teste passou**. `check-pkg client-ui-persona`: **OK in 62.3s**. Bundle passou e `ui-boot-check` abriu o app claro/escuro, **bootstrap gate OK; console errors (0)**. A captura revelou caracteres corrompidos na copy provisória; fontes e dicionários corrigidos depois do teste. Bundle e captura finais em andamento. Textos finais da Muse pendentes.
+
 ## 2026-11-07 17:15 — LIB 6c (`1688d21b`): cena "Aguardando você" no escuro DISPENSADA (ordem do Keel, opção C); STANDBY
 - Não capturei a cena no shell real. O host roteirizado só devolve "Descansando" e o stub de CLI não consegue perguntar (D-079 (b) segue `it.todo`), então nenhuma persona entra em "aguardando" ali. Nada rodou no lib 6c.
 - A prova da tinta do âmbar no escuro é a galeria `prism-strip-waiting-ink` (6 capturas, 0 com estouro/axe/erro; log `.maestri/tmp/prism/gallery-ink.log`) + `team-strip-waiting-ink.client.spec.tsx` + `find-bad-css` limpo. Se o estado aparecer de verdade na tentativa 4 do TEAM-10 ou na varredura do instalado, a Muse vê lá.

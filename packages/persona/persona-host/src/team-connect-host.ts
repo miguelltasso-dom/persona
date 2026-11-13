@@ -11,6 +11,7 @@
 
 import type { AccountRepos, ProductRepos, ScreenRepos, SqliteUsageStore } from '@deepseek-ai/dsh-persona-store'
 import { ENGINE_DEFAULT_MODEL } from './engine-menu.ts'
+import { clearEngineLocal, effectiveRunner, readEngineLocal, writeEngineLocal } from './engine-local.ts'
 import type { Orchestration } from './orchestration.ts'
 import { engineFact, wakeVerdict, type AccountInput, type TeamConnectPorts, type TeamConnectView } from './team-connect.ts'
 import type { ConnectionView } from './types.ts'
@@ -34,6 +35,8 @@ export interface TeamConnectHostDeps {
   readonly audit?: (projectId: string, personaId: string, action: string) => void
   /** D-116 (regra 2): whether the persona's HOME is this computer. Absent = every persona is home here (a single computer). */
   readonly homeHere?: (personaId: string) => boolean
+  /** D-116 (regra 1): whether THIS computer signs the persona's sheet (it is her creator's own). `false` = choosing an engine here binds her locally and never rewrites her sheet. Absent = it does (a single computer). */
+  readonly ownSheet?: (personaId: string) => boolean
 }
 
 /**
@@ -76,7 +79,7 @@ export function teamConnectPorts(deps: TeamConnectHostDeps): TeamConnectPorts {
         const seat = seatId === undefined ? undefined : seats.find(item => item.id === seatId)
         // Carbon P1-09: only a seat with its OWN home speaks for her (the default home is what the probe already says): that home is logged in or out, a fact and never a doubt.
         const accountFact = seat === undefined || seat.homeDir === '' ? undefined : deps.loginStatus(seat.homeDir) === 'logged_in' ? 'ok' as const : 'without' as const
-        return { id: row.id, name: row.name, title: row.title, runner: row.runner, ...(accountFact === undefined ? {} : { accountFact }) }
+        return { id: row.id, name: row.name, title: row.title, runner: effectiveRunner(row.runner, readEngineLocal(deps.screens, projectId, row.id)), ...(accountFact === undefined ? {} : { accountFact }) }
       })
     },
     cards: deps.connections,
@@ -86,7 +89,13 @@ export function teamConnectPorts(deps: TeamConnectHostDeps): TeamConnectPorts {
       const persona = deps.product.getPersona(personaId)
       if (persona === undefined) throw new Error('persona-not-found')
       if (deps.homeHere?.(personaId) === false) throw new Error('home-elsewhere') // D-116: a sessao dela esta em outro computador
-      deps.product.updatePersona({ ...persona, runner: { kind: 'cli', cli, model: ENGINE_DEFAULT_MODEL }, updatedAt: deps.orchestration.now() }, projectId)
+      if (deps.ownSheet?.(personaId) === false) {
+        // D-116 regra 1: this computer is not the signer of her sheet: a LOCAL binding, the sheet (and its signature) stay as the creator signed them
+        writeEngineLocal(deps.screens, projectId, personaId, { cli, model: ENGINE_DEFAULT_MODEL, at: deps.orchestration.now() })
+      } else {
+        deps.product.updatePersona({ ...persona, runner: { kind: 'cli', cli, model: ENGINE_DEFAULT_MODEL }, updatedAt: deps.orchestration.now() }, projectId)
+        clearEngineLocal(deps.screens, projectId, personaId) // her own sheet speaks again: a stale local binding must not override it
+      }
       // Carbon P1-08: a seat of the engine she LEFT is not her active account on the new one (it would be read for a persona that no longer runs on it).
       const kept = deps.screens.get<{ accountId: string }>(projectId, ACTIVE, personaId)?.accountId
       if (kept !== undefined && deps.accounts.get(kept)?.provider !== cli) deps.screens.delete(projectId, ACTIVE, personaId)

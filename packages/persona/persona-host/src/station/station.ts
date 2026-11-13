@@ -20,6 +20,8 @@ export interface StationDeps {
   readonly freeBytes?: () => number
   /** Warm CLIs alive; default none. */
   readonly running?: () => readonly WarmCli[]
+  /** M4: the resident runners the screen shows (all, the working ones, and the ceiling). */
+  readonly warm?: () => { readonly resident: number; readonly busy: number; readonly cap: number }
   /** Turns waiting for a slot; default 0. */
   readonly queue?: () => number
   /** Tailscale reader; default {@link readTailscale}. */
@@ -40,14 +42,29 @@ export class Station {
   private readonly power: PowerKeeper
   private on = true
   private paired = false
+  /** M4: turns admitted and not yet ended, as the gate last said. */
+  private turns = 0
+  /** M4: cards the station could still move on its own (doing, waiting for a slot, scheduled retry), as the host last said. */
+  private readonly openWork = new Map<string, number>()
 
   /** @param deps - Machine readings and the two books. */
+  private crashes: number | undefined
+  private lastStartAt: number | undefined
+  private lastExit: 'clean' | undefined
+  private pausedBy: 'queda' | undefined
+  private team: StationState['team'] | undefined
+
   constructor(deps: StationDeps = {}) {
     this.deps = deps
     this.pairing = deps.pairing ?? new PairingBook()
     this.power = deps.power ?? new PowerKeeper()
     this.on = deps.active?.() ?? deps.initial?.running ?? true
     this.paired = deps.initial?.paired ?? false
+    this.crashes = deps.initial?.crashes
+    this.lastStartAt = deps.initial?.lastStartAt
+    this.lastExit = deps.initial?.lastExit
+    this.pausedBy = deps.initial?.pausedBy
+    this.team = deps.initial?.team
   }
 
   /** @returns Whether this machine is the paired dedicated station (the RAM floor and the awake request apply only then). */
@@ -60,8 +77,20 @@ export class Station {
     return this.on
   }
 
+  private snapshot(): StationState {
+    return {
+      paired: this.paired,
+      running: this.on,
+      ...(this.crashes === undefined ? {} : { crashes: this.crashes }),
+      ...(this.lastStartAt === undefined ? {} : { lastStartAt: this.lastStartAt }),
+      ...(this.lastExit === undefined ? {} : { lastExit: this.lastExit }),
+      ...(this.pausedBy === undefined ? {} : { pausedBy: this.pausedBy }),
+      ...(this.team === undefined ? {} : { team: this.team }),
+    }
+  }
+
   private remember(): void {
-    this.deps.persist?.({ paired: this.paired, running: this.on })
+    this.deps.persist?.(this.snapshot())
   }
 
   /** Issue the code the person reads on their own PC. */
@@ -91,8 +120,43 @@ export class Station {
    */
   setRunning(on: boolean, options: { readonly remember?: boolean } = {}): void {
     this.on = on
+    if (on && options.remember !== false) {
+      this.pausedBy = undefined
+      this.crashes = undefined
+      this.lastExit = undefined
+    }
     if (!on) this.power.release()
+    else this.syncPower()
     if (options.remember !== false) this.remember()
+  }
+
+  /** Record a clean shutdown exit so the next launch resets the crash streak. */
+  markCleanExit(): void {
+    this.lastExit = 'clean'
+    this.remember()
+  }
+
+  /**
+   * M4 (Keel 12/11 14:44): the host tells how many cards still have work the station can do by itself. The paired, running station stays awake while
+   * a turn runs OR any card is open; it lets Windows sleep when only cards waiting for the person remain.
+   * @param count - Open cards: doing, waiting for a slot ("sem vaga") or with a retry scheduled.
+   * @param source - Who counts (the board and the gate each report their own number; the station adds them).
+   */
+  noteOpenWork(count: number, source?: string): void {
+    this.openWork.set(source ?? 'board', Math.max(0, count))
+    this.syncPower()
+  }
+
+  private openCards(): number {
+    let total = 0
+    for (const count of this.openWork.values()) total += count
+    return total
+  }
+
+  private syncPower(): void {
+    if (!this.on || !this.paired) return
+    if (this.turns > 0 || this.openCards() > 0) this.power.hold()
+    else this.power.release()
   }
 
   /**
@@ -104,7 +168,10 @@ export class Station {
     const freeBytes = (this.deps.freeBytes ?? (() => 0))()
     const running = this.deps.running?.() ?? []
     const result = admit({ freeBytes, running, now: Date.now() })
-    if (result.ok) this.power.hold()
+    if (result.ok) {
+      this.turns = Math.max(this.turns, 1)
+      this.power.hold()
+    }
     return result
   }
 
@@ -113,7 +180,9 @@ export class Station {
    * @param remaining - Turns still running or queued.
    */
   noteTurnEnded(remaining: number): void {
-    if (remaining <= 0) this.power.release()
+    this.turns = Math.max(0, remaining)
+    // Open cards keep Windows awake after the last turn ended (backoff, retry, the 30 s wait for memory).
+    if (remaining <= 0 && this.openCards() === 0) this.power.release()
   }
 
   /** The screen's data. */
@@ -126,7 +195,10 @@ export class Station {
       ram: { freeBytes, floorBytes: RAM_FLOOR_BYTES, perCliBytes: RAM_PER_CLI_BYTES },
       queue: this.deps.queue?.() ?? 0,
       clis: this.deps.running?.().length ?? 0,
+      ...(this.deps.warm === undefined ? {} : { warm: this.deps.warm() }),
       tailscale: await (this.deps.tailscale ?? readTailscale)(),
+      ...(this.crashes !== undefined && this.crashes > 0 ? { crashes: this.crashes } : {}),
+      ...(this.pausedBy === undefined ? {} : { pausedBy: this.pausedBy }),
     }
   }
 }

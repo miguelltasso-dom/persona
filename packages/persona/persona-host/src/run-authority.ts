@@ -22,6 +22,11 @@ export interface RunAuthorityLookup {
   readonly ticket: (id: string) => Ticket | undefined
   /** Carbon P0-05a: who the Gestor's plan said it acts for (`campaign:<plan>:<n>` opens its Tasks). Absent or `undefined` = unknown = nobody is behind it. */
   readonly campaign?: (planId: string) => { readonly authority?: AuthorityKind } | undefined
+  /**
+   * MARCO M2: whether the board's lead (the project's responsible persona running the board by herself) DROVE this Task: the durable "lead_pull" document the lead writes BEFORE it hands a card to a
+   * persona. A card born from a person's message and pulled by the lead at 2 a.m. is not "a person is here": absent = no autonomous board in this host.
+   */
+  readonly board?: (ticketId: string) => boolean
 }
 
 /** The longest chain of Tasks it walks; beyond it the answer is `unattended`. */
@@ -36,7 +41,7 @@ const EXTERNAL_TRIGGER = /^(?:mail|gh|github|telegram|slack|discord|whatsapp|web
 /** What one trigger id says about who started it. */
 function kindOfId(id: string, lookup: RunAuthorityLookup): AuthorityKind {
   if (id.startsWith('routine-run:')) return isEventRunId(id) ? 'unattended' : 'routine'
-  if (id.startsWith('initiative:') || id.startsWith('plan:') || EXTERNAL_TRIGGER.test(id)) return 'unattended'
+  if (id.startsWith('initiative:') || id.startsWith('plan:') || id.startsWith('board:') || EXTERNAL_TRIGGER.test(id)) return 'unattended' // "board:<project>:<card>": a Task the board's lead opened
   const campaign = /^campaign:(.+):\d+$/u.exec(id)?.[1]
   if (campaign !== undefined) return lookup.campaign?.(campaign)?.authority ?? 'unattended' // the lineage of the plan, or nobody
   return 'person'
@@ -70,6 +75,8 @@ export function authorityOfRun(ticket: Ticket, lookup: RunAuthorityLookup): Auth
         result = stricter(result, parent === undefined ? 'unattended' : walk(parent, depth + 1))
       }
     }
+    // MARCO M2: a Task the board's lead drove is never "a person is here", whatever the message that created it was; it has no owner waiver either (that is routine's, and nobody set this up).
+    if (lookup.board?.(row.id) === true) result = stricter(result, 'unattended')
     state.set(row.id, result)
     return result
   }

@@ -55,7 +55,10 @@ export function readHostFlags(processOutput: string, home: string): HostFlags | 
   return undefined
 }
 
-/** D-113: the five surfaces under construction as the host resolved them at boot (`[persona-host] surfaces invite=0 station=0 channels=0 skillImport=0 sharedBrowser=1 defaults=production`). */
+/**
+ * D-113: the surfaces under construction as the host resolved them at boot (`[persona-host] surfaces invite=0 station=0 channels=0 skillImport=0 sharedBrowser=1 projectLead=0 defaults=production`).
+ * The line GROWS (Tally 12/11 16:50 added `projectLead`; `remoteAccess`, `computers` come next): the five below are the ones this harness judges; any other `name=value` is kept in `others` and never makes the run fail.
+ */
 export interface HostSurfaces {
   readonly invite: boolean
   readonly station: boolean
@@ -63,18 +66,31 @@ export interface HostSurfaces {
   readonly skillImport: boolean
   readonly sharedBrowser: boolean
   readonly defaults: string
+  /** Fields of the line this harness does not judge (`projectLead`, …), as printed (`'0'`/`'1'`); absent when the line has none. */
+  readonly others?: Readonly<Record<string, string>>
 }
 
-const SURFACES_LINE = /\[persona-host\] surfaces invite=([01]) station=([01]) channels=([01]) skillImport=([01]) sharedBrowser=([01]) defaults=(\w+)/u
+const SURFACES_PREFIX = /\[persona-host\] surfaces ([^\r\n]*)/u
+const JUDGED_SURFACES = ['invite', 'station', 'channels', 'skillImport', 'sharedBrowser'] as const
 
-/** @returns The surfaces of the LAST boot line in `text`, or `undefined` when there is none (a host older than D-113 never prints it). */
+/**
+ * Reads the LAST surfaces line by `name=value` pairs, in any order and with any extra field: only the five judged surfaces have to be there (as 0 or 1).
+ * @returns The surfaces, or `undefined` when there is no line (a host older than D-113 never prints it) or a judged field is missing or not 0/1.
+ */
 export function parseHostSurfaces(text: string): HostSurfaces | undefined {
-  let found: RegExpExecArray | null = null
-  for (const match of text.matchAll(new RegExp(SURFACES_LINE.source, 'gu'))) found = match
-  if (found === null) return undefined
-  return {
-    invite: found[1] === '1', station: found[2] === '1', channels: found[3] === '1', skillImport: found[4] === '1', sharedBrowser: found[5] === '1', defaults: found[6] ?? 'unknown',
+  let line: string | undefined
+  for (const match of text.matchAll(new RegExp(SURFACES_PREFIX.source, 'gu'))) line = match[1]
+  if (line === undefined) return undefined
+  const fields = new Map<string, string>()
+  for (const pair of line.matchAll(/(\w+)=(\w+)/gu)) fields.set(pair[1] ?? '', pair[2] ?? '')
+  const flag = (name: string): boolean | undefined => {
+    const value = fields.get(name)
+    return value === '1' ? true : value === '0' ? false : undefined
   }
+  const [invite, station, channels, skillImport, sharedBrowser] = JUDGED_SURFACES.map(flag)
+  if (invite === undefined || station === undefined || channels === undefined || skillImport === undefined || sharedBrowser === undefined) return undefined
+  const others = Object.fromEntries([...fields].filter(([name]) => name !== 'defaults' && !(JUDGED_SURFACES as readonly string[]).includes(name)))
+  return { invite, station, channels, skillImport, sharedBrowser, defaults: fields.get('defaults') ?? 'unknown', ...(Object.keys(others).length === 0 ? {} : { others }) }
 }
 
 /**

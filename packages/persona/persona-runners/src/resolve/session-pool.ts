@@ -97,18 +97,20 @@ export interface SessionPool<T> {
 
 /**
  * In-memory lease pool with a concurrency cap. Expired / evicted slots run `dispose`.
- * @param options - Lease, cap, clock, disposer (CLI session.close).
+ * @param options - Lease, cap, clock, disposer (CLI session.close), dispose concurrency.
  */
 export function createSessionPool<T>(options: {
   leaseMs?: number
   cap?: number
   now?: () => number
   dispose?: (value: T) => void | Promise<void>
+  disposeConcurrency?: number
 } = {}): SessionPool<T> {
   const leaseMs = options.leaseMs ?? SESSION_LEASE_MS
   const cap = options.cap ?? SESSION_POOL_CAP
   const now = options.now ?? Date.now
   const dispose = options.dispose
+  const disposeConcurrency = options.disposeConcurrency ?? SESSION_DISPOSE_CONCURRENCY
   const slots = new Map<string, Slot<T>>()
 
   const forget = async (key: string, value: T): Promise<void> => {
@@ -171,18 +173,49 @@ export function createSessionPool<T>(options: {
     disposeAll: async () => {
       const entries = [...slots.entries()]
       slots.clear()
-      for (const [, slot] of entries) {
-        if (dispose === undefined) continue
-        try {
-          await dispose(slot.value)
-        } catch (error) {
-          void error
-        }
-      }
+      if (dispose === undefined) return
+      await forEachBounded(entries, disposeConcurrency, async ([, slot]) => {
+        await dispose(slot.value)
+      })
     },
     size: () => {
       for (const key of [...slots.keys()]) live(key)
       return slots.size
     },
   }
+}
+
+/**
+ * Default concurrent disposals during host shutdown or warm eviction; clears 13+ warm CLI sessions under the watchdog without unbounded spawn fanout.
+ */
+export const SESSION_DISPOSE_CONCURRENCY = 16
+
+/**
+ * Runs `work` over `items` with at most `concurrency` workers in flight at once, swallowing per-item errors so one broken teardown never stalls the rest.
+ * @param items - Items to process.
+ * @param concurrency - Maximum simultaneous invocations clamped to at least 1.
+ * @param work - Async callback invoked once per item.
+ * @returns Resolves after all items settle.
+ */
+export async function forEachBounded<T>(
+  items: readonly T[],
+  concurrency: number,
+  work: (item: T) => Promise<void>,
+): Promise<void> {
+  if (items.length === 0) return
+  const bound = Number.isFinite(concurrency)
+    ? Math.floor(concurrency)
+    : concurrency === Number.POSITIVE_INFINITY ? items.length : 1
+  const width = Math.min(items.length, Math.max(1, bound))
+  const iterator = items.values()
+  const worker = async (): Promise<void> => {
+    for (const item of iterator) {
+      try {
+        await work(item)
+      } catch (error) {
+        void error
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: width }, () => worker()))
 }

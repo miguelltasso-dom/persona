@@ -58,6 +58,26 @@ export function maskDmApprovalCard(card: ApprovalView, seen: (ticketId: string) 
   return { ...card, actionPreview: neutral }
 }
 
+/**
+ * D-119: whether the actor is IN a DM (one of its two participants): what a note of the playbook that learned from a Task born there, and the card and the skill made from it, are for.
+ * Fails closed: a DM that cannot be found, or no actor, is "not in it".
+ * @param dmOf - The DM and its two participants.
+ * @param actor - The session actor (undefined when the workspace has nobody).
+ * @param workspaceId - Tenant.
+ * @returns The check, by DM id.
+ */
+export function dmSeenByActor(
+  dmOf: (dmId: string) => { readonly id: string; readonly participantA: string; readonly participantB: string } | undefined,
+  actor: Actor | undefined,
+  workspaceId: string,
+): (dmId: string) => boolean {
+  return (dmId) => {
+    const dm = dmOf(dmId)
+    if (dm === undefined || actor === undefined) return false
+    return sessionCan(actor, 'read', { type: 'dm', workspaceId, dmId: dm.id, memberIds: [dm.participantA, dm.participantB] })
+  }
+}
+
 /** What the check needs of the host. */
 export interface DmTicketViewDeps {
   /** Where the Task lives: the stream of its conversation. */

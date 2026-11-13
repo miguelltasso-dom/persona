@@ -133,7 +133,7 @@ describe.skipIf(!run)('seed do Ember — a rodada real (app real, CLI de mentira
       const gone = await until(page, async () => ((await states()).includes('pending') ? undefined : true), 20_000, 500)
       expect(gone, 'o pedido continuou pendente depois do Cancelar').toBe(true)
       // … and the renewal opens another one, with the site, on the same screen.
-      const renewed = await renewTwoFactor(page)
+      const renewed = await renewTwoFactor(page, session)
       expect(renewed.state).toBe('pending')
       expect(renewed.site ?? '').toContain(EMBER_SITE)
     } finally {

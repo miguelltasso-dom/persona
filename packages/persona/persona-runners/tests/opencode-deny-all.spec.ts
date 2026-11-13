@@ -24,7 +24,7 @@ describe('P0-04: OpenCode fecha tudo que o produto não abriu', () => {
   })
 
   it('o que o produto concede continua concedido (controle: edit só com arquivo=write e rascunho)', () => {
-    expect(opencodePermission({ files: 'write', web: 'none' }, true).edit).toBe('allow')
+    expect(opencodePermission({ files: 'write', web: 'none' }, true).edit).toMatchObject({ '*': 'allow' }) // S4: allow in the draft, deny for `.git` (p0-b-s4-opencode-git.spec.ts)
     expect(opencodePermission({ files: 'write', web: 'none' }, false).edit).toBe('deny')
     expect(opencodePermission({ files: 'none', web: 'none' }, true).edit).toBe('deny')
     expect(opencodePermission(GRANTS, true).bash).toBe('deny')

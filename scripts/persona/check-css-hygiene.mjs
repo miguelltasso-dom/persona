@@ -28,8 +28,12 @@ export const DEFAULT_BASELINE = 'scripts/persona/css-hygiene.baseline.json'
 export const RULES = ['controle-altura', 'backdrop-filter', 'token-indefinido', 'tempo-solto', 'animacao-infinita', 'texto-pequeno']
 export const CONTROL_HEIGHTS = new Set([32, 40, 48])
 export const MIN_FONT_PX = 13
-/** Animações infinitas permitidas (a Muse confirma os nomes): a bolinha de quem trabalha e o ponto de gravação do item 20. */
-export const ALLOWED_INFINITE = new Set(['persona-rail-pulse', 'persona-rec-pulse'])
+/**
+ * Animações infinitas permitidas (a Muse confirma os nomes): a bolinha de quem trabalha, o ponto de gravação do item 20 e a respiração do rosto vivo da 21 (`livingBreathe`, Quill, OK do Gauge 12/11).
+ * `livingBreathe` entrou porque cumpre as 5 regras de GPU: só `[data-breathing]` (um cabeçalho por vez), só `transform` (scaleY 1 -> 1.012), `will-change` só nesse seletor, desligada em
+ * `prefers-reduced-motion` (LivingPersonaFace.module.css) e pausada por `body[data-persona-ambient-paused] *` (theme/persona-base.css: `animation-play-state: paused !important`).
+ */
+export const ALLOWED_INFINITE = new Set(['persona-rail-pulse', 'persona-rec-pulse', 'livingBreathe'])
 
 // ---------------------------------------------------------------- postcss (resolve mesmo com pnpm estrito)
 

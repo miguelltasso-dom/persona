@@ -5,11 +5,12 @@
 
 import { randomBytes, timingSafeEqual } from 'node:crypto'
 import { isAbsolute, normalize, relative, resolve, sep } from 'node:path'
+import { authorityCell, type AuthorityKind } from '../authority/authority-table.ts'
 import { PRECISA_DE_VOCE } from '../resolve/cli-policy.ts'
 import { allowsTool, type ToolLevel } from '../resolve/tool-level.ts'
 import type { PersonaMcpTool, PersonaRunIdentity, PersonaToolHooks } from './persona-tools.ts'
 import { personaMcpTools } from './persona-tools.ts'
-import { actingMcpTools, type ActingPorts } from './acting-tools.ts'
+import { actingMcpTools, type ActingPorts, type ComputerActingContext } from './acting-tools.ts'
 import { brainMcpTools, type BrainPorts } from './brain-tools.ts'
 import { gestorMcpTools, type GestorPorts } from './gestor-tools.ts'
 import { harnessMcpTools, type HarnessMcpPorts } from './harness-tools.ts'
@@ -56,6 +57,10 @@ export interface McpGateway {
     run: PersonaRunIdentity
     toolLevel: ToolLevel
     worktree: string
+    /** D-117: who the turn acts for (the host's one authority table). Absent = the card of today; `routine`/`unattended` = the computer tools are refused with no card. */
+    authority?: AuthorityKind
+    /** D-117: host-bound computer run context (`runId`, `target`, `signal`) forwarded to desktop acting ports. */
+    computer?: ComputerActingContext
   }): McpTurnLease
   list(token: string): readonly string[]
   /** HT-0: the definitions (never the handlers) of what this turn may call: what a CLI lists as its tools. */
@@ -70,6 +75,8 @@ const NET = /^(?:web_fetch|web_search|persona_browser_open|persona_browser_read|
 const OUTBOUND = /^(?:persona_telegram_send|persona_email_send)$/iu
 const BROWSER_ACT = /^persona_browser_act$/iu
 const COMPUTER_ACT = /^persona_computer_(?:click|type)$/iu
+/** Every tool that uses the computer, the reading of the screen included (D-117: the screen shows what is open on the PC). */
+const COMPUTER_TOOL = /^persona_computer_(?:screenshot|click|type)$/iu
 const WRITE = /^(?:write|edit|str_replace|apply_patch|bash|shell)$/iu
 const CRED = /(?:sk-|tok-|api[_-]?key|bearer\s|password\s*=)/iu
 const INJECT = /mcp:\/\/turn\/|authorization:\s*bearer/iu
@@ -190,14 +197,16 @@ export function createMcpGateway(options: {
     run: PersonaRunIdentity
     toolLevel: ToolLevel
     worktree: string
+    authority: AuthorityKind | undefined
+    computer: ComputerActingContext | undefined
     tools: Map<string, PersonaMcpTool>
   }>()
   const pending = new Map<string, PendingApproval>()
   let approvals = 0
 
-  const toolsOf = (run: PersonaRunIdentity, toolLevel: ToolLevel): PersonaMcpTool[] => [
+  const toolsOf = (run: PersonaRunIdentity, toolLevel: ToolLevel, computer?: ComputerActingContext): PersonaMcpTool[] => [
     ...personaMcpTools(run, options.hooks, toolLevel),
-    ...actingMcpTools(run, options.acting ?? {}, toolLevel),
+    ...actingMcpTools(run, options.acting ?? {}, toolLevel, computer),
     ...brainMcpTools(run, options.brain ?? {}, toolLevel),
     ...gestorMcpTools(run, options.gestor ?? {}, toolLevel),
     ...harnessMcpTools(run, options.harness ?? {}, toolLevel),
@@ -235,6 +244,14 @@ export function createMcpGateway(options: {
     if (INJECT.test(JSON.stringify(args))) {
       return { content: 'injeção via conteúdo recusada', refused: true }
     }
+    // D-117 (Lumen F1): using the computer goes through the ONE authority table. A routine or an unattended run (the board's lead, an initiative, an event) has nobody to look at the screen: it is refused,
+    // not turned into a card somebody approves half asleep.
+    if (COMPUTER_TOOL.test(name) && turn.authority !== undefined && authorityCell(turn.authority, 'computer') === 'deny') {
+      return { content: 'Mexer no computador precisa de uma pessoa por trás: esta tarefa roda sozinha, então não vou usar o mouse nem o teclado.', refused: true }
+    }
+    if (COMPUTER_TOOL.test(name) && turn.computer?.signal?.aborted === true) {
+      return { content: 'parado a pedido', refused: true }
+    }
     if (!trusted) {
       const kind = classifySensitive(name, args, turn.worktree)
       if (kind !== undefined) {
@@ -262,12 +279,14 @@ export function createMcpGateway(options: {
         token,
         url: `mcp://turn/${turnId}/${token}`,
       }
-      const listed = toolsOf(input.run, input.toolLevel)
+      const listed = toolsOf(input.run, input.toolLevel, input.computer)
       turns.set(turnId, {
         lease,
         run: input.run,
         toolLevel: input.toolLevel,
         worktree: normalize(input.worktree),
+        authority: input.authority,
+        computer: input.computer,
         tools: new Map(listed.map(tool => [tool.name, tool])),
       })
       void now

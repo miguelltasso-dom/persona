@@ -3,16 +3,24 @@
  * External actions go through the gateway approval gate.
  */
 
+import type { ComputerUseTarget } from '@deepseek-ai/dsh-persona-engine'
 import { allowsTool, type ToolLevel } from '../resolve/tool-level.ts'
 import type { PersonaMcpTool, PersonaRunIdentity } from './persona-tools.ts'
+
+/** Host-bound computer run identity, target window scope, and cancellation signal forwarded to acting ports. */
+export interface ComputerActingContext {
+  readonly runId?: string
+  readonly target?: ComputerUseTarget
+  readonly signal?: AbortSignal
+}
 
 export interface ActingPorts {
   browserOpen?: (url: string) => Promise<string>
   browserRead?: (url: string) => Promise<string>
   browserAct?: (action: string) => Promise<string>
-  computerScreenshot?: () => Promise<string>
-  computerClick?: (x: number, y: number) => Promise<string>
-  computerType?: (text: string) => Promise<string>
+  computerScreenshot?: (context?: ComputerActingContext) => Promise<string>
+  computerClick?: (x: number, y: number, context?: ComputerActingContext) => Promise<string>
+  computerType?: (text: string, context?: ComputerActingContext) => Promise<string>
 }
 
 export const ACTING_TOOLS = [
@@ -33,11 +41,14 @@ function missing(name: string): string {
  * @param run - Assignment identity (gateway owns the token; handlers ignore it).
  * @param ports - Injected Harness adapters; missing ports report unavailable.
  * @param toolLevel - Persona grant.
+ * @param computer - Optional host-bound computer run context (never read from model tool arguments).
+ * @returns Filtered MCP tool definitions permitted by `toolLevel`.
  */
 export function actingMcpTools(
   run: PersonaRunIdentity,
   ports: ActingPorts,
   toolLevel: ToolLevel,
+  computer?: ComputerActingContext,
 ): PersonaMcpTool[] {
   void run
   const tools: PersonaMcpTool[] = [
@@ -72,23 +83,25 @@ export function actingMcpTools(
       name: 'persona_computer_screenshot',
       description: 'Capture the local screen (read).',
       inputSchema: { type: 'object', additionalProperties: true },
-      handler: async () => ({
-        content: ports.computerScreenshot === undefined
-          ? missing('persona_computer_screenshot')
-          : await ports.computerScreenshot(),
-      }),
+      handler: async () => {
+        if (computer?.signal?.aborted === true) return { content: 'parado a pedido' }
+        if (ports.computerScreenshot === undefined) return { content: missing('persona_computer_screenshot') }
+        return {
+          content: computer === undefined ? await ports.computerScreenshot() : await ports.computerScreenshot(computer),
+        }
+      },
     },
     {
       name: 'persona_computer_click',
       description: 'Click on the local screen (external; needs approval).',
       inputSchema: { type: 'object', additionalProperties: true },
       handler: async (args) => {
+        if (computer?.signal?.aborted === true) return { content: 'parado a pedido' }
         const x = typeof args.x === 'number' ? args.x : 0
         const y = typeof args.y === 'number' ? args.y : 0
+        if (ports.computerClick === undefined) return { content: missing('persona_computer_click') }
         return {
-          content: ports.computerClick === undefined
-            ? missing('persona_computer_click')
-            : await ports.computerClick(x, y),
+          content: computer === undefined ? await ports.computerClick(x, y) : await ports.computerClick(x, y, computer),
         }
       },
     },
@@ -97,11 +110,11 @@ export function actingMcpTools(
       description: 'Type into the focused local window (external; needs approval).',
       inputSchema: { type: 'object', additionalProperties: true },
       handler: async (args) => {
+        if (computer?.signal?.aborted === true) return { content: 'parado a pedido' }
         const text = typeof args.text === 'string' ? args.text : ''
+        if (ports.computerType === undefined) return { content: missing('persona_computer_type') }
         return {
-          content: ports.computerType === undefined
-            ? missing('persona_computer_type')
-            : await ports.computerType(text),
+          content: computer === undefined ? await ports.computerType(text) : await ports.computerType(text, computer),
         }
       },
     },
@@ -110,21 +123,33 @@ export function actingMcpTools(
 }
 
 /**
- * Refuse local click/type while the human holds the overlay.
- * Screenshot stays allowed (read).
+ * Refuse local click/type while the human holds the overlay, and refuse all computer actions after abort.
+ * Screenshot stays allowed (read) when not aborted.
  * @param ports - Injected adapters.
  * @param held - True when any persona is in `human` state.
+ * @returns Gated acting ports forwarding optional context.
  */
 export function gateComputerActing(ports: ActingPorts, held: () => boolean): ActingPorts {
+  const shot = ports.computerScreenshot
   return {
     ...ports,
-    computerClick: async (x, y) => {
+    ...(shot === undefined ? {} : {
+      computerScreenshot: async (context?: ComputerActingContext) => {
+        if (context?.signal?.aborted === true) return 'parado a pedido'
+        return context === undefined ? shot() : shot(context)
+      },
+    }),
+    computerClick: async (x: number, y: number, context?: ComputerActingContext) => {
+      if (context?.signal?.aborted === true) return 'parado a pedido'
       if (held()) return 'humano no controle'
-      return ports.computerClick === undefined ? missing('persona_computer_click') : ports.computerClick(x, y)
+      if (ports.computerClick === undefined) return missing('persona_computer_click')
+      return context === undefined ? ports.computerClick(x, y) : ports.computerClick(x, y, context)
     },
-    computerType: async (text) => {
+    computerType: async (text: string, context?: ComputerActingContext) => {
+      if (context?.signal?.aborted === true) return 'parado a pedido'
       if (held()) return 'humano no controle'
-      return ports.computerType === undefined ? missing('persona_computer_type') : ports.computerType(text)
+      if (ports.computerType === undefined) return missing('persona_computer_type')
+      return context === undefined ? ports.computerType(text) : ports.computerType(text, context)
     },
   }
 }
@@ -136,9 +161,9 @@ export function gateComputerActing(ports: ActingPorts, held: () => boolean): Act
  */
 export function actingPortsFromComputerUse(host: {
   readonly held: () => boolean
-  readonly screenshot?: () => Promise<string>
-  readonly click?: (x: number, y: number) => Promise<string>
-  readonly type?: (text: string) => Promise<string>
+  readonly screenshot?: (context?: ComputerActingContext) => Promise<string>
+  readonly click?: (x: number, y: number, context?: ComputerActingContext) => Promise<string>
+  readonly type?: (text: string, context?: ComputerActingContext) => Promise<string>
 }): ActingPorts {
   return gateComputerActing({
     ...(host.screenshot === undefined ? {} : { computerScreenshot: host.screenshot }),

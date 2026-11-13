@@ -225,7 +225,7 @@ describe('P0-04 (7) OpenCode denies by default', () => {
     expect(Object.keys(permission)[0]).toBe('*') // the LAST matching rule wins: the default comes first
     expect(permission.bash).toBe('deny')
     expect(permission.external_directory).toBe('deny')
-    expect(permission.edit).toBe('allow')
+    expect(permission.edit).toMatchObject({ '*': 'allow' }) // S4: allow in the draft, deny for `.git` (p0-b-s4-opencode-git.spec.ts)
     // reading is what the product relies on today (it is not held back, said on the screen): still allowed explicitly
     for (const reader of ['read', 'glob', 'grep', 'list'] as const) expect(permission[reader]).toBe('allow')
   })

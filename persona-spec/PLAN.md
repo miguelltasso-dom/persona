@@ -761,3 +761,50 @@ Nota 22:15: Zinc, Jade e Onyx já trabalhavam desde 21:46 (só não estavam liga
 | M7 | Soak de uma noite com IA falsa (2 projetos, relógio acelerado) para provar antes do aceite real | Probe, Gauge | persona-e2e | N horas simuladas sem travar, sem vazar, sem perder cartão; relatório | todo |
 | M8 | D-116: qualquer computador roda personas. Cada persona tem um "Onde roda" (um unico computador por vez): o PC de quem criou ou um computador CADASTRADO pela equipe (pareamento por codigo, so dono ou autorizado cadastra; lista "Computadores da equipe" com ligado/desligado, RAM, quantas personas); a persona so fica no ar enquanto esse PC estiver ligado; usa a conta de IA ENTRADA NAQUELE PC (credencial nunca sai); acesso = o menor entre o do criador e o do PC; "Levar para outro computador" transfere memorias/regras/skills cifradas e desliga a copia antiga; nunca em 2 lugares; fora do ar = historico sem compositor | Flint (modelo "onde roda" + presenca no host), Onyx + Rivet (cadastro do computador, M4), Bolt (pareamento e transferencia cifrada), Prism + Cobalt (telas), Muse (desenho "Onde roda" e "Computadores da equipe"), Lumen (seguranca), revisor independente do Atlas antes de ligar | persona-host, persona-store, persona-sync, apps/desktop, client-ui-persona | Criar persona escolhendo onde roda; persona de PC desligado aparece fora do ar sem compositor; mudar de computador transfere a memoria cifrada e desliga a antiga; credencial nunca atravessa; acesso e o menor dos dois; teste de nunca-2-lugares | todo |
 | M9 | D-117: persona que MEXE NO COMPUTADOR (computer use, Onda 3 W3-1..6): PRIVADA ("So eu": no meu PC, mexe no meu PC) ou DA EQUIPE (num PC da equipe ou VPS, compartilhada, mexe naquele PC), comandada e assistida ao vivo pelo celular com o Parar; REGRA DURA imposta no codigo: persona da equipe NUNCA controla PC pessoal; VPS = fase 2; falta a prova viva W3-5, o modelo So eu/Equipe e o remoto | Zinc (Sonnet 5.5; brief .maestri/tmp/zinc-dogfood.txt), Rivet (W3-5 prova viva), Forge (laco), Lumen (revisor de seguranca), Prism + Cobalt (celular com Parar), Bolt (remoto), Muse (desenho) | apps/desktop, packages/persona (computer-use), persona-host, client-ui-persona | Persona So eu controla o PC do dono pelo celular com Parar ao vivo; persona da equipe so controla o PC da equipe (teste negativo: tentar controlar PC pessoal = recusado no codigo); W3-5 prova viva no instalado; revisor independente antes de ligar | todo |
+
+## 14. S3 e S4 (Atlas 12/11 18:53 + Miguel: o marco e os itens 21–26 TÊM que estar na versão que ele usa)
+
+**Duas entregas.** **S3** = base endurecida (S2 `c0d7578b86` + Mend: classe P0-B de `.git`/`GIT~N`/prefixo de opção/`permission-gate` + Flint: recuperação no boot espera o motor) — vai ao Miguel como OPCIONAL ("a base, se quiser ver"). **S4 = A VERSÃO DO MIGUEL**: marco M1–M9 + itens 21–26 com as superfícies ACESAS (D-113: acesa = auditada, apagada = apagada de verdade). Auditoria do S4: Opus 5.5 high pelo Antigravity, mesmo escopo.
+
+### Caminho crítico do S4 (quem bloqueia quem)
+
+| # | Passo | Dono | Depende de | Alvo (hora de relógio) |
+|---|---|---|---|---|
+| P0 | S3: Mend entrega diff → monto o S3 no índice privado (patch do Flint por `git apply --cached`) → gate-on-head `--installer --prebuild` → push → pack → verificador + e2e instalado (Probe/Ember) | Keel, Mend, Gauge, Rivet, Probe | Mend ~19:15 | commit 19:30, Setup opcional ~21:00 |
+| C1 | Contratos de host que faltam: `getProjectCare/getCareOverview/canChange` + 5 Remotes projectLead; `personaHome()/setThisComputerId/creatorOf/hostedBy`; regra do P1 do celular (`decideApproval` pareado não aprova hire/vault/connector/action) | Flint, Bolt | — | 21:30 |
+| C2 | Executor B12 (D-116 opção B): protocolo, `TurnExecutor`, `RemoteTurns`, adaptador `ExecutorRunner` + gancho na orquestração (hot file, 1 mudança com `--check`); revisão Lumen R1..R5 | Bolt, Forge, Lumen | C1 parcial | 00:30 |
+| C3 | M9: escopo por janela-alvo + zona proibida do app da Persona no executor (`apps/desktop`), guard no executor | Rivet, Zinc | — | 23:30; prova viva W3-5 depois |
+| T1 | **Typert ÚNICO**: Tally fecha SURFACE_REMOTES (remoteAccess 9, computers 11, projectLead 5) → Flint roda `generate-typert` UMA vez | Tally → Flint | C1 | 22:30 |
+| U1 | Ligação das telas (após T1; 1 arquivo quente por vez): Prism (cartão no `ProjectFlowBoard`, "Quem cuida de quê" M6, compositor `OfflinePersonaNotice/HomeNoticeLine`, Computadores/Onde roda), Quill (chip no canal já feito; rosto vivo #21), Cobalt (montagem do `MobileThread`, Parar unificado, `confirm:true`) | Prism, Quill, Cobalt | T1 | 02:30 |
+| I1 | Itens 21–26: #21 rosto vivo (flag `livingFaces` acesa) | Quill | U1 | 02:30 |
+| | #22 equipes/canais (V26 equipes/categorias, flag acesa) | Flint, Prism | C1 | 02:30 |
+| | #24 PC dedicado 24 h + Tailscale (M4/M5) | Onyx, Bolt, Cobalt | C1, C2 | 02:30 |
+| | #26 conectores/plugins/skills (onda B, flag `toolsCatalog`) | Forge | auditor | só acesa se verde na auditoria (08:00), senão OFF e declarado |
+| C4 | **#23 convite de colega de FORA da rede (relay Cloudflare) = o principal do Miguel**: cifra no `SyncClient` + tela Entrar + e2e Miniflare (2 clientes + 1 persona); revisão de segurança do `apps/persona-edge` (wrangler.toml, rotas); STAGING (`persona-edge-staging`) só com ordem do Atlas; oficial só depois e com ordem do Atlas. Wrangler: `node apps/persona-edge/node_modules/wrangler/bin/wrangler.js` (o shim do npx está quebrado). Miguel já está logado no Cloudflare (19:13). Dentro do Tailscale o convite já funciona (D-115) | Jade (Sonnet 5.5 high) + Bolt, Lumen (revisão edge), Atlas (ordem de deploy) | brief `.maestri/tmp/jade-23.txt` | código+e2e 23:30; revisão Lumen 00:00; staging 00:30 (com ordem) |
+| R4 | Resíduo do S3 para o S4 (Mend, stage em `.maestri/tmp/mend/s4`, vermelho primeiro): ferramentas de edição dos OUTROS motores (Codex `apply_patch`, OpenCode, dsh nativo, MCP) não passam pelo `decideWrite` (FILE_WRITE_TOOLS só tem nomes do Claude) → um `.git` criado por elas cai no mesmo bloqueio; pinos `GIT_CONFIG_*` chegando ao shell de cada CLI | Mend, Lumen confere | S3 = `1304be50d3` | 22:00 |
+| | **#25 deploy oficial Cloudflare** | Atlas (ordem), Bolt/Rivet | #23 verde em staging + revisão do Lumen | só com ordem do Atlas |
+| G1 | Gate da ÁRVORE completo (persona-gate com o marco) + suítes dos donos verdes + Tally (tabelas de superfície) + d113 `off-for-real` das que ficam apagadas | Gauge, Keel | U1, I1 | 03:30 |
+| K1 | Commits por dono/lote (índice privado, fecho por commit) = candidato S4 | Keel | G1 | 04:30 |
+| A1 | **Auditoria independente** (Opus 5.5 high, só superfícies acesas) | auditor (Atlas) | K1 | 04:30 → 08:30 |
+| F1 | Correções do auditor vermelho→verde (D-119; reaberto/multi-dono → Mend) | donos, Mend | A1 | 08:30 → 10:30 |
+| A2 | Reauditoria só do delta | auditor | F1 | 10:30 → 11:30 |
+| P4 | Commit final S4 → gate-on-head `--installer --prebuild` → push → pack (checkout limpo) → verificador claro+escuro → components-gate → e2e instalado + soak curto → captura Ember → roteiro do teste | Keel, Gauge, Rivet, Probe, Ember | A2 | **Setup do S4 ao Miguel ~14:00 de 13/11** |
+
+**Riscos.** (1) Auditoria reabre P0/P1 → um ciclo extra de ~3 h (+ Mend). (2) Trava única: gate da árvore (~10 min), bundle, pack (~18–26 min) e soak (~50 min) são um por vez; o soak longo só depois do Setup do S3. (3) Hot files (`orchestration.ts`, `runner.ts`, `index.ts`, `register-lumen-ui.tsx`): uma mudança por vez com `--check`. (4) Cota do Claude: mistura de modelos (Atlas 18:52); qualidade da 1ª fatia de Onyx/Forge/Anvil no Hydrogen sob vigilância. (5) #23/#25 dependem do Miguel; apagados de verdade se a conta não for liberada.
+
+**Critério de aceite do S4** (o do Miguel): 2 projetos reais rodando de noite no PC dedicado, conferidos pelo celular de manhã; quem está cuidando de quê; persona que mexe no PC só a "Só eu"; "nunca em 2 lugares"; tudo que está aceso passou na auditoria independente e no verificador do instalador.
+
+### 14.1 Ondas por camada (Atlas aprovou 12/11 20:28; Setup do S4 meta 10h–11h, limite 14h)
+
+Auditoria em ondas: cada onda vai ao Auditor (Opus 5.5 high, Antigravity) assim que o commit dela fecha verde; reaberto = Mend na hora. Hot files carregam hunks de vários donos e vão INTEIROS na onda em que o último hunk pendente entra.
+
+| Onda | Camada | Donos | Fecha | Auditoria |
+|---|---|---|---|---|
+| T2 | Typert de novo, UMA vez (lista de Remotes novos até 21:45, Tally mapeia, Flint roda) | Flint | 22:15 | — |
+| W1 | SERVIDOR: persona-host, persona-runners, persona-engine, store/core/sync + specs (M1–M3, M2/D-117/M9 autoridade, D-119, Caderno host, M4 estação, M5/M8 computadores+remoto+executor B12, tabelas Tally, Tornar do time, R4 do Mend, scripts de gate) | Flint, Forge, Lumen, Tally, Onyx, Anvil, Zinc, Bolt, Mend, Gauge | 22:30 (gate-on-head do commit em paralelo à auditoria; Probe: soak longo no snapshot W1 22:45–23:40) | 22:30–02:00 |
+| W2 | apps/persona-edge (#23 relay Cloudflare: 4 P1 do Lumen corrigidos antes de qualquer staging) | Jade, Bolt, Lumen | ~00:30 | 00:30–03:30 |
+| W3 | apps/desktop (M4 power/login, HONEST-1, executor + ponte M9, bundle remoto como recurso) | Rivet | ~01:30 | 00:30–03:30 |
+| W4 | CLIENTE: client-ui-persona, locales, assets/generated-imports (Prism, Quill, Cobalt, Muse, Brush) | Prism, Quill, Cobalt, Muse | ~02:30 | 02:30–05:30 |
+| F | Reauditoria do delta (08:00) → commit de fechamento → gate-on-head + pack + verificador + e2e (Rivet deixa o pack pronto) | Keel, Gauge, Rivet, Probe, Ember | ~08:00 | → Setup 10h–11h |
+
+Regra de fechamento de uma onda: cada dono manda "W1 PRONTO" com arquivos novos + alterados + specs verdes + nenhum hunk pendente; eu confiro fecho de importações no índice privado, faço commit por caminho (hot files inteiros) e disparo o gate-on-head. Nada de Remote novo depois do T2 até o S4b.

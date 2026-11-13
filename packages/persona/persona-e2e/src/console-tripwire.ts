@@ -32,13 +32,16 @@ export function watchConsole(page: Page): ConsoleTripwire {
   page.on('pageerror', (error) => { pageErrors.push(String(error)) })
   // A reload aborts the polls in flight and the app logs them just BEFORE the frame navigates: those, and only those (an aborted request in the last 1.5 s before a main-frame navigation), are the unload's,
   // not errors of the scenario. An aborted request at any other moment (a host that died, a refused call) stays an error.
-  page.on('framenavigated', (frame) => {
-    if (frame !== page.mainFrame()) return
-    const now = Date.now()
-    for (let index = consoleErrors.length - 1; index >= 0; index -= 1) {
-      if (now - (stamps[index] ?? 0) <= UNLOAD_WINDOW_MS && UNLOAD_ABORT.test(consoleErrors[index] ?? '')) { consoleErrors.splice(index, 1); stamps.splice(index, 1) }
-    }
-  })
+  // `PERSONA_TRIPWIRE_STRICT=1` (diagnostic): NO filter at all, so a run proves the product itself no longer logs an aborted poll on reload (Prism's P3 fix), not that the harness hides it.
+  if (process.env.PERSONA_TRIPWIRE_STRICT !== '1') {
+    page.on('framenavigated', (frame) => {
+      if (frame !== page.mainFrame()) return
+      const now = Date.now()
+      for (let index = consoleErrors.length - 1; index >= 0; index -= 1) {
+        if (now - (stamps[index] ?? 0) <= UNLOAD_WINDOW_MS && UNLOAD_ABORT.test(consoleErrors[index] ?? '')) { consoleErrors.splice(index, 1); stamps.splice(index, 1) }
+      }
+    })
+  }
   return { warnings, pageErrors, consoleErrors }
 }
 

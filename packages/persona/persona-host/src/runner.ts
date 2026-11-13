@@ -19,6 +19,7 @@ import {
   takeRunnerRefusals,
   toolNameFromEvent,
   type AuthorityKind,
+  type ComputerActingContext,
   type PermissionGate,
   type PersonaRunnerSpec,
   type NormalizedReport,
@@ -90,6 +91,10 @@ export interface HostRunnerRequest {
   readonly thread?: string
   /** Talk uses an isolated home dir — never the repo checkout. */
   readonly cwd?: string
+  /** Optional turn-runner factory when the persona lives on an online remote home computer (M8). */
+  readonly remoteRunner?: () => TurnRunner | undefined
+  /** Active host-bound computer run context for a Ticket's turn, if authorized and open (M9). */
+  readonly computerOf?: (ticketId: string) => ComputerActingContext | undefined
 }
 
 /** Factory the orchestration uses per persona (optional request = default fake). */
@@ -264,7 +269,8 @@ export async function resolveHostRunner(
   request?: HostRunnerRequest,
   runners?: PersonaRunnersSlice,
 ): Promise<Runner> {
-  if (allowsScriptedReplies()) {
+  const remote = request?.remoteRunner?.()
+  if (remote === undefined && allowsScriptedReplies()) {
     return runners?.createFakeRunner() ?? createFakeRunner()
   }
   if (request === undefined) throw new RunnerResolveError('engine_unavailable', 'dsh')
@@ -277,7 +283,7 @@ export async function resolveHostRunner(
   const home = request.home === undefined || request.home === '' ? undefined : request.home
   const tools = request.tools
   const accountConnectors = request.spec.kind === 'cli' && request.spec.cli === 'claude' ? (request.connectors ?? []).filter(item => item.cli === 'claude').map(item => item.id) : []
-  const resolvedRunner = await resolve({
+  const resolvedRunner = remote ?? await resolve({
     spec: request.spec,
     permissionMode: request.permissionMode,
     autonomy: request.autonomy,
@@ -301,7 +307,9 @@ export async function resolveHostRunner(
   // channel; a task facade serves one ticket per session.
   // P0-07: a talk runner that serves ONE conversation (`request.thread`: its stream, and the subject when it has one) is stamped with it, so its CLI session is that conversation's own. Any other
   // talk runner (aside, opinion, indicator: the one-shot answers) keeps every call on a thread of its own: the old `shared` thread '' put every conversation in one CLI history.
-  const threads = withThreadResume(turn, request.purpose === 'talk' && request.thread !== undefined ? { shared: true, thread: request.thread } : { shared: false })
+  const threads = remote === undefined
+    ? withThreadResume(turn, request.purpose === 'talk' && request.thread !== undefined ? { shared: true, thread: request.thread } : { shared: false })
+    : turn
   const session = createOarSessionRunner({
     turn: threads,
     personaId: request.personId,
@@ -311,7 +319,17 @@ export async function resolveHostRunner(
     ...(request.personaName === undefined ? {} : { personaName: request.personaName }),
     ...(request.personaTitle === undefined ? {} : { personaTitle: request.personaTitle }),
     ...(request.productTools === undefined ? {} : {
-      toolsFor: turn => request.productTools?.({ personaId: turn.personaId, ticketId: turn.ticketId, assignmentId: turn.assignmentId, cwd: turn.cwd }),
+      toolsFor: (turn) => {
+        const computer = request.computerOf?.(turn.ticketId)
+        return request.productTools?.({
+          personaId: turn.personaId,
+          ticketId: turn.ticketId,
+          assignmentId: turn.assignmentId,
+          cwd: turn.cwd,
+          ...(request.authorityOf === undefined ? {} : { authority: request.authorityOf(turn.ticketId) }),
+          ...(computer === undefined ? {} : { computer }),
+        })
+      },
     }),
     // COLHEITA 17: the browser of this persona's turns; the adapter drops them on a CLI without MCP.
     ...(request.extraMcpServers === undefined ? {} : { serversFor: () => request.extraMcpServers }),

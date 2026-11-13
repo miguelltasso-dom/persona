@@ -162,6 +162,27 @@ const READ_TOOLS: readonly string[] = ['Read', 'Grep', 'Glob']
 const COMMAND_REFUSED_REASON = 'This command is outside what this persona may run. Do not try it again and do not work around it: stop and tell the person what you needed.'
 const BROWSER_REFUSED_REASON = 'This browser action is outside what this persona may do. Do not try it again and do not work around it: stop and tell the person what you needed.'
 const SECRET_PATH_REASON = 'This path holds credentials or keys. It is not available to you. Do not try it again and do not work around it.'
+const GIT_METADATA_REASON = 'This path is inside the .git of a repository: only git writes there. It is not available to you. Do not try it again and do not work around it.'
+
+/** P0-B (S4, Mend): the keys of a tool input that hold a path (`path`, `file_path`, `filePath`, `destination`, `paths`, `source`...). */
+const PATH_KEY = /path|file|dir|folder|dest|target|source|location/iu
+
+/**
+ * P0-B (S4, Mend): whether a connector's input names a path that reaches the `.git` of a repository (folder or file, any case, 8.3 name), in a path-like field at any depth (≤ 4).
+ * @param input - The tool input, as the CLI sent it.
+ * @param root - The draft (a relative path is read from `cwd`).
+ * @param cwd - The CLI's working folder.
+ */
+function mcpInputReachesGit(input: unknown, root: string | undefined, cwd: string | undefined, depth = 0): boolean {
+  if (depth > 4 || input === null || typeof input !== 'object') return false
+  for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
+    for (const item of Array.isArray(value) ? value as unknown[] : [value]) {
+      if (typeof item === 'string') { if (PATH_KEY.test(key) && reachesGitMetadata(item, root, cwd ?? root)) return true }
+      else if (mcpInputReachesGit(item, root, cwd, depth + 1)) return true
+    }
+  }
+  return false
+}
 const DENY_REASON = 'This action needs the person\'s approval before it can run. Do not try it again and do not work around it: stop, tell the person you are waiting for their approval, and wait.'
 
 /**
@@ -530,6 +551,13 @@ export class PermissionGate {
     }
     const input: unknown = event.tool_input ?? {}
     const action = classifyTool(tool, this.options.annotations?.(tool))
+    // P0-B (S4, Mend): a connector that WRITES (a filesystem server of the person; any tool that is not a read) never reaches the `.git` of a repository, whatever class is
+    // pre-allowed: a `.git` file (`gitdir: evil`) or a `.git/config` of the persona's runs her programs on the next `git add`, in any engine and in the host.
+    const eventCwd = typeof event.cwd === 'string' && event.cwd !== '' ? event.cwd : undefined
+    if (action.actionClass !== 'read' && mcpInputReachesGit(input, this.noDraft ? undefined : this.draftRoot ?? eventCwd, eventCwd)) {
+      this.noteRefusal(tool, 'git', action.verb)
+      return decision('deny', GIT_METADATA_REASON)
+    }
     const hash = argsHash(input)
     // HONEST-1: a house rule holds a verb even in a pre-allowed class; only the person's approval (below) lets such a call through.
     const held = this.askVerbs.size > 0 && toolWords(tool).some(word => this.askVerbs.has(word))

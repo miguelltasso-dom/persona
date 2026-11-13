@@ -459,18 +459,22 @@ export type {
 } from './teach.ts'
 export {
   DEFAULT_COMPUTER_USE_LIMITS,
+  STOPPED_COMPUTER_USE,
   YOU_TOOK_OVER,
   assertComputerUsePlan,
+  assertComputerUseTarget,
   classifyComputerAction,
   createMemorySharedControl,
   fakeActPort,
   fakeObservePort,
   fakePermissionPort,
+  isValidComputerUseTarget,
   noteHumanInput,
   projectReplayForUi,
   resumeSharedControl,
   runComputerUse,
   runningControl,
+  sameComputerUseTarget,
   treeNames,
   verifyExpectation,
   walkA11y,
@@ -486,20 +490,43 @@ export type {
   ComputerUseReport,
   ComputerUseStatus,
   ComputerUseStep,
+  ComputerUseTarget,
   ControlOwner,
   ControlReason,
   DesktopActPort,
   DesktopObservePort,
+  DesktopPortContext,
   PermissionDecision,
   ReplayEntry,
   ReplayResult,
   ReplaySaw,
+  ScopePort,
   ScreenObservation,
   SharedControl,
   SharedControlPort,
   StepExpectation,
   StepPermissionPort,
 } from './computer-use.ts'
+export {
+  canEnrollComputerAsTeam,
+  createComputerScopeGuard,
+  decideComputerUse,
+  personaAfterMove,
+  readComputerKind,
+  validatePersonaComputerConfig,
+} from './computer-scope.ts'
+export type {
+  ComputerDescriptor,
+  ComputerEnrollmentRecord,
+  ComputerKind,
+  ComputerScopeDecision,
+  ComputerScopeReason,
+  ComputerUsePersona,
+  ConfigValidation,
+  PersonaAudience,
+} from './computer-scope.ts'
+export { createWatchGate, decideWatch, planWatchFrame } from './computer-watch.ts'
+export type { Rect, WatchCoverReason, WatchDecision, WatchDeny, WatchFramePlan } from './computer-watch.ts'
 export { DEFAULT_GESTOR_LIMITS } from '@deepseek-ai/dsh-persona-core'
 export {
   runAssembleTeam,

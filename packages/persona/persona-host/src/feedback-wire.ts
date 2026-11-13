@@ -17,8 +17,8 @@ export interface FeedbackWireDeps {
   readonly orchestration: Orchestration
 }
 
-/** Who did a Task and what it was, from the Task itself (never from its id). */
-function taskOf(deps: FeedbackWireDeps, projectId: string, ticketId: string): { personaId: string; personaName: string; title: string; request: string; conversation: string } | undefined {
+/** Who did a Task, what it was and, when it was born in a DM, which DM (its words are that DM's: D-119), from the Task itself (never from its id). */
+export function taskOf(deps: FeedbackWireDeps, projectId: string, ticketId: string): { personaId: string; personaName: string; title: string; request: string; conversation: string; dmId?: string } | undefined {
   const ticket = deps.orchestration.runtime(projectId).repo.tickets.get(ticketId)
   if (ticket === undefined) return undefined
   const persona = deps.product.listPersonas(projectId).find(row => row.name === ticket.execution?.name)
@@ -26,7 +26,9 @@ function taskOf(deps: FeedbackWireDeps, projectId: string, ticketId: string): { 
   // The conversation the request came from: its subject (or topic), else the stream. Two conversations count like two days.
   const origin = deps.orchestration.events?.get(ticket.origin.triggerId)
   const conversation = origin === undefined ? '' : (origin.topicId !== undefined && origin.topicId !== '' ? origin.topicId : origin.subjectId !== '' ? origin.subjectId : origin.streamId)
-  return { personaId: persona.id, personaName: persona.name, title: ticket.title, request: ticket.execution?.assignment ?? '', conversation }
+  // D-119: a Task born in a DM carries the person's words as its title and its request; the note the playbook makes of it is that DM's too.
+  const where = deps.orchestration.conversationOfTicket(projectId, ticketId)
+  return { personaId: persona.id, personaName: persona.name, title: ticket.title, request: ticket.execution?.assignment ?? '', conversation, ...(where?.streamKind === 'dm' && where.ownerId !== '' ? { dmId: where.ownerId } : {}) }
 }
 
 /**
@@ -65,6 +67,7 @@ export function learnFromRequestedChanges(
     if (task === undefined) return
     notePlaybookAdjustment({ screens: deps.screens, now: () => deps.orchestration.now() }, {
       projectId: request.projectId, personaId: task.personaId, title: task.title, feedback: request.feedback,
+      ...(task.dmId === undefined ? {} : { dmId: task.dmId }),
     })
   } catch (error: unknown) {
     void error

@@ -15,12 +15,13 @@ import { FEATURE_OFF_REASON, FEATURE_OFF_TEXT, SURFACE_REMOTES, type Surface } f
  * Quatro superfícies em construção (invite, channels, skillImport, station) ficam DESLIGADAS; o navegador compartilhado fica LIGADO (Keel 09:21) e só um `0`/`false` explícito o desliga.
  */
 const SCOPE = { workspaceId: 'ws', projectId: 'pp' } as const
-const SURFACES_WITH_LISTS = ['invite', 'channels', 'skillImport', 'station'] as const satisfies readonly Surface[]
+const SURFACES_WITH_LISTS = ['invite', 'channels', 'skillImport', 'station', 'projectLead'] as const satisfies readonly Surface[]
 const LISTS: Readonly<Record<(typeof SURFACES_WITH_LISTS)[number], readonly string[]>> = {
   invite: Object.keys(SURFACE_REMOTES).filter(name => SURFACE_REMOTES[name] === 'invite'),
   channels: Object.keys(SURFACE_REMOTES).filter(name => SURFACE_REMOTES[name] === 'channels'),
   skillImport: Object.keys(SURFACE_REMOTES).filter(name => SURFACE_REMOTES[name] === 'skillImport'),
   station: Object.keys(SURFACE_REMOTES).filter(name => SURFACE_REMOTES[name] === 'station'),
+  projectLead: Object.keys(SURFACE_REMOTES).filter(name => SURFACE_REMOTES[name] === 'projectLead'),
 }
 
 const cleanups: Array<() => Promise<void> | void> = []
@@ -66,7 +67,7 @@ async function callByName(h: PersonaHost, name: string): Promise<string> {
 describe('o host REAL no padrão do produto', () => {
   it('resolve as QUATRO superfícies em construção como DESLIGADAS e o navegador compartilhado como LIGADO (decisão do Keel 09:21, P0-01 fechado), e diz qual padrão decidiu', () => {
     const { h } = bootHost()
-    expect(h.surfaces).toMatchObject({ invite: false, station: false, channels: false, skillImport: false, sharedBrowser: true, defaults: 'production' })
+    expect(h.surfaces).toMatchObject({ invite: false, station: false, channels: false, skillImport: false, projectLead: false, sharedBrowser: true, defaults: 'production' })
   })
 
   it('sharedBrowser: LIGADO no produto (nenhuma das chamadas dele é recusada); `Config.surfaces.sharedBrowser = false` e PERSONA_SURFACE_SHARED_BROWSER=0 o desligam, e aí TODAS são recusadas com feature-off', async () => {
@@ -85,11 +86,12 @@ describe('o host REAL no padrão do produto', () => {
     expect(byEnv.h.surfaces.invite, 'e não mexe nas outras').toBe(false)
   })
 
-  it('as listas têm o tamanho que o Keel/Tally aprovaram: invite 17, channels 10 (5 do layout + 5 da Casa da Equipe), skillImport 4, station 4 = 35', () => {
+  it('as listas têm o tamanho que o Keel/Tally aprovaram: invite 17, channels 10 (5 do layout + 5 da Casa da Equipe), skillImport 4, station 4, projectLead 5 (M1 + cuidado/piloto automático) = 40', () => {
     expect(LISTS.invite).toHaveLength(17)
     expect(LISTS.channels).toHaveLength(10)
     expect(LISTS.skillImport).toHaveLength(4)
     expect(LISTS.station).toHaveLength(4)
+    expect(LISTS.projectLead).toHaveLength(5)
   })
 
   for (const surface of SURFACES_WITH_LISTS) {
@@ -135,7 +137,7 @@ describe('o espelho: ligar UMA superfície liga só as chamadas dela', () => {
     })
   }
 
-  it('sob o Vitest (sem production) NENHUMA das 35 está desligada: as suítes continuam provando o código', () => {
+  it('sob o Vitest (sem production) NENHUMA das 37 está desligada: as suítes continuam provando o código', () => {
     const { h } = bootHost({ production: false })
     for (const surface of SURFACES_WITH_LISTS) for (const name of LISTS[surface]) expect(h.remoteGuard.surfaceOff(name), name).toBe(false)
   })

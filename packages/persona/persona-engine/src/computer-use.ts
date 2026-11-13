@@ -9,7 +9,32 @@ import { DomainError } from '@deepseek-ai/dsh-persona-core'
 /** Pill / frame copy when the human takes the mouse or keyboard. */
 export const YOU_TOOK_OVER = 'você assumiu'
 
+/** Copy used when a run stops after an explicit AbortSignal cancellation. */
+export const STOPPED_COMPUTER_USE = 'Parado a pedido.'
+
 const CRED = /(?:sk-|tok-|api[_-]?key|bearer\s|password\s*=)/iu
+
+const SCOPE_REFUSAL_CODES: ReadonlySet<string> = new Set([
+  'no-target',
+  'persona-app',
+  'forbidden-target',
+  'outside-window',
+  'forbidden-chord',
+  'forbidden',
+])
+
+/** Window target bound to a computer-use run (HWND decimal string + owning OS process id). */
+export interface ComputerUseTarget {
+  readonly windowHandle: string
+  readonly processId: number
+  readonly title?: string
+}
+
+/** Per-step target window and abort signal forwarded to desktop observe/act ports. */
+export interface DesktopPortContext {
+  readonly target?: ComputerUseTarget
+  readonly signal?: AbortSignal
+}
 
 export interface A11yBounds {
   readonly x: number
@@ -32,13 +57,16 @@ export interface ScreenObservation {
   readonly atMs: number
   readonly captureRef: string
   readonly tree: A11yNode
+  /** Window target observed on screen when reported by the OS adapter. */
+  readonly target?: ComputerUseTarget
 }
 
 export interface DesktopObservePort {
   /**
+   * @param context - Optional target window scope and cancellation signal.
    * @returns Screenshot ref plus accessibility tree (live UIA or fake).
    */
-  observe(): Promise<ScreenObservation>
+  observe(context?: DesktopPortContext): Promise<ScreenObservation>
 }
 
 export type ComputerAction =
@@ -56,9 +84,10 @@ export interface ActResult {
 export interface DesktopActPort {
   /**
    * @param action - Trusted step action (already gated).
+   * @param context - Optional target window scope and cancellation signal.
    * @returns Failure with {@link YOU_TOOK_OVER} if the human grabbed control.
    */
-  act(action: ComputerAction): Promise<ActResult>
+  act(action: ComputerAction, context?: DesktopPortContext): Promise<ActResult>
 }
 
 /**
@@ -83,6 +112,8 @@ export interface ComputerUsePlan {
   readonly goal: string
   readonly personaId: string
   readonly steps: readonly ComputerUseStep[]
+  /** Optional window target bound to this plan. */
+  readonly target?: ComputerUseTarget
 }
 
 export type ControlOwner = 'persona' | 'human'
@@ -120,6 +151,15 @@ export interface StepPermissionPort {
   }): Promise<PermissionDecision>
 }
 
+/**
+ * M9 / D-117: a REGRA DURA (equipe nunca em PC pessoal) como porta. A matriz é UMA só (`computer-scope.ts`); o executor monta
+ * `scope` com `createComputerScopeGuard(...)` e o commanderId da identidade autenticada (nunca do pedido). O laço NÃO decide nada:
+ * só pergunta, imediatamente antes de cada ação e antes do cartão de permissão. Porta ausente = comportamento antigo (sem regra).
+ */
+export interface ScopePort {
+  check(): { readonly allow: true } | { readonly allow: false; readonly reason: string }
+}
+
 export interface ComputerUseLimits {
   readonly maxSteps: number
   readonly maxAttemptsPerStep: number
@@ -139,6 +179,7 @@ export type ReplayResult =
   | 'retry'
   | 'failed'
   | 'paused'
+  | 'stopped'
   | 'denied'
   | 'needs_approval'
   | 'limit'
@@ -164,6 +205,7 @@ export type ComputerUseStatus =
   | 'done'
   | 'failed'
   | 'paused'
+  | 'stopped'
   | 'needs_approval'
   | 'denied'
   | 'limit'
@@ -175,6 +217,7 @@ export interface ComputerUseReport {
   readonly control: SharedControl
   readonly stepsVerified: number
   readonly attempts: number
+  readonly target?: ComputerUseTarget
 }
 
 /**
@@ -231,6 +274,52 @@ export function classifyComputerAction(action: ComputerAction): ComputerSensitiv
   if (action.kind === 'wait') return undefined
   if (action.kind === 'type' && CRED.test(action.text)) return 'credentials'
   return 'computer_act'
+}
+
+/**
+ * @param target - Candidate window target (`windowHandle` + OS `processId`).
+ * @returns Whether `target` identifies a concrete window handle and positive integer PID.
+ */
+export function isValidComputerUseTarget(target: ComputerUseTarget | undefined): target is ComputerUseTarget {
+  return target !== undefined
+    && target.windowHandle.trim() !== ''
+    && Number.isInteger(target.processId)
+    && target.processId > 0
+}
+
+/**
+ * Validate a bound window target or throw a structured domain error.
+ * @param target - Window target to validate.
+ * @returns Normalized target with trimmed `windowHandle`.
+ */
+export function assertComputerUseTarget(target: ComputerUseTarget): ComputerUseTarget {
+  if (!isValidComputerUseTarget(target)) throw new DomainError('INVALID_COMPUTER_USE', 'TARGET')
+  return normalizeTarget(target)
+}
+
+/**
+ * Compare two window targets by their OS identity (`windowHandle` + `processId`).
+ * Titles may change during a run and are intentionally excluded from equality.
+ * @param a - First target.
+ * @param b - Second target.
+ * @returns True when both targets refer to the same HWND and PID.
+ */
+export function sameComputerUseTarget(a: ComputerUseTarget, b: ComputerUseTarget): boolean {
+  return a.windowHandle.trim() === b.windowHandle.trim() && a.processId === b.processId
+}
+
+function normalizeTarget(target: ComputerUseTarget): ComputerUseTarget {
+  return {
+    windowHandle: target.windowHandle.trim(),
+    processId: target.processId,
+    ...(target.title === undefined ? {} : { title: target.title }),
+  }
+}
+
+function extractScopeRefusal(detail: string): string | undefined {
+  if (detail.startsWith('scope:') && detail.length > 6) return detail
+  if (SCOPE_REFUSAL_CODES.has(detail)) return `scope:${detail}`
+  return undefined
 }
 
 /**
@@ -398,6 +487,14 @@ export async function runComputerUse(input: {
   readonly limits?: ComputerUseLimits
   readonly now: () => number
   readonly spendTokens?: (step: ComputerUseStep) => number
+  /** D-117: a regra dura. Perguntada antes do cartão de cada passo e imediatamente antes de CADA ação (TOCTOU, Lumen P2). */
+  readonly scope?: ScopePort
+  /** Window target bound to this run (`windowHandle` + `processId`). */
+  readonly target?: ComputerUseTarget
+  /** Fail closed (`target:no-target`) when no valid target is provided by `input.target` or `plan.target`. */
+  readonly requireTarget?: boolean
+  /** Cancellation signal triggered when the person hits Stop for this run. */
+  readonly signal?: AbortSignal
 }): Promise<ComputerUseReport> {
   assertComputerUsePlan(input.plan)
   const limits = input.limits ?? DEFAULT_COMPUTER_USE_LIMITS
@@ -406,6 +503,7 @@ export async function runComputerUse(input: {
   let tokens = 0
   let attempts = 0
   let stepsVerified = 0
+  let boundTarget: ComputerUseTarget | undefined
 
   const finish = (status: ComputerUseStatus, message: string): ComputerUseReport => ({
     status,
@@ -414,7 +512,65 @@ export async function runComputerUse(input: {
     control: input.control.snapshot(),
     stepsVerified,
     attempts,
+    ...(boundTarget === undefined ? {} : { target: boundTarget }),
   })
+
+  const firstStep = input.plan.steps[0]
+  if (firstStep === undefined) throw new DomainError('INVALID_COMPUTER_USE', 'EMPTY')
+
+  const denyImmediately = (detail: string, step: ComputerUseStep, attempt = 0, saw = emptySaw()): ComputerUseReport => {
+    replay.push(entry({
+      stepId: step.id,
+      attempt,
+      atMs: input.now(),
+      saw,
+      did: { kind: 'none' },
+      expectation: step.expectation.after,
+      result: 'denied',
+      detail,
+    }))
+    return finish('denied', detail)
+  }
+
+  const stopNow = (
+    step: ComputerUseStep,
+    attempt: number,
+    saw: ReplaySaw,
+    did: ComputerAction | { readonly kind: 'none' },
+  ): ComputerUseReport => {
+    replay.push(entry({
+      stepId: step.id,
+      attempt,
+      atMs: input.now(),
+      saw,
+      did,
+      expectation: step.expectation.after,
+      result: 'stopped',
+      detail: STOPPED_COMPUTER_USE,
+    }))
+    return finish('stopped', STOPPED_COMPUTER_USE)
+  }
+
+  if (input.target !== undefined && !isValidComputerUseTarget(input.target)) {
+    return denyImmediately('target:no-target', firstStep)
+  }
+  if (input.plan.target !== undefined && !isValidComputerUseTarget(input.plan.target)) {
+    return denyImmediately('target:no-target', firstStep)
+  }
+  if (input.target !== undefined && input.plan.target !== undefined && !sameComputerUseTarget(input.target, input.plan.target)) {
+    return denyImmediately('target:mismatch', firstStep)
+  }
+  const chosenTarget = input.target ?? input.plan.target
+  if (chosenTarget === undefined) {
+    if (input.requireTarget === true) return denyImmediately('target:no-target', firstStep)
+  } else {
+    boundTarget = normalizeTarget(chosenTarget)
+  }
+
+  const portContext: DesktopPortContext = {
+    ...(boundTarget === undefined ? {} : { target: boundTarget }),
+    ...(input.signal === undefined ? {} : { signal: input.signal }),
+  }
 
   const hitLimit = (why: string, stepId: string, expectation: string): ComputerUseReport => {
     replay.push(entry({
@@ -431,12 +587,42 @@ export async function runComputerUse(input: {
   }
 
   if (input.plan.steps.length > limits.maxSteps) {
-    const first = input.plan.steps[0]
-    if (first === undefined) throw new DomainError('INVALID_COMPUTER_USE', 'EMPTY')
-    return hitLimit(`limite de passos (${String(limits.maxSteps)})`, first.id, input.plan.goal)
+    return hitLimit(`limite de passos (${String(limits.maxSteps)})`, firstStep.id, input.plan.goal)
   }
 
+  /** Recusa do escopo: o passo NÃO age, a linha do replay leva o motivo (só o código, nenhum dado) e a execução termina `denied`. */
+  const refuseByScope = (step: ComputerUseStep, attempt: number): ComputerUseReport | undefined => {
+    if (input.scope === undefined) return undefined
+    let verdict: ReturnType<ScopePort['check']>
+    try {
+      verdict = input.scope.check()
+    } catch {
+      verdict = { allow: false, reason: 'unreadable' }
+    }
+    if (verdict.allow) return undefined
+    return denyImmediately(`scope:${verdict.reason}`, step, attempt)
+  }
+
+  const checkObservedTarget = (
+    obs: ScreenObservation,
+    step: ComputerUseStep,
+    attempt: number,
+    saw: ReplaySaw,
+  ): ComputerUseReport | undefined => {
+    if (obs.target === undefined) {
+      return input.requireTarget === true ? denyImmediately('target:unverified', step, attempt, saw) : undefined
+    }
+    if (boundTarget === undefined) return undefined
+    if (isValidComputerUseTarget(obs.target) && sameComputerUseTarget(boundTarget, obs.target)) return undefined
+    return denyImmediately('target:outside-window', step, attempt, saw)
+  }
+
+  const isAborted = (): boolean => input.signal?.aborted === true
+
   for (const step of input.plan.steps) {
+    if (isAborted()) {
+      return stopNow(step, 0, emptySaw(), { kind: 'none' })
+    }
     if (input.now() - startedAt >= limits.maxMs) {
       return hitLimit(`limite de tempo (${String(limits.maxMs)}ms)`, step.id, step.expectation.after)
     }
@@ -459,21 +645,17 @@ export async function runComputerUse(input: {
       return finish('paused', YOU_TOOK_OVER)
     }
 
+    const refusedAtStep = refuseByScope(step, 0)
+    if (refusedAtStep !== undefined) return refusedAtStep
+
     const kind = classifyComputerAction(step.action)
     if (kind !== undefined) {
       const gate = await input.permission.request({ stepId: step.id, action: step.action, kind })
+      if (isAborted()) {
+        return stopNow(step, 0, emptySaw(), { kind: 'none' })
+      }
       if (gate.decision === 'deny') {
-        replay.push(entry({
-          stepId: step.id,
-          attempt: 0,
-          atMs: input.now(),
-          saw: emptySaw(),
-          did: { kind: 'none' },
-          expectation: step.expectation.after,
-          result: 'denied',
-          detail: gate.reason,
-        }))
-        return finish('denied', gate.reason)
+        return denyImmediately(gate.reason, step, 0)
       }
       if (gate.decision === 'ask') {
         replay.push(entry({
@@ -490,7 +672,21 @@ export async function runComputerUse(input: {
       }
     }
 
-    const before = await input.observe.observe()
+    if (isAborted()) {
+      return stopNow(step, 0, emptySaw(), { kind: 'none' })
+    }
+    let before: ScreenObservation
+    try {
+      before = await input.observe.observe(portContext)
+    } catch (error) {
+      if (isAborted()) return stopNow(step, 0, emptySaw(), { kind: 'none' })
+      throw error
+    }
+    if (isAborted()) {
+      return stopNow(step, 0, sawOf(before, undefined), { kind: 'none' })
+    }
+    const driftedBefore = checkObservedTarget(before, step, 0, sawOf(before, undefined))
+    if (driftedBefore !== undefined) return driftedBefore
     if (input.control.snapshot().owner === 'human') {
       replay.push(entry({
         stepId: step.id,
@@ -507,6 +703,9 @@ export async function runComputerUse(input: {
 
     let verified = false
     for (let attempt = 1; attempt <= limits.maxAttemptsPerStep; attempt += 1) {
+      if (isAborted()) {
+        return stopNow(step, attempt, sawOf(before, undefined), { kind: 'none' })
+      }
       if (input.now() - startedAt >= limits.maxMs) {
         return hitLimit(`limite de tempo (${String(limits.maxMs)}ms)`, step.id, step.expectation.after)
       }
@@ -524,9 +723,22 @@ export async function runComputerUse(input: {
         return finish('paused', YOU_TOOK_OVER)
       }
 
+      // Imediatamente antes de mexer: o cartão de aprovação e a observação acima podem ter levado minutos (TOCTOU).
+      const refusedAtAct = refuseByScope(step, attempt)
+      if (refusedAtAct !== undefined) return refusedAtAct
+
       attempts += 1
       tokens += cost
-      const acted = await input.act.act(step.action)
+      let acted: ActResult
+      try {
+        acted = await input.act.act(step.action, portContext)
+      } catch (error) {
+        if (isAborted()) return stopNow(step, attempt, sawOf(before, undefined), step.action)
+        throw error
+      }
+      if (isAborted()) {
+        return stopNow(step, attempt, sawOf(before, undefined), step.action)
+      }
       if (!acted.ok && acted.detail.includes(YOU_TOOK_OVER)) {
         replay.push(entry({
           stepId: step.id,
@@ -540,8 +752,34 @@ export async function runComputerUse(input: {
         }))
         return finish('paused', YOU_TOOK_OVER)
       }
+      const actScopeRefusal = acted.ok ? undefined : extractScopeRefusal(acted.detail)
+      if (actScopeRefusal !== undefined) {
+        replay.push(entry({
+          stepId: step.id,
+          attempt,
+          atMs: input.now(),
+          saw: sawOf(before, undefined),
+          did: step.action,
+          expectation: step.expectation.after,
+          result: 'denied',
+          detail: actScopeRefusal,
+        }))
+        return finish('denied', actScopeRefusal)
+      }
 
-      const after = await input.observe.observe()
+      let after: ScreenObservation
+      try {
+        after = await input.observe.observe(portContext)
+      } catch (error) {
+        if (isAborted()) return stopNow(step, attempt, sawOf(before, undefined), step.action)
+        throw error
+      }
+      if (isAborted()) {
+        return stopNow(step, attempt, sawOf(before, after), step.action)
+      }
+      const driftedAfter = checkObservedTarget(after, step, attempt, sawOf(before, after))
+      if (driftedAfter !== undefined) return driftedAfter
+
       const check = verifyExpectation(after, step.expectation)
       if (check.ok) {
         replay.push(entry({

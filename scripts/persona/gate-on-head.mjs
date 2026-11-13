@@ -9,6 +9,11 @@
 //   node scripts/persona/gate-on-head.mjs --keep             (não apaga o worktree no fim; ele fica em ../.persona-gate-head/<sha>)
 //   node scripts/persona/gate-on-head.mjs -- --skip-smoke    (o que vem depois de `--` vai para o persona-gate)
 //   node scripts/persona/gate-on-head.mjs --pkgs persona-sync client-ui-persona --check-only
+//   node scripts/persona/gate-on-head.mjs --installer --prebuild   (o gate de corte: --installer/--skip-smoke/--skip-typert vão ao persona-gate; --prebuild roda ANTES o build do pack no worktree)
+//   node scripts/persona/gate-on-head.mjs --plan [...]             (EM SECO: imprime o que faria e sai 0; não cria worktree, não roda nada)
+// PORQUE o --prebuild (12/11, medido no c0d7578b86): o persona-gate espera SAÍDAS DE BUILD que o git não guarda (lib/types dos pacotes que não são persona, apps/web/dist, o bundle do client). Num checkout
+// limpo elas não existem e o bundle, o `tsc` do desktop (TS6305), o contrato wire e o scan de eval reprovam por AMBIENTE. `--prebuild` roda `pnpm run build --profile local` (os mesmos 10 passos do pack)
+// dentro do worktree antes do gate, e o gate passa a achar no commit limpo o que o pack acharia ~25 min depois.
 // Os node_modules são COMPARTILHADOS (junções para os originais: terceiros ficam onde estão) EXCETO os links de workspace (@deepseek-ai/dsh-*), que são refeitos para apontar para o worktree:
 // senão um pacote do commit seria compilado contra o fonte do WIP de outro pacote. O gate pesado precisa do lock de build: rode com `node scripts/persona/with-lock.mjs "<rótulo>" --lock build -- node scripts/persona/gate-on-head.mjs`.
 // Se o gate passa, o selo `.maestri/tmp/persona-gate-ok.json` do worktree é copiado para o repositório (a árvore do HEAD é a mesma; o pre-push o aceita).
@@ -47,10 +52,18 @@ function link(target, path) {
   try { symlinkSync(target, path, 'junction') } catch { copyFileSync(target, path) } // arquivo solto: cópia
 }
 
-/** Refaz `<src>` em `<dst>`: tudo vira junção para o original, menos os links de workspace (apontam para o worktree) e as pastas @escopo (entradas recriadas uma a uma). */
+/**
+ * Entradas de ESTADO do pnpm que NÃO se religam (12/11, S3b): o pnpm novo RECUSA usar `node_modules/.pnpm-task-run-state-v1` quando é uma juncão ("ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH: ... is a symbolic
+ * link or not a directory") e o `pnpm --filter ... run bundle` do pré-build cai. O diretório só existe no original depois que o pnpm roda tarefas lá; no worktree ele deve ser REAL e próprio
+ * (o pnpm o cria sozinho). O mesmo vale para os arquivos de estado do workspace, que o pnpm regrava.
+ */
+export const PNPM_STATE_ENTRIES = new Set(['.pnpm-task-run-state-v1', '.pnpm-workspace-state-v1.json', '.pnpm-workspace-state.json'])
+
+/** Refaz `<src>` em `<dst>`: tudo vira junção para o original, menos os links de workspace (apontam para o worktree), as pastas @escopo (entradas recriadas uma a uma) e o estado do pnpm (PNPM_STATE_ENTRIES). */
 export function relink(src, dst, originalRoot, worktreeRoot) {
   mkdirSync(dst, { recursive: true })
   for (const entry of readdirSync(src)) {
+    if (PNPM_STATE_ENTRIES.has(entry)) continue
     const from = join(src, entry)
     const to = join(dst, entry)
     const stat = lstatSync(from)
@@ -134,12 +147,40 @@ export function parseArgs(argv) {
   return args
 }
 
+/** As flags que o gate de corte recebe direto (sem o `--`) e que são do persona-gate. */
+export const FORWARDED_FLAGS = ['installer', 'skip-smoke', 'skip-typert']
+
+/** Os argumentos que o persona-gate recebe dentro do worktree: as flags encaminhadas, depois o que veio depois do `--`. */
+export function gateArgsOf(args) {
+  return [...FORWARDED_FLAGS.filter((flag) => args.flags.has(flag)).map((flag) => `--${flag}`), ...args.passthrough]
+}
+
+/** O PLANO (o que o script faria), puro: serve ao `--plan` (em seco) e aos testes. */
+export function planOf(args, commit) {
+  const steps = [`worktree limpo de ${commit.slice(0, 10)} (git worktree add --detach), node_modules religados, pré-voo: o guarda do pnpm tem de recusar \`pnpm install\``]
+  if (args.flags.has('check-only')) {
+    if (!args.flags.has('skip-typert')) steps.push('generate-typert (o contrato gerado do host não está no git)')
+    steps.push(`check-pkg ${(args.pkgs.length > 0 ? args.pkgs : ['persona-core']).join(' ')}`)
+  } else {
+    if (args.flags.has('prebuild')) steps.push('PRÉ-BUILD: pnpm run build --profile local (os mesmos 10 passos do pack: native, Typert, compiladores, bundles, Web build, agregados host e client)')
+    steps.push(`persona-gate: node scripts/persona/persona-gate.mjs ${gateArgsOf(args).join(' ')}`.trim())
+    steps.push('se verde: o selo .maestri/tmp/persona-gate-ok.json é copiado para o repositório')
+  }
+  steps.push(args.flags.has('keep') ? 'worktree MANTIDO (--keep)' : 'worktree apagado (os links são desfeitos antes, sem seguir nenhum)')
+  return steps
+}
+
 function main() {
   let args
   try { args = parseArgs(process.argv.slice(2)) } catch (error) { console.error(`uso: ${error.message}`); process.exit(2) }
   const sha = git(REPO_ROOT, ['rev-parse', '--verify', `${args.ref}^{commit}`])
   if (sha.status !== 0) { console.error(`ref inexistente: ${args.ref}`); process.exit(2) }
   const commit = sha.stdout.trim()
+  if (args.flags.has('plan')) {
+    console.log(`GATE_ON_HEAD plano para ${commit.slice(0, 10)} (em seco: nada foi criado nem rodado):`)
+    for (const [index, step] of planOf(args, commit).entries()) console.log(`  ${String(index + 1)}. ${step}`)
+    process.exit(0)
+  }
   const worktree = join(dirname(REPO_ROOT), '.persona-gate-head', commit.slice(0, 10))
   const log = (message) => console.log(`[gate-on-head ${new Date().toISOString()}] ${message}`)
   if (existsSync(worktree)) removeWorktree(worktree, REPO_ROOT) // a leftover one (--keep): links are undone FIRST, never followed
@@ -163,13 +204,21 @@ function main() {
     if (probe.status !== 99) throw new Error(`pré-voo: o guarda do pnpm NÃO recusou \`pnpm install\` (exit ${String(probe.status)}); recuso rodar o gate com node_modules ligados ao original`)
     log('pré-voo ok: `pnpm install` é recusado dentro do worktree')
     const run = (cmd, cmdArgs) => spawnSync(cmd, cmdArgs, { cwd: worktree, env, stdio: 'inherit', shell: process.platform === 'win32' && cmd === 'pnpm' })
-    if (args.flags.has('check-only')) {
+    let prebuildFailed = false
+    if (args.flags.has('prebuild') && !args.flags.has('check-only')) {
+      log('PRÉ-BUILD: pnpm run build --profile local (como o pack; as saídas de build que o git não guarda passam a existir no worktree)')
+      const built = run('pnpm', ['run', 'build', '--profile', 'local'])
+      prebuildFailed = (built.status ?? 1) !== 0
+      if (prebuildFailed) log('PRÉ-BUILD FALHOU: o pack falharia aqui também; o persona-gate não roda')
+    }
+    if (prebuildFailed) status = 1
+    else if (args.flags.has('check-only')) {
       // The client types come from the GENERATED host contract (not in git): the real gate builds it first, so the quick check does too.
       if (!args.flags.has('skip-typert')) { const typert = run('pnpm', ['exec', 'tsx', 'scripts/generate-typert.ts']); if (typert.status !== 0) throw new Error('generate-typert FALHOU no commit limpo') }
       const names = args.pkgs.length > 0 ? args.pkgs : ['persona-core']
       status = run(process.execPath, ['scripts/persona/check-pkg.mjs', ...names]).status ?? 1
     } else {
-      status = run(process.execPath, ['scripts/persona/persona-gate.mjs', ...args.passthrough]).status ?? 1
+      status = run(process.execPath, ['scripts/persona/persona-gate.mjs', ...gateArgsOf(args)]).status ?? 1
       const stamp = join(worktree, '.maestri', 'tmp', 'persona-gate-ok.json')
       if (status === 0 && existsSync(stamp)) {
         mkdirSync(join(REPO_ROOT, '.maestri', 'tmp'), { recursive: true })

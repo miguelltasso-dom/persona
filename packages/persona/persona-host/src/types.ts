@@ -2251,7 +2251,13 @@ export interface StationView {
   readonly ram: { readonly freeBytes: number; readonly floorBytes: number; readonly perCliBytes: number }
   readonly queue: number
   readonly clis: number
+  /** M4 / 24 h: the resident runners (all, the working ones, the ceiling the host keeps by RAM). */
+  readonly warm?: { readonly resident: number; readonly busy: number; readonly cap: number }
   readonly tailscale: { readonly state: 'ativo' | 'parado' | 'ausente'; readonly address?: string; readonly line: string }
+  /** M4: rapid falls recorded in the current recovery window (> 0 only; omitted when clean). */
+  readonly crashes?: number
+  /** M4: set when the recovery budget stopped the station (`setRunning(true)` clears it). */
+  readonly pausedBy?: 'queda'
 }
 
 /** COLHEITA 24: the code typed on the station. */
@@ -5072,4 +5078,32 @@ export type { ChannelUnread } from './channel-unread.ts'
 export type { HereGroup, HereGroupId, HereMember } from './channel-here.ts'
 export type { MessageOrigin } from './channel-origins.ts'
 export type { ChannelSuggestion } from './channel-suggestions.ts'
+export type { ProjectResponsibleView } from './project-responsible.ts'
+export type { CarePersona, CareWaitingItem, LeadState, ProjectCareView } from './project-care.ts'
+// The wire shapes of Bolt's Remotes (remote access, the team's computers): Typert reads a Remote's boundary types from this public subpath only.
+export type {
+  DeviceRef, DeviceView, IssueDeviceCodeAnswer, IssueDeviceCodeRequest, PairRequestRef, PairRequestView, RemoteAccessAnswer, RemoteAccessSetRequest, RemoteAccessView, RenameDeviceRequest,
+} from './remote-web/remote-wire.ts'
+export type {
+  ComputerPresenceRamRow, ComputerPresenceRow, ComputerRef, ComputerRequestRef, ComputerRequestRow, ComputerRow, ComputersAnswer, ComputersViewWire, EnrollComputerAnswer, EnrollComputerRequest,
+  EnrollmentWire, IssueComputerCodeAnswer, IssueComputerCodeRequest, MovePersonaAnswer, MovePersonaRequest, MovePreviewAnswer, MovePreviewRequest, PersonaHomeAnswer, PersonaHomeRequest,
+  PersonaHomeRow, PersonaPreview, ReactivateRequest, TransferAnswer, TransferRef, TransferRow,
+} from './computers/computers-wire.ts'
+
+/** Marco M1: choose the project's responsible (owner only): the persona (of THIS project) and, optionally, a person of the workspace (an empty humanId clears only the person). */
+export interface SetProjectResponsibleRequest extends ProjectScopeRequest {
+  readonly personaId: string
+  readonly humanId?: string
+}
+
+/** Marco M2/M6: turn on or off "deixar a responsável tocar o quadro" for a project (owner only; off by default). */
+export interface SetProjectAutopilotRequest extends ProjectScopeRequest {
+  readonly on: boolean
+}
 export type { SendStickerRequest } from './sticker-send.ts'
+
+/** D-118: the notebook of ONE persona (`getPersonaNotebook`). */
+export interface PersonaNotebookRequest extends ProjectScopeRequest {
+  readonly personaId: string
+}
+export type { NotebookItem, NotebookOrigin, NotebookPrivate, NotebookSection, NotebookSectionKey, PersonaNotebookView } from './notebook-view.ts'

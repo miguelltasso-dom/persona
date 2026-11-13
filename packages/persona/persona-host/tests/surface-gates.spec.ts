@@ -8,7 +8,7 @@ import { bindHostFile } from './host-harness.ts'
  * D-113 (Tally): the five surfaces under construction are OFF in the product and ON under Vitest; Config > env > default; `PERSONA_HOST_FLAGS=production` (or `Config.flagDefaults`) makes the default OFF
  * inside Vitest; `PERSONA_SURFACE_<NAME>=1` turns one on. The environment is injected (nothing here reads or sets the real one).
  */
-const ALL = ['invite', 'station', 'channels', 'skillImport', 'sharedBrowser'] as const
+const ALL = ['invite', 'station', 'channels', 'skillImport', 'sharedBrowser', 'projectLead', 'remoteAccess', 'computers', 'notebook'] as const
 
 it('the names and the variables are the ones D-113 decided', () => {
   expect(SURFACE_NAMES).toEqual(ALL)
@@ -18,6 +18,10 @@ it('the names and the variables are the ones D-113 decided', () => {
     channels: 'PERSONA_SURFACE_CHANNELS',
     skillImport: 'PERSONA_SURFACE_SKILL_IMPORT',
     sharedBrowser: 'PERSONA_SURFACE_SHARED_BROWSER',
+    projectLead: 'PERSONA_SURFACE_PROJECT_LEAD',
+    remoteAccess: 'PERSONA_SURFACE_REMOTE_ACCESS',
+    computers: 'PERSONA_SURFACE_COMPUTERS',
+    notebook: 'PERSONA_SURFACE_NOTEBOOK',
   })
   expect(FEATURE_OFF_REASON).toBe('feature-off')
   expect(FEATURE_OFF_TEXT).toBe('Isto ainda não está disponível nesta versão.')
@@ -68,9 +72,9 @@ it('the order is Config.surfaces[name] > env > default', () => {
   expect(ALL.filter(name => product[name])).toEqual(['invite', 'sharedBrowser'])
 })
 
-it('the boot line names the five and the default, with no secret', () => {
-  expect(surfacesBootLine(resolveSurfaces({}, {}))).toBe('[persona-host] surfaces invite=0 station=0 channels=0 skillImport=0 sharedBrowser=1 defaults=production')
-  expect(surfacesBootLine(resolveSurfaces({}, { VITEST: 'true', PERSONA_SURFACE_STATION: '0' }))).toBe('[persona-host] surfaces invite=1 station=0 channels=1 skillImport=1 sharedBrowser=1 defaults=test')
+it('the boot line names the surfaces and the default, with no secret', () => {
+  expect(surfacesBootLine(resolveSurfaces({}, {}))).toBe('[persona-host] surfaces invite=0 station=0 channels=0 skillImport=0 sharedBrowser=1 projectLead=0 remoteAccess=0 computers=0 notebook=0 defaults=production')
+  expect(surfacesBootLine(resolveSurfaces({}, { VITEST: 'true', PERSONA_SURFACE_STATION: '0' }))).toBe('[persona-host] surfaces invite=1 station=0 channels=1 skillImport=1 sharedBrowser=1 projectLead=1 remoteAccess=1 computers=1 notebook=1 defaults=test')
 })
 
 const { host } = bindHostFile()
@@ -96,6 +100,10 @@ it('the table is the one the owners approved, by surface', () => {
     'getRemoteTeamState', 'joinTeamFromLink', 'listJoinRequests', 'listRemoteMembers', 'previewInvite', 'reviewPersonaSheet', 'revokeMember', 'syncRemoteTeam',
   ])
   expect(by('sharedBrowser')).toEqual(['browserView','closeBrowserProfile','createBrowserProfile','grantBrowserProfile','releaseBrowserProfile','renameBrowserProfile','revokeBrowserProfile','takeBrowserProfile'])
+  expect(by('notebook')).toEqual(['getPersonaNotebook'])
+  expect(by('remoteAccess')).toEqual(['approvePair', 'getRemoteAccess', 'issueDeviceCode', 'listDevices', 'listPairRequests', 'rejectPair', 'renameDevice', 'revokeDevice', 'setRemoteAccess'])
+  expect(by('computers')).toEqual(['confirmComputer', 'enrollThisComputer', 'getPersonaHome', 'getTransfer', 'issueComputerCode', 'listComputers', 'movePersona', 'previewMovePersona', 'reactivatePersonaHere', 'rejectComputer', 'revokeComputer'])
+  expect(by('projectLead')).toEqual(['getCareOverview', 'getProjectCare', 'getProjectResponsible', 'setProjectAutopilot', 'setProjectResponsible'])
   expect(surfaceOfRemote('pairStation')).toBe('station')
   expect(surfaceOfRemote('listTasks')).toBeUndefined()
   expect(surfaceOfRemote('toString'), 'a name of Object.prototype is no Remote of a surface').toBeUndefined()
@@ -137,6 +145,11 @@ it('DRIFT CHECK: every Remote of a surface is in the table, and every name of th
     ['skillImport', /SkillImport|^importSkills$|^refreshSkill$|^approveSkillUpdate$/u],
     ['channels', /ChannelLayout|EquipeLayout|ChannelHeader|MentionOptions/u],
     ['sharedBrowser', /BrowserProfile|^browserView$/u],
+    ['projectLead', /ProjectResponsible|ProjectCare|CareOverview|ProjectAutopilot|LeadTrail|LeadStats/u],
+    ['notebook', /PersonaNotebook/u],
+    ['remoteAccess', /RemoteAccess|DeviceCode|PairRequests|^approvePair$|^rejectPair$|^listDevices$|^renameDevice$|^revokeDevice$/u],
+    ['computers', /Computer|PersonaHome|PersonaHere|MovePersona|^getTransfer$/u],
+    ['projectLead', /ProjectResponsible|ProjectCare|CareOverview|ProjectAutopilot|LeadTrail|LeadStats/u],
   ]
   const localInvites = new Set(['issueInvite', 'listInvites', 'redeemInvite', 'revokeInvite'])
   const loose = remotes.flatMap(name => looks

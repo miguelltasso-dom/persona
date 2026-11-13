@@ -25,6 +25,7 @@ export const AUTHORITY_KINDS: readonly AuthorityKind[] = ['person', 'routine', '
  *  - `read`: looks, changes nothing.
  *  - `draft-change`: creates or changes files INSIDE the draft of the task (the person reviews before anything reaches the real folder).
  *  - `interact`: acts inside a page of the browser the person lent the persona (click, type, drag). Only a run with a person behind it may: nobody watches a routine, and a page can steer a model.
+ *  - `computer`: acts on the person's COMPUTER (mouse, keyboard, windows: the computer-use tools). D-117: a person must be behind it: a routine or an unattended run (including the board's lead) is refused.
  *  - `outside-change`: changes something OUTSIDE the draft.
  *  - `send`: something leaves the machine (network, push, publish, deploy, mail).
  *  - `delete`: destroys something the draft does not own.
@@ -32,10 +33,10 @@ export const AUTHORITY_KINDS: readonly AuthorityKind[] = ['person', 'routine', '
  *  - `never`: takes over the machine or the product (privilege, encoded code, registry, killing processes, remote code).
  *  - `unknown`: the command cannot be read plainly (substitution, a script file, an interpreter, a name the table does not list).
  */
-export type ActionKind = 'read' | 'draft-change' | 'interact' | 'outside-change' | 'send' | 'delete' | 'secret' | 'never' | 'unknown'
+export type ActionKind = 'read' | 'draft-change' | 'interact' | 'computer' | 'outside-change' | 'send' | 'delete' | 'secret' | 'never' | 'unknown'
 
 /** Every kind, ordered from the harmless to the worst (the order {@link worstOf} uses). */
-export const ACTION_KINDS: readonly ActionKind[] = ['read', 'draft-change', 'interact', 'unknown', 'delete', 'send', 'outside-change', 'secret', 'never']
+export const ACTION_KINDS: readonly ActionKind[] = ['read', 'draft-change', 'interact', 'computer', 'unknown', 'delete', 'send', 'outside-change', 'secret', 'never']
 
 /** What the gate answers. */
 export type Verdict = 'allow' | 'ask' | 'deny'
@@ -48,6 +49,7 @@ const TABLE: Readonly<Record<ActionKind, Readonly<Record<AuthorityKind, Verdict>
   'read': { person: 'allow', routine: 'allow', unattended: 'allow' },
   'draft-change': { person: 'allow', routine: 'allow', unattended: 'allow' },
   'interact': { person: 'allow', routine: 'deny', unattended: 'deny' },
+  'computer': { person: 'ask', routine: 'deny', unattended: 'deny' },
   'unknown': { person: 'ask', routine: 'deny', unattended: 'deny' },
   'delete': { person: 'ask', routine: 'deny', unattended: 'deny' },
   'send': { person: 'ask', routine: 'deny', unattended: 'deny' },

@@ -1,6 +1,6 @@
 import type { Ticket } from '@deepseek-ai/dsh-persona-engine'
 import { createFakeRunner } from '@deepseek-ai/dsh-persona-runners'
-import { createMcpGateway, type McpGateway, type PersonaToolHooks } from '@deepseek-ai/dsh-persona-runners'
+import { createMcpGateway, type ComputerActingContext, type McpGateway, type PersonaToolHooks } from '@deepseek-ai/dsh-persona-runners'
 import { expect, onTestFinished } from 'vitest'
 import type PersonaHost from '../src/index.ts'
 import { harnessMcpPorts } from '../src/harness-dispatch.ts'
@@ -134,4 +134,83 @@ it('the host hands the opener to a Task\'s runner request ONLY with the flag, on
   h.postMessage({ id: 'm2', ...SCOPE, streamKind: 'channel', ownerId: 'geral', body: '@Nina preciso de um texto novo para a página inicial', actorId: 'ana', subjectId: 'm2' })
   await h.orchestration.flush('pp')
   expect(seen.filter(request => request.purpose === 'task').every(request => request.productTools === undefined)).toBe(true)
+})
+
+it('exposes persona_computer_* only for human-authorized turns with a live ComputerActingContext without escalating non-computer grantless tools', async () => {
+  const { h } = rig()
+  const rt = h.orchestration.runtime('pp')
+  const seenContexts: Array<ComputerActingContext | undefined> = []
+  const gateway = createMcpGateway({
+    hooks,
+    harness: harnessMcpPorts(h.harness),
+    onlyWired: true,
+    acting: {
+      computerScreenshot: async (ctx) => {
+        seenContexts.push(ctx)
+        return JSON.stringify({ ok: true, runId: ctx?.runId })
+      },
+      computerClick: async () => JSON.stringify({ ok: true }),
+      computerType: async () => JSON.stringify({ ok: true }),
+    },
+  })
+  const openGrantless = productToolsOpener({
+    gateway,
+    toolLevel: 'none',
+    taskTextOf: id => rt.repo.tickets.get(id)?.execution?.assignment ?? '',
+  })
+  const controller = new AbortController()
+  const computer: ComputerActingContext = {
+    runId: 'cr-1',
+    target: { windowHandle: 'hwnd-1', processId: 100, title: 'Calc' },
+    signal: controller.signal,
+  }
+
+  const authorized = openGrantless({ ...turn('t-board'), authority: 'person', computer })
+  expect((authorized?.tools ?? []).map(t => t.name).sort()).toEqual([
+    'persona_ask',
+    'persona_computer_click',
+    'persona_computer_screenshot',
+    'persona_computer_type',
+  ])
+  const shot = authorized!.tools.find(t => t.name === 'persona_computer_screenshot')!
+  const shotResult = await shot.handler({})
+  expect(JSON.parse(shotResult.content)).toMatchObject({ ok: true, runId: 'cr-1' })
+  expect(seenContexts[0]).toEqual(computer)
+  await authorized?.close?.()
+
+  // Autonomous authority, missing computer context, or aborted signal must withhold all persona_computer_* tools.
+  const autonomous = openGrantless({ ...turn('t-board'), authority: 'routine', computer })
+  expect((autonomous?.tools ?? []).map(t => t.name)).toEqual(['persona_ask'])
+  await autonomous?.close?.()
+
+  const noComputer = openGrantless({ ...turn('t-board'), authority: 'person' })
+  expect((noComputer?.tools ?? []).map(t => t.name)).toEqual(['persona_ask'])
+  await noComputer?.close?.()
+
+  controller.abort('stopped')
+  const aborted = openGrantless({ ...turn('t-board'), authority: 'person', computer })
+  expect((aborted?.tools ?? []).map(t => t.name)).toEqual(['persona_ask'])
+  await aborted?.close?.()
+
+  // With a 'write' grant and computerAuthorized, both board tools and persona_computer_* are exposed.
+  const openWrite = productToolsOpener({
+    gateway,
+    toolLevel: 'write',
+    taskTextOf: id => rt.repo.tickets.get(id)?.execution?.assignment ?? '',
+  })
+  const writeCtrl = new AbortController()
+  const writeSet = openWrite({
+    ...turn('t-board'),
+    authority: 'person',
+    computer: { runId: 'cr-2', signal: writeCtrl.signal },
+  })
+  expect((writeSet?.tools ?? []).map(t => t.name).sort()).toEqual([
+    'board_card_move',
+    'board_list',
+    'persona_ask',
+    'persona_computer_click',
+    'persona_computer_screenshot',
+    'persona_computer_type',
+  ])
+  await writeSet?.close?.()
 })

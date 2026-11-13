@@ -23,3 +23,10 @@ export { INVITE_HOST, INVITE_LINK_MAX, INVITE_SCHEME, inviteLinkOf, parseInviteL
 export type { InviteLink } from './invite-link.ts'
 export { canonicalJson, checkSheet, sheetDigest, signSheet } from './persona-sheet.ts'
 export type { SheetFields, SheetVerdict, SignedSheet } from './persona-sheet.ts'
+export {
+  BUNDLE_MAX_BYTES, BUNDLE_MAX_FILE_TEXT, BUNDLE_MAX_ITEMS, BUNDLE_MAX_SKILLS, BUNDLE_MAX_SKILL_FILES, BUNDLE_MAX_TEXT, BUNDLE_SCHEMA, BUNDLE_TTL_MS, BundleError, bundleDigest, cleanBundle, newBundleId,
+  openPersonaBundle, sealPersonaBundle,
+} from './sealed-bundle.ts'
+export type {
+  BundleHeader, BundleMemoryItem, BundleRefusal, BundleRule, BundleSkill, BundleSkillFile, OpenBundleInput, PersonaBundle, SealBundleInput, SealedBundle,
+} from './sealed-bundle.ts'

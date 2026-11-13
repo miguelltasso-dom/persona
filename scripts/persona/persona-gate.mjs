@@ -92,9 +92,13 @@ if (!skipTypert && existsSync(join(root, 'packages', 'persona', 'persona-e2e', '
 // INSTALLER-GRADE (Atlas 04/11, after the H pack died in the host aggregate): the pack runs scripts/build.ts gates — Host/Client compilers
 // plus BOTH aggregate checks (tsc -p tsconfig.host.json / tsconfig.client.json). `pnpm run typecheck` is that same scope. Cuts meant for an
 // installer set PERSONA_GATE_INSTALLER=1 (or --installer) so the gate finds what the pack would find ~15 min later.
+// PARITY WITH THE PACK (Keel 12/11 19:31): the pack's host aggregate (`tsc -p tsconfig.host.json` at the ROOT) also checks the SPECS of the host, which check-pkg does not (TS2551 in
+// tests/boot-recovery-waits-engine.host.spec.ts reached the S3 pack that way). So the full typecheck now runs in EVERY gate run, not only for an installer cut; it is incremental (`-b`),
+// cheap when little changed. PERSONA_GATE_FULL_TYPECHECK=0 switches it off for a quick local look; --installer / PERSONA_GATE_INSTALLER=1 force it on regardless.
 const installerMode = process.argv.includes('--installer') || process.env.PERSONA_GATE_INSTALLER === '1'
-if (installerMode && failing.size === 0) {
-  log('installer-grade: running the FULL typecheck (host + client aggregate checks, same scope the pack runs)')
+const fullTypecheck = installerMode || process.env.PERSONA_GATE_FULL_TYPECHECK !== '0'
+if (fullTypecheck && failing.size === 0) {
+  log(`${installerMode ? 'installer-grade: ' : ''}running the FULL typecheck (host + client aggregate checks, same scope the pack runs; set PERSONA_GATE_FULL_TYPECHECK=0 to skip it on a quick local run)`)
   const full = run('pnpm', ['run', 'typecheck'], { timeout: 35 * 60_000 })
   const fullText = `${full.stdout}${full.stderr}`
   if (full.status !== 0) {

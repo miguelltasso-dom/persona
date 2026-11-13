@@ -140,7 +140,8 @@ it('P0-13: a book of pairing codes locks after five wrong tries, even for the ri
   now += 5 * 60_000
   expect(book.redeem(issued.code), 'still locked inside the lock time').toBe('bloqueado')
   now += 6 * 60_000
-  expect(book.redeem(issued.code), 'the lock is over, but the code is ten minutes old: the lock does not give it a longer life').toBe('expirado')
+  // The five wrong tries BURNED the code that was waiting (M4/Lumen B1: the owner issues another), so the right code no longer exists; the lock never gives it a longer life either.
+  expect(book.redeem(issued.code), 'the lock is over, but the burned code does not come back').toBe('invalido')
   expect(book.redeem(book.issue().code), 'a code issued after the lock pairs').toBe('ok')
 })
 

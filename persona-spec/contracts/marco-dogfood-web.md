@@ -60,9 +60,10 @@ Texto na camada de locale (`persona.mobile`, pt e en, gerado como as outras): ne
 - Revogado: `{type:'revoked'}` no socket (ou `401`) → volta a `Ligar ao PC` e apaga o conteúdo em memória. Sem service worker nem PWA no v1 (HTTP no túnel não é contexto seguro).
 
 ### 5b. Lista de Remotes do celular (proposta do Cobalt; o Bolt veta)
-- Ler: `ping, getOnboarding, listTeam, listPersonas, listProjects, listChannels, getChannelLayout, getChannelHeader, listDms, listMessages, followMessages, openTaskConversation, listTasks, listApprovals, listBoards, getProjectBoard, getOverview, getOverviewNow, getWhileAway, listTurnActivity, getTurnContext, getOrgChart, getPersonaCard, getAutonomy, getEngineStatus, getOfficialQuota, listDailySummaries, search, listAsideAsks, getAsideAsk, getNightSummary, listWaitingForYou`.
+- Ler: `ping, listTeam, listPersonas, listProjects, listChannels, getChannelLayout, getChannelHeader, listDms, listMessages, followMessages, openTaskConversation, listTasks, listApprovals, listBoards, getProjectBoard, getOverview, getOverviewNow, getWhileAway, listTurnActivity, getOrgChart, getPersonaCard, getAutonomy, getEngineStatus, listDailySummaries, search, listAsideAsks, getAsideAsk, getNightSummary, listWaitingForYou`.
 - Escrever: `postMessage, createDm, reactToMessage, unreactToMessage, decideApproval, dismissWhileAway, markVisit, markTaskThreadRead, answerAttention, remindAtPc`.
 - Fora, sempre: Cofre e segredos, mover cartão e tudo de sprint/fluxo, criar workspace/membro/canal/persona, completar onboarding, motor, ACL da persona, autonomia (escrita), anexos, backup, pareamento.
+- **Fora do celular por achado do Gauge (Bolt 15:55):** `getOfficialQuota` (traz a parte local do e-mail da conta do dono), `getTurnContext` (traz o CORPO de registros do Cofre) e `getOnboarding`. O cliente remoto não chama nenhum dos três: o teto e a cota vêm de `getEngineStatus`, e o painel de contexto usado é só do PC.
 - O bootstrap do cliente (`bootstrap-tenant.ts`, `seed-default-team.ts`) NÃO roda no celular: o tenant vem de `me` + `listTeam` + `listChannels`. Pedido ao Bolt: `me` devolve também `workspace:{id}`.
 
 ## 6. Testes vermelhos (o contrato executável)

@@ -1,5 +1,24 @@
 # Probe — relatórios (mais recente no topo)
 
+## 2026-11-12 16:30 — corte 3 (`00d41bd479`), desktop, seed do Ember e M7 (soak em tempo real, em staging); memória crítica: tudo pesado parado (Keel 16:21)
+
+**Pesados do candidato (um por vez pela trava build, CLI de mentira, 0 IA paga):**
+
+| Job | Resultado | Nota |
+|---|---|---|
+| Bundle (14:21 no HEAD `feb7990689` + árvore; de novo 14:51:25 no corte 3) | **PASSOU** (32 s / 2 min 28 s) | Ember avisado: "bundle pronto" (client.js 14:51:25, depois do conserto do Lumen) |
+| Build do desktop `pnpm --filter @deepseek-ai/dsh-desktop run build` | **PASSOU** (12 min 30 s) | tudo no vite do renderer; planejar como job próprio |
+| `mandatory-onboarding-keyboard` | **PASSOU** 1/1 (14:34 no HEAD anterior; 14:51 no corte 3) | |
+| `mandatory-first-delivery-fake` | **PASSOU 11/11** (14:35) e **12/12 com o keyboard no bundle do corte 3** (14:51–14:54) | com o tripwire COMO ESTÁ (filtro estreito de unload). **NÃO provado**: o conserto do Prism sem depender do filtro. Patch pronto em staging (`PERSONA_TRIPWIRE_STRICT=1`, `.maestri/tmp/probe/marco/tripwire-strict/`), roda no próximo bundle |
+| Desktop B8-6 claro + escuro | **PASSOU 2/2** (14:42–14:51, `main.js` reconstruído 14:34) | o "claro: não provado" das 13:08 está FECHADO (era o `main.js` velho) |
+| Desktop B8-5 | **FALHOU por AMBIENTE** (14:38 e 14:56) | `scripts/dev.ts` roda o smoke do primary-runtime a cada lançamento e o `python -m venv` / `spawnSync python.exe` estourou o tempo com a máquina carregada. Rivet confirma: não há flag que pule o smoke no dev launch; o smoke leva ~20 s sem carga. Reteste quando o PC estiver calmo; se estourar com a máquina parada, pedir `--skip-runtime-smoke` ao Rivet (staging, depois do candidato) |
+
+**Seed local do Ember (pedido Keel 12:01; arquivos novos `src/seed-ember.ts`, `tests/seed-ember.spec.ts`, `scripts/persona/seed-ember.mjs`; `src/v11-app.ts` ganhou a opção `home`):** a 4ª rodada real (15:11–15:18) deu **5/5**: no host, o #geral com o GRUPO de 3 falas seguidas da pessoa (conversa, não pedido: um pedido faz a Coordenação postar "X assume este pedido" no meio do grupo), a Tarefa do cartaz em REVISÃO e o pedido de código 2FA PENDENTE com o site "Mercado da Lia" (precisa de `PERSONA_VAULT_TEST_CIPHER=1` e de uma frase que o host leia como trabalho: "Preciso que você…"); na tela (`artifacts/seed-ember/{geral,2fa,entrega}.png`, `ui.json`): o grupo dentro da viewport, o cartão "Precisa de um código · Mercado da Lia" e a entrega como linha de Aprovações com **Revisar/Dispensar** (não há "Aceitar" nessa linha). **LIMITE:** o pedido de código vence em 10 min (`CODE_REQUEST_TTL_MS`); a renovação automática na abertura **NÃO está provada** (3 rodadas: a persona responde o texto padrão do stub e nenhuma agulha do pedido chega ao prompt logo após reabrir; hipótese em teste: esperar "Claude · pronto"); a abertura ficou em melhor esforço (não derruba a sessão). Para o tour com o cartão do 2FA: semear de novo ~6 min antes.
+
+**M7, Marco DOGFOOD (parte do Probe; só em staging `.maestri/tmp/probe/marco/`, APLICAR.md lá):** divisão com o Gauge (ele: driver em processo, relógio, I1–I8, formato `marco-soak/1`; eu: soak em TEMPO REAL com o host como processo, amostrador, vereditos puros, roteiro do aceite do Miguel). 1ª rodada real (fumaça de 4 min, 15:34–15:41): o harness funciona de ponta a ponta (projeto B por RPC + 2 personas, 8 cargas A/B, falha de motor injetada, árvore de processos a cada 30 s, relatório no formato do Gauge); cartões do B chegam a revisão, nenhum some, sonda sempre rápida, host o mesmo processo. A única violação era regra MINHA errada (filhos "voltam ao valor de antes"): o host mantém sessões quentes. **Observação de produto (Forge confirmou na leitura, M4):** em repouso, depois de 8 pedidos, 15 processos-filho e ~1,33 GB (stub ~90 MB cada; CLI real bem mais), handles 781→3,4 mil; o host NÃO tem teto de runners residentes nem despejo por ociosidade. Rodadas pendentes (depois do pack, ~17:20, e do "memória liberada"): a lista dos filhos (nome, pid, pai, comando; `children-at-drain.json`/`children-at-end.json`), `PERSONA_SOAK_IDLE_MIN=15` (prova (e) do Forge) e os 30 min. 18 testes puros verdes no scratch. Roteiro de aceite do Miguel (uma noite, celular de manhã): `.maestri/tmp/probe/marco/ROTEIRO-ACEITE-MIGUEL.md`.
+
+**Aprendizados (memória):** `desktop-dev-launch-venv-smoke-flake`, `marco-dogfood-m7-soak-split`, `backgrounded-bash-edits-run-late`. **Parado agora:** nada pesado meu em curso (cadeia do seed cancelada antes de pegar a trava; nenhum slot meu em `.maestri/locks`).
+
 ## 2026-11-12 13:20 — RESULTADO do plano pós-corte no commit `d463be1196` (app real, bundle novo 12:20, CLI de mentira, 0 IA paga; 1 pesado por vez pela trava build)
 
 | # | Job | Resultado | Tempo | Evidência / nota |

@@ -9,8 +9,8 @@
 
 ## 2. Confirmação explícita, com a prévia do que vira público
 Dois passos, o segundo só existe depois do primeiro:
-1. `previewMemoryForTeam({ id })` devolve **o texto exato que a equipe vai ler** (o fato), a **linha de origem como ela vai aparecer** ("Você disse numa conversa privada com Bia, 11/11") e `blocked?` (ver §3). Nada é gravado.
-2. `promoteMemoryToTeam({ id, text, explicit: true })`: `text` tem de ser **igual ao da prévia** (o host relê o registro e compara; se mudou no meio, recusa e pede nova prévia). O dono pode **editar o fato na prévia**; o texto editado passa pelos mesmos filtros do §3.
+1. `previewMemoryForTeam({ id })` devolve **o texto exato que a equipe vai ler** (o fato), a **linha de origem como ela vai aparecer** ("Você disse numa conversa privada com Bia, 11/11"), `textHash` (o hash do que o dono está vendo) e `blocked?` (ver §3). Nada é gravado.
+2. `promoteMemoryToTeam({ id, text, previewHash, explicit: true })`: `previewHash` tem de ser o do registro **de agora** (o host relê e compara; se o registro mudou depois da prévia, recusa `preview-changed` e pede nova prévia). `text` é o que será publicado: o dono pode **editar o fato na prévia** e o texto editado passa pelos mesmos filtros do §3. (Revisado em 12/11 15:37, na implementação em staging: "texto igual ao da prévia" impedia editar; o hash trava a prévia velha e deixa o texto livre.)
 - Palavras da confirmação (sem jargão, sem artigo para a persona): "Todas as personas vão passar a usar isto. Quem já usou não é desfeito." Botões "Tornar do time" e "Agora não".
 - **A mensagem original da DM não sobe.** Hoje a prova guarda a mensagem inteira e a tela de Memória a mostra a todos. Na promoção, a citação pública passa a ser **o próprio fato** (o que o dono viu e aprovou); a mensagem inteira continua só na DM.
 - Se a memória é **regra** (`constraint`, contexto obrigatório em todo turno), a prévia diz isso ("Vale em toda conversa de toda persona") e a promoção respeita o teto das regras da casa (`REQUIRED_CONTEXT_OVERFLOW`): estourou, recusa com o aviso do teto, sem promover pela metade.

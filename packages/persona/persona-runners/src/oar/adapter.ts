@@ -15,6 +15,7 @@ import {
 } from '../contract.ts'
 import { RunnerResolveError, resolveCaughtError } from '../resolve/errors.ts'
 import { PRECISA_DE_VOCE, isPermissionAsk, type CliSessionPolicy } from '../resolve/cli-policy.ts'
+import { forEachBounded, SESSION_DISPOSE_CONCURRENCY } from '../resolve/session-pool.ts'
 import { classifyLoginOutput, mayBecomeLogin } from './login-output.ts'
 import { environmentOf, mainLoopOf, usageSince } from './usage-detail.ts'
 import { redactCliStderr } from './stderr-redact.ts'
@@ -24,7 +25,7 @@ import { bindTools, claudeAllowToolsArgs, serverNameOf, toolSignature, type Serv
 import { ensureCodexToolsConfig, type CodexConfigIo } from './codex-tools-config.ts'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { randomUUID } from 'node:crypto'
-import { dirname } from 'node:path'
+import { dirname, resolve } from 'node:path'
 
 const LOGIN_HOLD_CHARS = 240
 
@@ -672,7 +673,9 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
     // EFF-1: Claude takes `--effort`, Codex takes `model_reasoning_effort` (OAR sets it from the same option); another CLI is not sent an option it may refuse (it keeps its own default).
     if ((options.capabilities.cli === 'claude' || options.capabilities.cli === 'codex') && input.effort !== undefined && input.effort !== '' && input.effort !== 'default') sessionOptions.effort = input.effort
     if (input.resumeSessionId !== undefined) sessionOptions.resume = input.resumeSessionId
-    if (options.env !== undefined) sessionOptions.env = options.env
+    // P1 (S4, Mend): the CLI's PROJECT folder is the draft. OpenCode takes it from the inherited `PWD`, not from the spawn's cwd (proven on the real CLI): with the host's own `PWD`
+    // every write into the draft was `external_directory` and a RELATIVE path landed in the folder the host was started from. Every CLI gets `PWD` = the folder it runs in.
+    sessionOptions.env = { ...(options.env ?? {}), PWD: input.cwd === '' ? null : resolve(input.cwd) }
     if (policy !== undefined && policy.launchArgs.length > 0) sessionOptions.launchArgs = policy.launchArgs
     if (policy !== undefined && policy.disallowedTools.length > 0) sessionOptions.disallowedTools = policy.disallowedTools
     // COLHEITA 17: the persona's browser (and any other stdio server the host attaches) rides with the turn's own tools. A CLI
@@ -841,7 +844,7 @@ export function createOarRunner(options: OarRunnerOptions): Runner {
       return attach(input, session, undefined)
     },
     dispose: async () => {
-      for (const key of [...warm.keys()]) await dropWarm(key)
+      await forEachBounded([...warm.keys()], SESSION_DISPOSE_CONCURRENCY, key => dropWarm(key))
     },
   }
   return withInfraRecovery(runner, options.infra ?? {})

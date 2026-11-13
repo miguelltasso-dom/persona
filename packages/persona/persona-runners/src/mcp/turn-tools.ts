@@ -7,8 +7,10 @@
  * the tests. The runner never sees the token; it only serves these tools and calls `close` when the turn is over.
  */
 
+import type { AuthorityKind } from '../authority/authority-table.ts'
 import type { TurnToolSet } from '../contract.ts'
 import type { ToolLevel } from '../resolve/tool-level.ts'
+import type { ComputerActingContext } from './acting-tools.ts'
 import type { McpCallResult, McpGateway } from './gateway.ts'
 import type { PersonaRunIdentity } from './persona-tools.ts'
 
@@ -18,6 +20,10 @@ export interface OpenTurnToolsInput {
   toolLevel: ToolLevel
   /** The assignment worktree (a write outside it pauses for the person). */
   worktree: string
+  /** D-117: who the turn acts for; the computer tools are refused unless a person is behind it. */
+  authority?: AuthorityKind
+  /** D-117: host-bound computer run context (`runId`, `target`, `signal`) forwarded to computer ports. */
+  computer?: ComputerActingContext
   /** Server name the CLI shows (`mcp__<server>__<tool>` in Claude). Default `persona`. */
   server?: string
   instructions?: string
@@ -37,7 +43,13 @@ function sentenceOf(result: McpCallResult): string {
  * @returns the set to put in `StartTurnInput.mcpTools`; `undefined` when the grant leaves no tool to offer.
  */
 export function openTurnTools(gateway: McpGateway, input: OpenTurnToolsInput): TurnToolSet | undefined {
-  const lease = gateway.openTurn({ run: input.run, toolLevel: input.toolLevel, worktree: input.worktree })
+  const lease = gateway.openTurn({
+    run: input.run,
+    toolLevel: input.toolLevel,
+    worktree: input.worktree,
+    ...(input.authority === undefined ? {} : { authority: input.authority }),
+    ...(input.computer === undefined ? {} : { computer: input.computer }),
+  })
   const definitions = gateway.describe(lease.token)
   if (definitions.length === 0) {
     gateway.closeTurn(lease.token)

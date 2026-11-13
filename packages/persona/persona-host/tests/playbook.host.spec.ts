@@ -194,7 +194,8 @@ it('the review wire reads the Task (title, who did it, what it asked), never its
   const tickets = new Map([['t1', { title: 'Cartaz da promoção de pão de queijo', execution: { name: 'Bia', assignment: 'Faça o cartaz com o preço novo.' } }]])
   const wire = {
     screens: h.screens, product: h.product,
-    orchestration: { runtime: () => ({ repo: { tickets: { get: (id: string) => tickets.get(id) } } }), now: () => '2026-11-10T10:00:00.000Z', localOffsetMinutes: () => 0 },
+    // `conversationOfTicket`: where the Task was asked (D-119: a Task born in a DM is that DM's); a channel here
+    orchestration: { runtime: () => ({ repo: { tickets: { get: (id: string) => tickets.get(id) } } }), conversationOfTicket: () => ({ streamKind: 'channel', ownerId: 'geral', topicId: '', subjectId: '' }), now: () => '2026-11-10T10:00:00.000Z', localOffsetMinutes: () => 0 },
   } as unknown as FeedbackWireDeps
   expect(learnFromAcceptedReview(wire, { ...SCOPE, ticketId: 't1' })?.note).toMatchObject({ title: 'Cartaz da promoção de pão de queijo', request: 'Faça o cartaz com o preço novo.' })
   learnFromRequestedChanges(wire, { projectId: 'pp', ticketId: 't1', feedback: 'Mais curto' })

@@ -84,6 +84,7 @@ it('cofreStatus says whether the machine can seal, and a connector slot answers 
   seed(h)
   expect(h.cofreStatus(scope)).toEqual({ sealable: false })
   expect(h.connectorSecretState({ ...scope, provider: 'imap' })).toEqual({ hasSecret: false })
+  h.mailTarget = async mailHost => mailHost // MH-1: the host of an IMAP secret is resolved before anything is sealed ('x' is no public mail server); here the point is the missing sealed store
   await expect(h.saveConnectorSecret({ ...scope, provider: 'imap', secret: '{"host":"x"}' })).rejects.toMatchObject({ code: 'vault_unavailable' })
 })
 

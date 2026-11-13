@@ -123,6 +123,7 @@ export {
   actingPortsFromComputerUse,
   gateComputerActing,
   type ActingPorts,
+  type ComputerActingContext,
 } from './mcp/acting-tools.ts'
 export {
   BRAIN_TOOLS,
@@ -448,10 +449,12 @@ export {
 export {
   CHEAP_WORK,
   createSessionPool,
+  forEachBounded,
   idleTeamMayCallModel,
   isCheapWork,
   poolPurposeFor,
   sessionPoolKey,
+  SESSION_DISPOSE_CONCURRENCY,
   SESSION_LEASE_MS,
   SESSION_POOL_CAP,
   TRIAGE_CALL_CAP,

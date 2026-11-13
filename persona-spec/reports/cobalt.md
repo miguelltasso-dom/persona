@@ -1,5 +1,23 @@
 # Cobalt — relato (builder de backend novo; HT-5)
 
+## 12/11 20:22 — seleção inicial de projeto remoto (parcial)
+
+`mobile/remote-projects.ts` consulta `listProjects` com o workspace de `/remote/me` nos dois campos obrigatórios (o host ignora `projectId` nessa chamada), valida o workspace e seleciona um ID retornado, dando preferência a projeto compartilhado; lista vazia continua sem seleção. `mobile-remote-projects.client.spec.ts`: 3/3 verdes pela trava `check`. Ainda falta conectar à entrada pareada, exibir o estado vazio e provar no portão real; não houve novo build remoto.
+
+## 12/11 20:12 — build remoto isolado (parcial)
+
+`client-ui-persona/remote-web/{index.html,main.tsx,remote.css,vite.config.mts}` e script `build:remote` geram `client-ui-persona/dist-remote/`, base `./`; `tests/mobile-remote-build.client.spec.ts` exige scripts externos, ausência de inline e referências relativas. A entrada mostra o pareamento; após parear mostra erro temporário enquanto o estado real da Casa não é integrado. A gaveta agora abre histórico da persona fora do ar; o compositor continua bloqueado.
+
+Pela trava: build Vite remoto 1x PASSOU; `mobile-remote-build` 1/1, `mobile-frame` 15/15, `mobile-composer-gate` 9/9, `check-pkg client-ui-persona` OK 79,6 s. Smoke em Chrome real, viewport 390 px e CSP restrita, com servidor/host de pareamento simulados: tela Ligar ao PC visível e zero erros no console. Primeira tentativa falhou porque playwright não estava resolvível no caminho padrão; segunda acusou favicon ausente no servidor de teste; ambas corrigidas no rig temporário. Bolt recebeu o caminho do dist. O transporte de stream segue pendente da porta HTTP do Bolt e e2e no portão; Liveshare usa `/__share/rpc` com `stream-open/next/cancel`, não é um stream genérico `/api`.
+
+## 12/11 — retomada U1: Casa móvel (parcial)
+
+`mobile/MobileCasa.tsx` compõe o quadro móvel, fio compartilhado e folha Onde roda; `where-runs.ts` aceita `computerLabel` do Remote real. `MobileThread.tsx` não oferece decisões de ação a cliente remoto e indica que a ação é pelo PC. `StopButton.tsx` e `ComputerStopBar.tsx` usam `Button variant="stop"`, preservando a confirmação de parada pelo estado do host. Testes novos: `mobile-casa.client.spec.tsx`, `mobile-thread-policy.client.spec.tsx`; teste atualizado: `mobile-where-runs.client.spec.ts`.
+
+Pela trava `check`, vitest de um arquivo por vez: `mobile-casa` 1/1, `mobile-thread-policy` 1/1, `mobile-where-runs` 35/35, `mobile-computer-ui` 27/27. `node scripts/persona/check-pkg.mjs client-ui-persona`: OK após a alteração do Parar (76,8 s).
+
+Pendente: entrada remota e estado conectado para montar a Casa no app; aviso de aprovação dentro do cartão; fluxo de parar e vídeo ligados ao host; prova no app real. O gate remoto ainda rejeita upgrade WebSocket; consultei Bolt sobre o transporte e o bundle. Prism confirma que `confirm:true` já atravessa o live-store. RCD: reduzir confusão indicando que a decisão é no PC em vez de oferecer aprovação recusada.
+
 ## 09/11 — Linha de base v1.1 no app INSTALADO (Setup 941fd2a5) — "sem janela" não reproduz
 
 **Feito.** Instalei o Setup final (`C:\p8c\Persona-Setup.exe`, sha256 `941fd2a5…127d`, commit `3660c033a5`) em `C:\p8perf` (silencioso, 51,7 s, exit 0) e rodei o `perf-probe.mjs` (5 execuções: 1 fria + 4 quentes) sob `with-lock build`. Números completos em `persona-spec/research/perf/MEDICAO.md` §7.

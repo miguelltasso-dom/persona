@@ -135,7 +135,16 @@ export async function assertNotHarnessShell(page: Page): Promise<void> {
  */
 export async function completeOnboardingOverlay(page: Page): Promise<void> {
   const continueBtn = () => page.getByRole('button', { name: onboarding.continue, exact: true })
-  if (await page.getByRole('heading', { name: onboarding.step1Title }).count() === 0) return
+  // The `computers` surface (S4 client, bundle of 12/11 22:12) opens the onboarding with "Este computador vai ser a casa da equipe?" BEFORE step 1: its modal scrim blocks every click behind it
+  // (found at 22:14: "Contratar persona" intercepted by `scrim`). Answer "Sim" and go on to step 1. Without the question (surface OFF) nothing changes.
+  const homeYes = page.getByRole('button', { name: 'Sim, usar este computador', exact: true })
+  const step1 = page.getByRole('heading', { name: onboarding.step1Title })
+  await step1.or(homeYes).first().waitFor({ state: 'visible', timeout: 5_000 }).catch(() => undefined)
+  if (await homeYes.count() > 0) {
+    await homeYes.click()
+    await step1.waitFor({ state: 'visible', timeout: 15_000 }).catch(() => undefined)
+  }
+  if (await step1.count() === 0) return
 
   await page.getByPlaceholder(onboarding.step1Placeholder).fill('Probe E2E')
   await continueBtn().click()

@@ -326,6 +326,56 @@ it('token budget of the day stops new model starts', async () => {
   expect(audits(r, 'sched:budget')[0]).toMatch(/limite de tokens do dia/)
 })
 
+it('Marco M2: the responsible\'s loop is stepped ONCE per project per cycle, AFTER the pull, with the persona\'s own daily budget (the same count the routines spend)', async () => {
+  const r = rig(host())
+  const steps: Array<{ projectId: string; before: string[]; may: boolean[] }> = []
+  let spendTwice = false
+  const scheduler = new ProactivityScheduler({
+    ...r.scheduler.deps,
+    lead: {
+      step: (projectId, budget) => {
+        steps.push({ projectId, before: [...r.drives], may: [budget.may('p2')] })
+        if (spendTwice) { budget.spend('p2'); budget.spend('p2'); steps.push({ projectId, before: [], may: [budget.may('p2')] }) }
+      },
+    },
+  }, { nowMs: () => r.clock.ms, cycleMs: 0 })
+  r.h.orchestration.runtime('pp').repo.tickets.save(ticket())
+  await scheduler.cycle()
+  expect(steps).toEqual([{ projectId: 'pp', before: ['t1'], may: [true] }]) // the stranded ticket was driven first (the pull), then the loop looked
+  r.proactivity.setAutonomy({ projectId: 'pp', personaId: 'p2', mode: 'propose', proposalBudget: 3, tokenBudget: 1000, executionBudget: 2, silenceStart: '', silenceEnd: '' })
+  spendTwice = true
+  r.advance(60_000)
+  await scheduler.cycle()
+  expect(steps.at(-1)).toEqual({ projectId: 'pp', before: [], may: [false] }) // two turns spent = the day's budget of that persona is over
+})
+
+it('Marco M2: a loop that throws never breaks the cycle (the rest of it runs and the project is not "error")', async () => {
+  const r = rig(host())
+  let called = 0
+  const scheduler = new ProactivityScheduler({ ...r.scheduler.deps, lead: { step: () => { called += 1; throw new Error('o quadro quebrou') } } }, { nowMs: () => r.clock.ms, cycleMs: 0 })
+  r.h.orchestration.runtime('pp').repo.tickets.save(ticket())
+  const report = await scheduler.cycle()
+  expect(called, 'the loop WAS asked (the check below is not vacuous)').toBe(1)
+  expect(report.projects[0]?.state).not.toBe('error')
+  expect(r.drives).toEqual(['t1']) // the pull before it ran, and the cycle finished
+})
+
+it('Marco M2: a paused team or a missing engine never steps the loop (the scheduler already said why); the quiet window DOES (the loop records its own hold)', async () => {
+  const r = rig(host())
+  let steps = 0
+  const scheduler = new ProactivityScheduler({ ...r.scheduler.deps, lead: { step: () => { steps += 1 } } }, { nowMs: () => r.clock.ms, cycleMs: 0 })
+  r.teamState.pause('pp')
+  await scheduler.cycle()
+  expect(steps).toBe(0)
+  r.teamState.resume('pp')
+  r.engine.ready = false
+  await scheduler.cycle()
+  expect(steps).toBe(0)
+  r.engine.ready = true
+  await scheduler.cycle()
+  expect(steps).toBe(1)
+})
+
 it('Pausar equipe: nothing runs, it is said once, Retomar brings it back without replaying what was missed', async () => {
   const r = rig(host())
   customRoutine(r)

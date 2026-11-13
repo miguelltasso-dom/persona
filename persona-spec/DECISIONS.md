@@ -391,3 +391,52 @@ O Miguel autorizou às 10:00 de 12/11 ("pode sim"). O transcritor de voz (Vosk, 
 **VPS:** "computador da equipe" pode ser uma VPS. É uma fase 2 (host sem tela no Linux, com navegador e área de trabalho virtual), atrás do Windows.
 **Base que já existe:** a Onda 3 (W3-1..W3-6: laço, controle compartilhado, replay, gate, overlay e cursor da persona). Falta a prova viva no Windows (W3-5), o comando e a tela ao vivo à distância, e o modelo Só eu / Equipe.
 **Emenda à lei 1 do H23/D-112 (Keel, pedido do Bolt, 12/11 14:55):** a lei "a persona só roda no PC e na assinatura do dono" passa a ser: a persona só roda no computador que quem a criou escolheu (o próprio ou um computador cadastrado pela equipe), SEMPRE com a conta de IA entrada naquele computador (credencial nunca sai do aparelho), com acesso igual ao MENOR entre o do criador e o do computador, nunca em dois lugares ao mesmo tempo. As leis 2 (acesso da persona ⊆ do dono), 3 (ficha assinada pelo dono) e 4 (local-first) seguem inegociáveis. Requisitos de segurança da revisão (Lumen, L0-L9 em `marco-dogfood-onde-roda.md`) valem como parte desta emenda: o conector do criador exige exposição explícita do dono do computador (dois consentimentos), certificado com quem pode hospedar e teto por criador, memória privada de DM NÃO viaja para computador que não é do criador (a tela avisa antes), lista de revogação com versão e prazo, e honestidade sobre "cripto-apagar".
+
+### D-118 · O caderno de cada persona no Segundo cérebro, criar persona em 1 minuto e acabamento visual mais rico (Miguel/Atlas, 12/11 15:50) · vigente
+**Pedido do Miguel:** criar agente tem que ser muito fácil. Cada persona tem acesso à memória da empresa e do projeto e tem o SEU PRÓPRIO pedaço lá, onde se auto-melhora: guarda o que já sabe fazer e o que aprendeu com o usuário, como um vault do Obsidian que os agentes consultam e onde guardam tudo muito rápido. E o design está simples demais: mais acabamento.
+**Base que já existe:** o Segundo cérebro (D-057, SB-1..SB-7): páginas markdown tipadas, índice FTS e backlinks, Bibliotecário, brain_search/read/propose e export para Obsidian.
+**O que entra:**
+1. HIERARQUIA Empresa → Projeto → Persona. Cada persona tem um CADERNO próprio (páginas do tipo Persona): "O que já sei fazer", "Como <dono> gosta", "Aprendizados" e "Erros que não repito". Ela escreve LIVRE no próprio caderno. Nas páginas da empresa ou do projeto, ela escreve só por brain_propose (Bibliotecário; regra obrigatória nova pede aceite humano, como na D-057). Ela lê o projeto em que trabalha, nunca outro (cerca de projeto).
+2. AUTO-MELHORA: ao fim de cada tarefa, ela anota em 1 ou 2 linhas o que funcionou e o que a pessoa corrigiu. Quando um mesmo jeito se repete 3 vezes, ela propõe virar skill (o cartão "<Persona> aprendeu: …" do item 16). O contexto da persona puxa sozinho o topo do caderno dela.
+3. RÁPIDO: brain_search com p95 ≤ 150 ms local (FTS + backlinks) e escrita no próprio caderno sem esperar aprovação. Medido em teste.
+4. COFRE (senhas): a persona usa as credenciais do projeto só com permissão e tem a SUA seção ("chaves que a Nina usa"). A senha nunca aparece em texto para o modelo: o Cofre preenche (regra antiga).
+5. OBSIDIAN: o caderno aparece como pasta no export (SB-6).
+6. CRIAR PERSONA EM 1 MINUTO: nome + "o que ela faz" numa frase. O app sugere o rosto, a equipe, as ferramentas, onde roda e quem pode usar (D-116/D-117, com padrões seguros), e "Ajustar depois". Os passos detalhados ficam como "Ajustar".
+7. ACABAMENTO VISUAL: uma camada de detalhes da marca, com calma e sem poluir:
+   - bordados (pesponto) em cartões de destaque e separadores;
+   - imagens com degradê suave atrás de cabeçalhos e vazios;
+   - enfeites de canto (a folhagem do rail);
+   - detalhes nos botões principais;
+   - texturas leves.
+   A Muse define o kit e onde cada peça entra; o Brush desenha; o Prism/Quill fazem o componente Decor com tokens. Respeitar o reduced-motion e o contraste. Ao Miguel só quando estiver PRONTO no app.
+
+### D-119 · Quem corrige o que o Carbon acha (Miguel/Atlas, 12/11 16:40) · vigente
+**1ª vez:** o DONO corrige. Ele tem o contexto e sai mais barato (Sonnet). Recebe a reprodução do Carbon e um "onde você errou" de 2 linhas, e escreve o teste vermelho primeiro.
+**REABERTO (o dono já errou a correção uma vez) ou P0 que atravessa vários donos:** quem corrige é um CORRETOR INDEPENDENTE, o agente "Mend" (Opus 5.5, esforço xhigh, recrutado só quando há trabalho), a partir do patch sugerido que o Carbon já escreve em auditorias/<snap>-patches/. O dono revisa e aprende, mas não corrige de novo.
+**Carbon:** continua só auditor (escreve só em persona-spec/carbon/), porque o crédito é curto. Confere só o delta da correção.
+**Medição:** o Keel anota por dono quantas correções voltaram. Se um dono reabrir 2 bugs na mesma semana, as próximas correções P0 dele vão direto ao Mend.
+
+### D-120 · Tela de login com o nosso design, autenticação no Cloudflare Workers (Miguel/Atlas, 12/11 20:45) · vigente
+**Pedido do Miguel:** "precisamos ter tela de login querendo ou não", e tudo pode ficar no Cloudflare Workers.
+**Como fica:**
+- Uma CONTA Persona por pessoa (e-mail), com a tela "Entrar" no nosso design (Muse; o kit de acabamento da D-118). Serve no desktop, no web e no celular, e para o colega que entra por convite.
+- A autenticação roda no Worker do Persona na conta Cloudflare do Miguel (persona-edge), com sessão curta e renovável. Métodos a decidir com o Miguel: código por e-mail, que precisa de um serviço de envio de e-mail, e/ou "Entrar com Google", que precisa de um app OAuth na conta Google dele.
+- A cifra de ponta a ponta continua: o login diz QUEM é a pessoa. As chaves das mensagens ficam nos aparelhos (Ed25519/X25519). Aparelho novo = aprovação por um aparelho já conectado ou por uma chave de recuperação. O servidor nunca lê as mensagens.
+- Credenciais de IA (Claude, GPT etc.) NUNCA vão para a conta Persona nem para o Cloudflare: ficam no computador onde a persona roda (D-116).
+- O link de convite (item 23) leva à tela Entrar: quem não tem conta cria uma em 1 passo.
+**Donos:** Muse (desenho), Bolt/Jade (Worker de autenticação + cliente), Lumen (revisão de segurança), Cobalt/Prism (telas). Entra no S4 se ficar pronto e auditado a tempo; senão no S5, logo depois, sem atrasar o S4.
+
+### D-121 · "Levar para outro computador" no modelo EXECUTOR: troca a CASA, não move a memória (Keel, 12/11 21:55; refina D-116 e a decisão B11) · vigente
+- Modelo executor (B11, opção B): a persona CONTINUA com projeto, memória, regras e ferramentas no host dono (A); o computador B só EXECUTA o turno com o runner e a conta DELE; a credencial/conta de B nunca sai de B; as chamadas de ferramenta voltam assinadas a A, que roda o handler preso ao lease do turno.
+- "Levar" = trocar a CASA da persona (epoch+1; a concessão do criador é gravada ANTES do set; A para de rodar a persona localmente: evict dos runners). Nunca em 2 lugares continua valendo. NADA é apagado em A (o prompt de A precisa da memória em todo turno remoto); `PersonaEraser.scrub` só serve a "apagar a persona" e "trazer de volta de B" (apaga a cópia da ficha em B).
+- O pacote de "Levar" leva só a ficha assinada + contagens; B registra a persona como EMPRESTADA. Memória privada de DM nunca viaja (gate `dm-private`).
+- Se A está desligado, a persona emprestada em B fica "fora do ar" (sem compositor). Texto para a pessoa (Muse): a persona passa a trabalhar naquele computador; a memória continua com a equipe.
+- Mover memória para B (modelo hub) NÃO entra no S4; exigiria que B monte o prompt. Fica como possível evolução.
+
+### D-122 · Personas pessoais e da equipe, canais pessoais, e levar para o PC da empresa (Miguel, 12/11 22:30) · vigente
+**Miguel confirmou** a topologia: o PC 24 h é a casa da equipe; o notebook e o celular são clientes. Ele também quer:
+- personas PESSOAIS: só ele usa, elas trabalham só no computador DELE, com a conta de IA dele, e podem mexer nesse computador (D-117 "Só eu");
+- CANAIS PESSOAIS, só com ele e as personas pessoais dele, e canais DA EQUIPE com as personas de todos (conversar, reagir, opinar);
+- poder passar uma persona pessoal, ou uma EQUIPE inteira de personas, para trabalhar no PC 24 h da empresa.
+**Como se encaixa (sem uma 2ª casa):** a persona pessoal mora na casa da equipe com acesso "Só eu" (só o dono vê, conversa e lê a memória dela) e EXECUTA no computador do dono (o executor da D-121, com a conta de IA do dono, que nunca sai do PC dele). "Levar para o PC da empresa" = trocar o executor para o PC 24 h. "Levar a equipe" = trocar o executor de todas as personas daquela equipe de uma vez. Canal pessoal = canal com visibilidade "só eu" (o dono + as personas pessoais dele); persona pessoal não entra em canal da equipe sem o dono a convidar.
+**Limites honestos:** a persona pessoal fica fora do ar se o computador do dono estiver desligado (até ser levada para o PC 24 h). A memória da persona pessoal fica no PC da empresa, protegida por permissão (só o dono). Cifrar essa memória com a chave do dono (para nem o administrador do PC ler) é a próxima etapa.

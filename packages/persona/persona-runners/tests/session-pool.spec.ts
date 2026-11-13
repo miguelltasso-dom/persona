@@ -1,4 +1,7 @@
+import { spawn, type ChildProcess } from 'node:child_process'
+import { once } from 'node:events'
 import { describe, expect, it } from 'vitest'
+import { SESSION_DISPOSE_CONCURRENCY } from '../src/resolve/session-pool.ts'
 import {
   SESSION_LEASE_MS,
   SESSION_POOL_CAP,
@@ -55,5 +58,102 @@ describe('session pool', () => {
     expect(pool.size()).toBe(0)
     expect(disposed).toContain('A')
     expect(disposed.length).toBeGreaterThanOrEqual(3)
+  })
+
+  it('disposeAll disposes entries in parallel up to the concurrency bound and isolates errors', async () => {
+    let inFlight = 0
+    let maxInFlight = 0
+    const settled: string[] = []
+    let releaseFirstWave: (() => void) | undefined
+    const waveReady = new Promise<void>((resolve) => {
+      releaseFirstWave = resolve
+    })
+
+    const pool = createSessionPool<string>({
+      cap: 20,
+      disposeConcurrency: 4,
+      dispose: async (value) => {
+        inFlight += 1
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        if (inFlight === 4) releaseFirstWave?.()
+        try {
+          await waveReady
+          if (value === 'V-2') throw new Error('boom')
+          settled.push(value)
+        } finally {
+          inFlight -= 1
+        }
+      },
+    })
+
+    for (let i = 0; i < 12; i += 1) pool.set(`k-${i}`, `V-${i}`)
+
+    await pool.disposeAll()
+    expect(maxInFlight).toBe(4)
+    expect(pool.size()).toBe(0)
+    expect(settled).toHaveLength(11)
+  })
+
+  it('disposeAll caps default concurrency at SESSION_DISPOSE_CONCURRENCY', async () => {
+    let inFlight = 0
+    let maxInFlight = 0
+    let releaseWave: (() => void) | undefined
+    const waveReady = new Promise<void>((resolve) => {
+      releaseWave = resolve
+    })
+
+    const pool = createSessionPool<number>({
+      cap: 24,
+      dispose: async () => {
+        inFlight += 1
+        maxInFlight = Math.max(maxInFlight, inFlight)
+        if (inFlight === SESSION_DISPOSE_CONCURRENCY) releaseWave?.()
+        try {
+          await waveReady
+        } finally {
+          inFlight -= 1
+        }
+      },
+    })
+
+    for (let i = 0; i < SESSION_DISPOSE_CONCURRENCY + 4; i += 1) pool.set(`s-${i}`, i)
+
+    await pool.disposeAll()
+    expect(maxInFlight).toBe(SESSION_DISPOSE_CONCURRENCY)
+    expect(pool.size()).toBe(0)
+  })
+
+  it('disposes 13 fake child processes in bounded parallel under 1 s', async () => {
+    const children: ChildProcess[] = []
+    const script = 'process.stdin.resume(); process.stdin.on("end", () => setTimeout(() => process.exit(0), 150))'
+    try {
+      for (let i = 0; i < 13; i += 1) {
+        children.push(spawn(process.execPath, ['-e', script], { stdio: ['pipe', 'ignore', 'ignore'] }))
+      }
+      await Promise.all(children.map(child => once(child, 'spawn')))
+
+      const pool = createSessionPool<ChildProcess>({
+        cap: 20,
+        dispose: async (child) => {
+          if (child.exitCode === null && child.signalCode === null) {
+            child.stdin?.end()
+            await once(child, 'exit')
+          }
+        },
+      })
+      children.forEach((child, index) => { pool.set(`cli-${index}`, child) })
+
+      const startedAt = performance.now()
+      await pool.disposeAll()
+      const elapsedMs = performance.now() - startedAt
+
+      expect(elapsedMs).toBeLessThan(1_000)
+      expect(children.every(child => child.exitCode === 0)).toBe(true)
+      expect(pool.size()).toBe(0)
+    } finally {
+      for (const child of children) {
+        if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL')
+      }
+    }
   })
 })

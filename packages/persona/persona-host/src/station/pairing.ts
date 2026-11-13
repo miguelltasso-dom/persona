@@ -7,7 +7,14 @@
  */
 
 import { createHash, randomInt } from 'node:crypto'
+import type { PairingLockState, PairingLockStore } from './pairing-lock-store.ts'
 import type { StationPairingCode } from '../types.ts'
+
+/** M4: codes waiting at once; the sixth invalidates the oldest. */
+export const MAX_LIVE_CODES = 5
+/** M4 (Keel 12/11 14:47): redemptions per hour, right codes included, so the registration screen is no target for mass attempts. */
+export const MAX_REDEEMS_PER_HOUR = 10
+const HOUR_MS = 60 * 60_000
 
 /** How long a code is worth. */
 export const PAIRING_TTL_MS = 10 * 60_000
@@ -35,6 +42,8 @@ export interface PairingBookDeps {
   readonly now?: () => number
   /** One character of the alphabet (tests replace it); default a uniform random pick. */
   readonly pick?: () => string
+  /** Where the lock (wrong guesses, lock instant, hourly redemptions) survives a restart; default RAM only. */
+  readonly store?: PairingLockStore
 }
 
 /** The one-time codes of a station pairing. */
@@ -43,10 +52,26 @@ export class PairingBook {
   private readonly deps: PairingBookDeps
   private misses = 0
   private lockedUntil = 0
+  private redeemedAt: number[] = []
 
-  /** @param deps - Clock and character source. */
+  /** @param deps - Clock, character source and the optional lock store. */
   constructor(deps: PairingBookDeps = {}) {
     this.deps = deps
+    const stored = deps.store?.load()
+    if (stored === 'corrupt') {
+      // Fail closed: a lock file nobody can read is a full lock, never an empty one.
+      this.lockedUntil = (deps.now ?? Date.now)() + PAIRING_LOCK_MS
+      this.remember()
+    } else if (stored !== undefined && stored !== 'missing') {
+      this.misses = stored.misses
+      this.lockedUntil = stored.lockedUntil
+      this.redeemedAt = [...stored.redeemedAt]
+    }
+  }
+
+  private remember(): void {
+    const state: PairingLockState = { misses: this.misses, lockedUntil: this.lockedUntil, redeemedAt: this.redeemedAt }
+    this.deps.store?.save(state)
   }
 
   /**
@@ -58,9 +83,12 @@ export class PairingBook {
     const raw = Array.from({ length: PAIRING_LENGTH }, () => pick()).join('')
     const expiresAt = (this.deps.now ?? Date.now)() + PAIRING_TTL_MS
     this.live.set(hashOf(raw), { expiresAt, used: false })
+    // The sixth waiting code invalidates the oldest (a `Map` keeps insertion order).
+    for (const key of [...this.live.keys()].slice(0, Math.max(0, this.live.size - MAX_LIVE_CODES))) this.live.delete(key)
     // A new code is a new secret the guesses so far say nothing about, and only the owner asks for it: it opens the book again.
     this.misses = 0
     this.lockedUntil = 0
+    this.remember()
     return { code: `${raw.slice(0, 4)}-${raw.slice(4)}`, expiresAt: new Date(expiresAt).toISOString() }
   }
 
@@ -79,13 +107,20 @@ export class PairingBook {
       if (this.misses >= PAIRING_MAX_MISSES) {
         this.misses = 0
         this.lockedUntil = now + PAIRING_LOCK_MS
+        // Five wrong codes burn the codes still waiting: the right one typed afterwards does not enter, the owner issues another.
+        this.live.clear()
       }
+      this.remember()
       return 'invalido'
     }
     if (entry.used) return 'usado'
     if (now >= entry.expiresAt) return 'expirado'
+    this.redeemedAt = this.redeemedAt.filter(at => now - at < HOUR_MS)
+    if (this.redeemedAt.length >= MAX_REDEEMS_PER_HOUR) return 'bloqueado'
     entry.used = true
     this.misses = 0
+    this.redeemedAt.push(now)
+    this.remember()
     return 'ok'
   }
 

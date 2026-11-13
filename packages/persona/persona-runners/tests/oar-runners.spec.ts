@@ -289,4 +289,43 @@ describe('OAR CLI runners', () => {
     expect(seen).toEqual([undefined])
     await runner.dispose?.()
   })
+
+  it('disposes warm CLI sessions concurrently rather than sequentially', async () => {
+    let warmCount = 0
+    let inFlight = 0
+    let maxInFlight = 0
+    let releaseAll: (() => void) | undefined
+    const bothDisposing = new Promise<void>((resolve) => {
+      releaseAll = resolve
+    })
+    const inner = sayingRuntime('ok')
+    const runtime = {
+      ...inner,
+      session: async (installation: AvailableInstallation, options: SessionOptions) => {
+        warmCount += 1
+        const innerSession = await inner.session(installation, options)
+        return {
+          ...innerSession,
+          dispose: async () => {
+            inFlight += 1
+            maxInFlight = Math.max(maxInFlight, inFlight)
+            if (inFlight === 2) releaseAll?.()
+            try {
+              await bothDisposing
+              await innerSession.dispose()
+            } finally {
+              inFlight -= 1
+            }
+          },
+        }
+      },
+    }
+    const runner = createClaudeRunner({ runtime, warmTtlMs: 60_000 })
+    await collect(runner.stream(await runner.start({ ...input, cwd: 'C:/tmp/warm-a' })))
+    await collect(runner.stream(await runner.start({ ...input, cwd: 'C:/tmp/warm-b' })))
+    expect(warmCount).toBe(2)
+
+    await runner.dispose?.()
+    expect(maxInFlight).toBe(2)
+  })
 })

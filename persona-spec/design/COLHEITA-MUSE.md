@@ -1,4 +1,4 @@
-# COLHEITA · especificação de tela e movimento (Muse, 11/11 22:10)
+﻿# COLHEITA · especificação de tela e movimento (Muse, 11/11 22:10)
 
 Itens 5, 6, 11, 13, 14, 18, 19a e 20 do `PLANO-COLHEITA.md`.
 
@@ -1137,3 +1137,272 @@ Os outros estados não ganham humor novo. `Descansando` e `Fora até` usam as po
 
 ### 6. O aceite
 Antes do código do Quill, o protótipo da Muse (`.maestri/tmp/muse/capivara-viva.html`) mostra o movimento com a arte real. O vídeo vai ao Atlas, e o Atlas o leva ao Miguel. Só depois do OK dele o Brush faz o time todo.
+
+---
+
+## 33 · D-118: acabamento da casa, criar persona em 1 minuto e o caderno da persona (Miguel/Atlas 12/11 15:50)
+O Miguel achou as telas simples demais. Ele **não quer ver prancha**: só o app pronto. Por isso, nesta seção, o código e as capturas do app real valem mais do que um desenho.
+
+### 33a · O KIT DE ACABAMENTO (Muse define e implementa os primitivos; o Brush desenha a arte; o Prism, o Quill, o Lumen e o Cobalt aplicam)
+**Uma regra acima de todas:** acabamento é para UMA coisa por tela. Uma tela pode ter 1 cartão herói (pesponto + ramo + textura) e 1 cabeçalho com o degradê ilustrado. Tudo o mais continua calmo. Se uma tela começar a parecer um álbum de figurinhas, tira-se a peça mais nova.
+
+| Peça | Como é | Onde entra | Onde NUNCA entra |
+|---|---|---|---|
+| **Pesponto** (`Stitch`) | uma linha tracejada de 1,5 px (traço 6, vão 4, ponta redonda) **6 px para dentro** da borda, seguindo o raio (r − 6); a cor é `--persona-stitch` (ameixa 28 % no claro, lilás 34 % no escuro) | o cartão herói da tela: Esta noite/1ª entrega na Casa, o cartão do projeto, a capa do perfil, a capa do caderno, o cartão do "criar em 1 minuto" e o cartão de um estado vazio | campos, botões, balões, linhas de lista, tabelas, chips, modais comuns |
+| **Pesponto de separar** (`StitchRule`) | a mesma linha, sozinha, com 24 px de ar em cima e embaixo | entre as SEÇÕES grandes de páginas longas (Memória, perfil, caderno, projeto) | entre itens de uma lista |
+| **Degradê ilustrado** (`HeaderWash`) | **a arte do Brush** (`header-wash-dia` / `header-wash-noite`, aquarela suave) atrás da faixa do cabeçalho, com 220 px no desktop e 160 no celular. Some para baixo pela máscara (cheia até 45 %, transparente em 100 %). Opacidade 0,7 no claro e 0,55 no escuro. **Sem a arte, cai num degradê de CSS** (o brilho lilás à esquerda e o âmbar à direita). A variante `empty` é um círculo de 360 px atrás da arte de um vazio. | os cabeçalhos da Casa (Visão geral), do Projeto, da Memória/caderno, do perfil da persona e do "Criar persona"; os estados vazios (os 2 temas) | listas, conversas, modais, o celular fora dos vazios |
+| **Enfeite de canto** (`CardSprig`, já existe) | o ramo da folhagem do rail saindo do canto do cartão herói: `tl` (já existe) ou `br` (novo) | no cartão herói (1 por cartão, 2 por tela) | em qualquer cartão que não seja o herói |
+| **Detalhe do botão principal** | todo primário ganha o **lábio**: um brilho de 1,5 px por dentro, em cima (`--persona-btn-lip`: branco 55 % no claro, 30 % no escuro), além da sombra de pressão de sempre. **O primário herói** (`hero`, no máximo 1 por tela, tamanho `l`: "Contratar Nina", "Pedir agora", "Começar") ganha também a faísca da casa (`Sparkle`, 14 px) saindo do canto de cima à direita | primários | secundários e fantasmas (ficam quietos), o Parar (é o freio sólido do D-117) |
+| **Textura** | o grão de papel (já existe no papel e no rail) passa também por cima do degradê ilustrado e do fundo do cartão herói, com metade da força | o degradê e o herói | atrás de texto pequeno de lista |
+
+**Acessibilidade (vale para todas as peças):**
+- todas são `aria-hidden` e `pointer-events: none`, e **nenhuma se mexe** (o reduced-motion não tem o que parar);
+- em forced-colors, todas somem;
+- a ≤ 800 px de CSS (zoom 200 %), o ramo e a faísca somem; o pesponto e o degradê ficam (são finos e ficam atrás);
+- o degradê é claro no claro e escuro no escuro: o texto em cima dele mantém ≥ 4,5:1. O Brush recebe o limite de luminância.
+
+**Flag:** tudo fica atrás de `houseDecor`, que já está ligada por padrão. Desligada, nenhum nó a mais.
+
+**Onde aplicar primeiro** (as telas do marco):
+| Tela (dono) | O que entra |
+|---|---|
+| **Casa / Visão geral** (Prism) | `HeaderWash` atrás do cabeçalho (os rabiscos de hoje continuam entre o título e o botão); `Stitch` + `CardSprig tl` no cartão "Esta noite" (ou "Comece aqui" no começo); o "Nova tarefa" como `hero` |
+| **Projeto** (Lumen) | `HeaderWash`; `Stitch` no cartão de cima do projeto; `StitchRule` entre as seções |
+| **Quem cuida de quê** (Prism) | `Stitch` no cartão de cima; nada nas linhas |
+| **Criar persona** (Prism) | `HeaderWash` no topo da folha; `Stitch` no cartão do "1 minuto"; "Contratar {nome}" como `hero` |
+| **Caderno da persona** (Lumen) | `Stitch` + `CardSprig br` na capa; `StitchRule` entre as 4 seções |
+| **Celular** (Cobalt) | `HeaderWash empty` nos vazios; `Stitch` no resumo de "Esta noite"; o lábio vem sozinho no primário |
+
+### 33b · CRIAR PERSONA EM 1 MINUTO (Prism)
+- **Onde:** `+ Nova persona` (rail, Equipe e onboarding) abre a folha `Nova persona`, de 560 px, com o `HeaderWash` no topo.
+- **Os 2 campos e nada mais:**
+  1. `Nome`, com o placeholder `Ex.: Nina`;
+  2. `O que {nome} faz, numa frase`, um textarea de 2 linhas com o placeholder `Ex.: Responde os clientes no WhatsApp e anota as encomendas.`
+- **"O que eu sugiro"**: um cartão com pesponto que aparece quando a frase tem 4 palavras ou mais. Ele mostra, em linhas só de leitura:
+  - o rosto (o bicho sugerido, com `Trocar`, que gira entre 3);
+  - `Equipe: Atendimento`;
+  - `Ferramentas: WhatsApp, Planilha`;
+  - `Onde: Neste computador`;
+  - `Quem pode usar: Só eu`;
+  - `Mexe no computador: Não`.
+  São os **padrões seguros** (D-116/D-117).
+  - Enquanto o host pensa, o cartão diz `Sugerindo…` com os 3 pontinhos da casa.
+  - Se o host não responder em 3 s, entram os padrões, sem inventar ferramenta.
+- **Os botões:** o primário herói `Contratar {nome}` e o fantasma `Ajustar antes de contratar`, que abre os passos detalhados de hoje.
+- **Depois de contratar:** a folha fecha, a conversa com a persona nova abre e entra a linha `{nome} está na equipe. Para mudar o rosto, a equipe ou as ferramentas: Perfil › Ajustar.`
+- **A meta:** 2 campos e 1 clique; nenhum passo obrigatório além do nome e da frase.
+
+### 33c · O CADERNO DA PERSONA (Lumen, na Memória da empresa)
+- **Onde:**
+  - na Memória, a árvore da esquerda ganha o terceiro nível: `Empresa › Projetos › Personas`, e cada persona tem o seu caderno;
+  - no perfil da persona, a aba `Caderno` abre a mesma página.
+- **A capa** (o cartão herói, com `Stitch` e `CardSprig br`):
+  - o rosto de 56 + `Caderno de Nina`;
+  - a linha `O que Nina guarda para trabalhar do seu jeito. Você pode corrigir ou apagar.`;
+  - **sem** `Exportar para o Obsidian`: o host só importa (Lumen 16:34), e o botão só entra com o SB-6.
+  - **Honestidade (Lumen 16:34):** o aprendizado automático por tarefa NÃO está ligado ao host. Por isso nenhum texto diz que a persona "escreve sozinha" ou "anota a cada tarefa" enquanto isso não existir.
+- **As 4 seções**, nesta ordem, com o `StitchRule` entre elas:
+  1. `O que já sei fazer`;
+  2. `Como Miguel gosta` (o nome do dono, **sem artigo**);
+  3. `Aprendizados`;
+  4. `Erros que não repito`.
+  Cada seção traz o título em Fredoka 600, 18 px, o contador muted e os itens.
+- **Cada item:**
+  - 1 a 2 linhas de texto, de 15 px;
+  - embaixo, em 12,5 px muted, a origem conforme a fonte real do host: `você pediu para lembrar · 10/11` (regra ou fato, com a prova) ou `você pediu para mudar este jeito` (ajuste do playbook, sem data, porque o host não guarda); `da tarefa "…" · data` só quando existir o aprendizado por tarefa;
+  - à direita, ao passar o mouse e sempre no foco: `Corrigir` (edita no lugar) e `Apagar` (com a confirmação do 33c.1).
+  - Em "O que já sei fazer", o item que virou skill ganha o chip `virou skill`.
+- **O cartão "aprendeu"** (item 16), no topo da seção 1, quando um jeito se repete 3 vezes: `Nina aprendeu: responder orçamento de bolo.` + `Virar skill` (primário) e `Agora não`. **Só aparece quando o host tiver essa oferta**: hoje não tem.
+- **O vazio:**
+  - a arte `caderno-aberto` (Brush) com o `HeaderWash empty`;
+  - `O caderno de Nina começa vazio.`;
+  - `Quando você pede para Nina lembrar de algo ou mudar um jeito de trabalhar, fica guardado aqui.` (A frase "a cada tarefa, Nina anota…" só entra quando o aprendizado por tarefa existir.)
+- **Honestidade:** a tela só mostra o que está no caderno. Nada de "Nina sabe 12 coisas" contado no cliente.
+
+**33c.1 · Privacidade do caderno (Lumen 16:28; DECISÃO do Keel 16:35).** A regra do host é do Lumen: um item que vem de conversa particular (DM) só chega a quem estava nela.
+- **Para quem estava na conversa:**
+  - o item aparece normal, com o chip `Só você vê` (glifo `lock` 12, 12 px, `wash`) ao lado da origem;
+  - se a seção inteira for particular, embaixo do título vem a linha `Só você vê esta parte.` (lock 14, 13,5 px muted).
+- **Para quem NÃO estava: nada.** Não há linha, contagem, nome nem pista de que existe uma parte escondida (Keel).
+  - A seção mostra só o que essa pessoa pode ver.
+  - Sem nenhum item, a seção mostra a linha vazia de sempre: `Nada nesta parte ainda.`
+  - A capa é a mesma para todos.
+- **Corrigir e Apagar:** só aparecem em itens que quem lê pode editar (a ACL do R2-04). Nos outros não há botão: nada desabilitado.
+- **Apagar** (o `forgetMemory` só revoga; apagar de verdade é um item posterior do Anvil): é **sempre** a confirmação **`Apagar esta lembrança?`** + `Nina deixa de usar esta lembrança.`, com `Apagar` (danger) e `Cancelar`.
+  - Sem `Desfazer`.
+  - Nunca "esquece de vez" (seria mentira: o registro fica revogado).
+- **Os dados:** `getPersonaNotebook` como o Lumen propôs (as 4 seções `sabe-fazer | como-gosta | aprendizados | erros`, com a origem `tarefa | correcao` e `becameSkill`), e o campo `private: { visibleTo: 'me' }`, que vem **só** no item ou seção particular do próprio leitor, **calculado no host**. Para quem não estava, o JSON é idêntico ao de um mundo sem aquela DM (o teste do Lumen). O cliente nunca deduz o que é particular.
+
+---
+
+## 34 · D-120: a tela Entrar, o convite e o aparelho novo (Miguel/Atlas 12/11 20:45)
+**A prancha:** `.maestri/tmp/shots/design/entrar/`, com 6 telas nos 2 temas: `entrar`, `estados`, `convite`, `aparelho`, `chave` e `celular`. O HTML fica em `.maestri/tmp/muse/casa-equipe/entrar.html`. O Miguel não vê a prancha: ele vê só o app pronto.
+**Os donos:** Bolt/Jade (Worker e cliente), Cobalt (web e celular), Prism (desktop), Lumen (revisão de segurança) e Brush (as 2 artes novas do §34f).
+
+### 34a · A composição (vale para todas as telas desta seção)
+- **O fundo:** o papel com o grão, mais o `HeaderWash` (dia ou noite) na faixa de cima, com 300 px no desktop e 200 no celular.
+- **No topo:** o logo horizontal de 28 px, a 28 px da esquerda, e o link `Precisa de ajuda?` à direita.
+- **A porta:** a arte `onboarding-porta-dia` ou `onboarding-porta-noite`, com 540 × 180 no desktop e a largura toda (118 px de altura) no celular, centrada. **O cartão sobe 30 px sobre o capacho da porta** (18 px no celular): a gente entra pela porta da casa. Esta é a ideia da tela.
+- **O cartão** (o herói da tela, com `Stitch`): 440 px, padding 30/32, raio 22 e a sombra `sticker`. No celular ele usa a largura toda menos 16 px de cada lado.
+  - Não leva `CardSprig`: a porta já enfeita.
+- **Embaixo do cartão:** o glifo `lock` 16 e a linha `As conversas são cifradas: só quem está na equipe lê. As contas de IA (Claude, GPT) ficam no seu computador, nunca na conta Persona.` (13 px, muted, até 440 px). No celular fica só `Só quem está na equipe lê as conversas.`
+- **O desktop e o web** usam o mesmo componente; só muda o caminho do Google (§34c).
+
+### 34b · Entrar (a tela principal)
+- `Entrar no Persona` (Fredoka 600, 28 px; 24 no celular) e embaixo `Entre ou crie a sua conta com o seu e-mail.` A palavra `e-mail` nunca quebra no hífen (`white-space: nowrap`), em todas as telas.
+- **Entrar e criar conta são UMA tela só.** Não existem as abas "Entrar | Criar conta": quem decide é o e-mail.
+- **A ordem:**
+  1. `Continuar com o Google`;
+  2. o separador `ou`;
+  3. `E-mail` (48 px, `type=email`, `autocomplete=email`, placeholder `voce@exemplo.com`, com o foco ao abrir no desktop e sem foco automático no celular);
+  4. o primário herói, tamanho `l`: `Receber código por e-mail` (com o lábio e a faísca);
+  5. embaixo, centralizado: `Sem senha: mandamos um código de 6 números.`
+- **O botão do Google** segue o guia de marca do Google:
+  - o "G" de 4 cores sem mexer, o texto oficial `Continuar com o Google` e 48 px;
+  - **claro:** fundo `#FFFFFF`, borda de 1 px `#747775` e o texto `#1F1F1F`;
+  - **escuro:** fundo `#131314`, borda `#8E918F` e o texto `#E3E3E3`;
+  - a fonte é Roboto Medium 15, ou a Geist se não houver Roboto;
+  - o raio 12 é o da casa (o guia deixa).
+  - **Ele não ganha** o lábio, a sombra de pressão nem a faísca (o guia não deixa mudar o botão).
+- **Os métodos ainda não foram escolhidos.** O componente aceita os 3 casos sem desenho novo:
+  | Ligado | O que aparece |
+  |---|---|
+  | os dois | o desenho acima |
+  | só o código | sem o botão do Google e sem o `ou` |
+  | só o Google | sem o `ou`, sem o campo e sem a linha; o botão do Google fica sozinho e a frase de cima vira `Entre ou crie a sua conta com o Google.` |
+- **O erro do e-mail:** só no envio (nunca enquanto a pessoa digita), embaixo do campo: `Confira o e-mail: falta o @ ou o final (.com, .br…).`
+- **Envio ocupado:** os 3 pontinhos da casa no botão, que mantém o texto. O campo fica só de leitura.
+
+### 34c · Os estados (prancha `estados`)
+**a · O código**
+- `Trocar e-mail` (link com a seta, no alto), `Olhe o seu e-mail` e `Mandamos um código para {e-mail}.` (o e-mail em negrito).
+- **As 6 caixas:** 52 × 62 (42 × 54 no celular), Geist 600 28 px com números tabulares, em 2 grupos de 3 com 6 px a mais no meio.
+  - Um único `<input>` por trás (`inputmode=numeric`, `autocomplete=one-time-code`, `maxlength=6`), com as caixas só desenhadas. Assim o leitor de tela e o "colar" funcionam.
+  - A caixa da vez ganha o anel lilás.
+  - **Entra sozinho no 6º número.** O botão `Entrar` continua lá para o teclado e o leitor de tela.
+- `O código vale por 10 minutos.`
+- **No rodapé do cartão:** `Não chegou? Olhe o spam.` à esquerda e `Mandar de novo em 0:24` à direita. A contagem é de 30 s; depois a frase vira o link `Mandar de novo`.
+- **No celular**, o teclado numérico do sistema sobe e o sistema sugere o código (`Do Mensagens: 481270`). A porta não aparece nesta tela.
+
+**b · Os erros do código** (as caixas ficam com a borda `danger` e o fundo `danger-tint`, os números ficam e o foco volta à 1ª caixa):
+| Caso | Texto (13,5 px, 600, `danger`, com o glifo `alert`) |
+|---|---|
+| errado | `Esse código não confere. Veja o e-mail mais novo.` |
+| vencido | `O código venceu. Mande outro.` |
+| 5 erros | `Muitas tentativas. Peça um código novo.` (as caixas ficam travadas até o código novo) |
+| sem conexão | `Sem internet agora. O código continua valendo: tente de novo.` |
+- O link `Mandar outro código` fica à direita, embaixo do botão.
+
+**c · Conta nova (o "1 passo")** só aparece quando o e-mail ainda não tem conta, logo depois do código:
+- `Prazer! Como a equipe vai te chamar?` e `É a sua primeira vez com {e-mail}.`;
+- o campo `Seu nome`, preenchido com nada (sem adivinhar pelo e-mail);
+- o primário herói `Criar minha conta`;
+- a linha `Você muda o nome depois, no seu perfil.`
+- **Pelo Google este passo não existe**: o nome vem de lá.
+
+**d · O Google no app de desktop:** o login abre no **navegador do sistema**, nunca numa janela dentro do app, e volta por `persona://`.
+- **O cartão:** o glifo `globe` com os 3 pontinhos, `Continue no navegador` e `Abrimos o navegador para você entrar com o Google. Quando terminar, o Persona volta sozinho para cá.`
+- **Os botões:** `Abrir o navegador de novo` (secundário) e `Cancelar` (fantasma).
+- **No web e no celular:** a própria página vai ao Google e volta, sem este cartão.
+- **Se a pessoa desistir no Google:** a tela Entrar volta igual, sem mensagem de erro.
+
+### 34d · O convite (prancha `convite`)
+O link `persona://entrar/<time>/<token>` (contrato `team-invite-f4.md` §1) abre esta tela com a **mesma composição** do §34a (a porta e o cartão).
+**a · Sem conta (ou sem ter entrado):**
+- o círculo das iniciais de quem convidou, com `{Dono} convidou você`;
+- `Entrar na {Equipe}` e `Crie a sua conta e o pedido vai para {Dono}.`;
+- `Continuar com o Google`, o `ou`, `Seu nome` e `E-mail`;
+- o primário herói `Pedir para entrar`, com a linha `Antes, mandamos um código para confirmar o e-mail.`
+- **O caminho:** o código (§34c a) leva direto a `Pedido enviado`. O passo "conta nova" não aparece, porque o nome já veio. Se o e-mail já tiver conta, o nome digitado é ignorado.
+- **Pelo Google**, 1 clique leva direto a `Pedido enviado`.
+
+**b · Já entrou neste aparelho:**
+- o mesmo topo, com `Você está como {Nome} ({e-mail}).`;
+- o primário herói `Pedir para entrar`;
+- o link `Não é você? Entrar com outra conta`;
+- o `lock` com `As conversas são cifradas: só quem está na equipe lê.`
+- **O link nunca junta sozinho:** o pedido só sai pelo botão (contrato §1).
+
+**c · Pedido enviado:** é o §27.2 dentro deste cartão:
+- a arte `convite-aguardando` em 240 × 160;
+- `Pedido enviado`;
+- `Esperando {Dono} deixar você entrar. Você recebe um aviso aqui quando ele deixar.`;
+- `Cancelar pedido` (secundário).
+
+**Os erros do link** ficam no mesmo cartão, no lugar dos campos, com o botão `Ir para a tela Entrar`:
+| `previewInvite` | Texto |
+|---|---|
+| `CONVITE_VENCIDO` | `Este convite venceu. Peça um novo a {Dono}.` |
+| `CONVITE_USADO` | `Este convite já foi usado. Peça um novo a {Dono}.` |
+| `LINK_INVALIDO` | `Este link não abre nenhum convite. Confira se copiou inteiro.` |
+
+### 34e · O aparelho novo e a chave de recuperação (pranchas `aparelho` e `chave`)
+**Quando aparece:** depois de entrar, se este aparelho ainda não tem as chaves da pessoa. O login diz quem é a pessoa; para LER as conversas, o aparelho precisa ser liberado.
+**Sem jargão:** as palavras `chave pública`, `E2EE`, `Ed25519` e `dispositivo` não aparecem. Usamos `aparelho`, `liberar`, `sinal` e `chave de recuperação`.
+
+**a · Falta liberar este aparelho:**
+- a arte `aparelho-novo` (Brush, §34f), em 150 × 100;
+- `Falta liberar este aparelho` e `Você entrou como {Nome}. Para abrir as conversas cifradas, libere este aparelho de um destes jeitos:`;
+- **2 ChoiceCards:**
+  - `Por um aparelho conectado`, com o nome do aparelho mais recente e a pílula `ligado agora` (verde) ou `visto há 2 h` (`wash`);
+  - `Com a chave de recuperação`, com `A chave de 24 letras e números que você guardou.`;
+  - a 1ª vem marcada; sem nenhum aparelho conectado, vem marcada a 2ª;
+- o primário `Continuar`.
+
+**b · Esperando a confirmação:**
+- `Confirme no {aparelho}` e `Abra o Persona lá. Vai aparecer um pedido com este mesmo sinal:`;
+- **o sinal:** 12 caracteres em 3 grupos (`4F2A · 91BC · 7D3E`), Geist 600 28 px, numa caixa `wash` com borda tracejada. É o mesmo do M3 (Lumen L6.3);
+- os 3 pontinhos com `Esperando você liberar no outro aparelho…`;
+- `Cancelar` (fantasma) e o link `Usar a chave de recuperação`.
+- **Os prazos e as respostas:** vale por 5 min, depois `O tempo acabou. Peça de novo.`; se o outro aparelho recusar, `O pedido foi recusado no {aparelho}.`
+
+**c · No aparelho que já está conectado:**
+- **Onde:** um modal de 440 px no desktop e uma folha de baixo no celular, com o aviso no sininho e a notificação do sistema;
+- `Um aparelho novo quer entrar na sua conta`;
+- a faixa `sunken` com o glifo e `Navegador Chrome no Windows` / `Pediu agora há pouco`;
+- `Confira se ele mostra este mesmo sinal:` e o sinal;
+- a linha `Liberado, ele abre todas as suas conversas, como este aparelho.`;
+- **os botões:** `Segure para liberar` (o "segure" do item 5, porque é uma decisão de confiança) e `Não fui eu` (secundário).
+- **Depois de `Não fui eu`:** o login do outro aparelho acaba, com o toast `Recusado. Aquele aparelho não abre nada: as conversas continuam cifradas.`
+
+**Na chave de recuperação:**
+- **a · Liberar com a chave:**
+  - `Voltar`, `Digite a chave de recuperação` e `São 24 letras e números, em 6 grupos. Pode colar tudo de uma vez.`;
+  - **o campo:** 1 só, Geist 600 19 px; os traços entram sozinhos a cada 4. Ele aceita minúsculas, espaços e traços, e não tem 0/O/1/I;
+  - o primário `Liberar este aparelho` e o link `Não tenho nenhum dos dois`;
+  - **os erros:** `Essa chave não confere. Confira letra por letra.`; depois de 5 erros, `Muitas tentativas. Tente de novo em 15 minutos.`
+- **b · Não tenho nenhum dos dois** (a honestidade da cifra):
+  - `Sem outro aparelho e sem a chave` e `Ninguém consegue abrir as suas conversas antigas, nem o Persona: elas só abrem nos seus aparelhos.`;
+  - a faixa `wash` com o glifo `key`: `Você pode começar com este aparelho limpo. Quem cuida da sua equipe deixa você entrar de novo, e as conversas daqui para a frente abrem normalmente.`;
+  - `Começar com este aparelho limpo` (secundário, com a confirmação `Começar limpo?` + `As conversas antigas ficam fechadas neste aparelho.`) e `Voltar`.
+  - **PERGUNTA ao Bolt/Lumen:** o que volta quando a equipe deixa a pessoa entrar de novo (as conversas de canal antigas voltam ou não?). O texto acima promete só "daqui para a frente", que é o mínimo garantido.
+- **c · Guardar a chave (1ª vez):**
+  - **Quando:** depois que o 1º aparelho fica pronto. **Não trava a entrada**: se a pessoa fechar, vira o cartão `Guarde a sua chave` na Casa (1 por vez, sai quando ela terminar), e a chave mora em `Perfil › Aparelhos e chave`;
+  - `Guarde a sua chave de recuperação` e `Se você perder os seus aparelhos, é com ela que você volta às suas conversas.`;
+  - **a chave** em 2 linhas de 3 grupos (Geist 600 20 px), na caixa `wash` tracejada;
+  - `Copiar` e `Imprimir` (os 2 secundários, `s`);
+  - o `lock` com `Quem tem esta chave libera um aparelho seu. O Persona não guarda cópia.`;
+  - a caixa `Guardei num lugar seguro`;
+  - `Pronto` (primário). Ele não fica desabilitado: sem a caixa marcada, aparece embaixo `Marque quando tiver guardado.`
+  - **Sem** "Baixar arquivo": um arquivo com a chave na pasta Downloads é o lugar mais fácil de vazar.
+
+### 34f · O que o Brush desenha (pedido em 12/11 21:00)
+1. **`aparelho-novo`** (300 × 200, fundo transparente, dia e noite): a Luna (a coruja) segurando um celular perto de um notebook aberto, com a luz da luminária passando de um para o outro. Substitui a `estacao-pareando`, que está na prancha só como reserva.
+2. **`chave-recuperacao`** (240 × 160): uma chave antiga com etiqueta de papel, num gancho, com a folhagem da casa. Fica no topo do §34e c.
+- Nada de texto na arte. O claro precisa de contraste com `--card`, e o escuro também.
+
+### 34g · Acessibilidade e o que nunca entra
+- **Leitura e foco:**
+  - cada passo troca o `<h1>` e o foco vai para ele (`tabindex=-1`);
+  - o erro é ligado ao campo por `aria-describedby` e anunciado com `role=alert`;
+  - a contagem de `Mandar de novo` **não** é anunciada a cada segundo.
+- **Zoom e cores:**
+  - a 200 % (≤ 800 px de CSS) a porta some e o cartão fica em cima;
+  - em forced-colors somem o pesponto, o degradê e a faísca.
+- **O celular:** com o teclado aberto (o `visualViewport` diminui), a porta encolhe até sumir, para o campo e o botão ficarem à vista.
+- **Nunca:**
+  - senha;
+  - "Lembrar de mim" (a sessão já é curta e renovável, D-120);
+  - CAPTCHA desenhado por nós (se o Worker precisar de proteção, o Bolt usa o Turnstile invisível e a tela não muda);
+  - o nome do provedor de e-mail;
+  - qualquer menção a Cloudflare ou Worker.

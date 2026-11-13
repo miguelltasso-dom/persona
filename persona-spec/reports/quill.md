@@ -1,5 +1,10 @@
 # Quill — relatos de implementação UI (mais recente no topo)
 
+## 2026-11-12 20:41 — HONEST-1: janela de silêncio no bootstrap
+
+- `shell/quiet-windows-sync.ts` acompanha o escopo, lê `listQuietWindows` e envia `{ kind: 'quiet', windows: [{ start, end }] }` à ponte opcional; erro não impede o boot e respostas de escopo antigo são descartadas. `shell/register-prism-screens.tsx` registra e desfaz a assinatura no ciclo de vida. `data/lumen-remote-panels.tsx` já enviava ao carregar, salvar e excluir. Teste novo: `tests/quiet-windows-sync.client.spec.ts`.
+- `node scripts/persona/with-lock.mjs "Quill quiet test correction" --lock check --wait-max 120000 -- pnpm exec vitest run packages/persona/client-ui-persona/tests/quiet-windows-sync.client.spec.ts --testTimeout 10000`: Test Files 1 passed (1); Tests 1 passed (1). Primeiro check-pkg encontrou tipo do mock; corrigido. `node scripts/persona/with-lock.mjs "Quill quiet check-pkg correction" --lock check --wait-max 180000 -- node scripts/persona/check-pkg.mjs client-ui-persona`: client-ui-persona: OK in 84.4s.
+- Bundle exclusivo `pnpm --filter @deepseek-ai/dsh-client-ui-persona run bundle`: exit 0. `node scripts/persona/with-lock.mjs "Quill quiet ui boot" --lock build --wait-max 180000 -- node scripts/persona/ui-boot-check.mjs`: bootstrap gate OK (visible: Atlas), console errors (0), comparação dirD pass true; app real abriu claro/escuro e captura do canal conferida. A ponte de notificações do desktop instalado exige prova ponta a ponta quando o lado do Rivet estiver integrado.
 ## 2026-11-12 08:29 — §23 no src + regras de peso (sem force no baseline)
 
 - **Em uma linha:** §23 no src (fonte C, balão v5, rosto R2 40 px, já no HEAD); pesos 800→600 em 114 blocos de texto (Geist), 500→400 em 87 blocos de texto, rótulos 500→600 em 8; as 82 linhas `texto-pequeno` re-chaveadas voltam ao peso antigo (800/500) e check-css-hygiene PASSOU com 0 novo e 345 de dívida; o peso novo dessas linhas entra junto quando o tamanho passar de 13 px. Bundle não refeito (pendente da trava de build).

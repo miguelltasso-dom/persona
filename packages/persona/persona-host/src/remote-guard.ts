@@ -5,6 +5,8 @@
 
 import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol'
 import { z } from 'zod'
+import { bindIterable, currentCaller, runAs, type Caller } from './remote-web/caller-context.ts'
+import { phoneAllows, REMOTE_NOT_ALLOWED } from './remote-web/phone-allow.ts'
 import { FEATURE_OFF_REASON, FEATURE_OFF_TEXT } from './surface-gates.ts'
 
 /** Reject bodies bigger than this (JSON bytes). */
@@ -56,7 +58,7 @@ export const RemoteRequestSchema = z.looseObject({
  * The closed vocabulary of `RemoteFault.details.reason`: a stable, kebab-case id the client keys on instead of reading the message (Anvil/Keel, CV-6).
  * Never a sentence for a person.
  */
-export type RemoteFaultReason = 'channel-archived' | 'feature-off' | 'connector-not-available' | 'connector-ambiguous'
+export type RemoteFaultReason = 'channel-archived' | 'feature-off' | 'connector-not-available' | 'connector-ambiguous' | 'remote-not-allowed' | 'pc-only' | 'device-revoked'
 
 /** What a fault carries besides its code. */
 export interface RemoteFaultDetails {
@@ -106,6 +108,10 @@ export interface RemoteGuardOptions {
   readonly peerOf?: () => string
   /** D-113: whether a call belongs to a surface that is OFF (refused first, with `feature-off`). Absent = nothing is off. */
   readonly surfaceOff?: (method: string) => boolean
+  /** M5: who is calling this Remote, from the Peer the Gateway fixed (the per-call view of the service, or `undefined` for an in-process call); throws a RemoteFault when the device is not live. Absent = nobody is asked. */
+  readonly callerOf?: (receiver: unknown) => Caller
+  /** M5: whether the member of a paired device is the OWNER of the team (the owner's phone may list and revoke devices). */
+  readonly isOwnerMember?: (memberId: string) => boolean
 }
 
 /**
@@ -120,6 +126,8 @@ export class RemoteGuard {
   readonly now: () => number
   readonly peerOf: () => string
   readonly surfaceOff: (method: string) => boolean
+  readonly callerOf: ((receiver: unknown) => Caller) | undefined
+  readonly isOwnerMember: (memberId: string) => boolean
   private readonly hits = new Map<string, number[]>()
 
   /**
@@ -134,6 +142,8 @@ export class RemoteGuard {
     this.now = options.now ?? Date.now
     this.peerOf = options.peerOf ?? (() => 'local')
     this.surfaceOff = options.surfaceOff ?? (() => false)
+    this.callerOf = options.callerOf
+    this.isOwnerMember = options.isOwnerMember ?? (() => false)
   }
 
   /** Drop rate-limit buckets (host reset between tests). */
@@ -147,10 +157,19 @@ export class RemoteGuard {
    * @param args - Wire arguments.
    * @param run - Original implementation.
    */
-  invoke(method: string, args: readonly unknown[], run: () => unknown): unknown {
+  invoke(method: string, args: readonly unknown[], run: () => unknown, receiver?: unknown): unknown {
+    const caller = this.callerOf?.(receiver)
+    if (caller === undefined) return this.invokeAs(method, args, run, undefined)
+    return runAs(caller, () => this.invokeAs(method, args, run, caller))
+  }
+
+  /** The call itself, as `caller` (M5): a paired device reaches only the permitted list; a stream it gets back is pulled as the device. */
+  private invokeAs(method: string, args: readonly unknown[], run: () => unknown, caller: Caller | undefined): unknown {
     this.admit(method, args)
+    if (caller?.kind === 'paired' && !phoneAllows(method, { memberIsOwner: this.isOwnerMember(caller.memberId) })) throw new RemoteFault('forbidden', 'forbidden', { reason: REMOTE_NOT_ALLOWED })
     try {
-      const result = run()
+      const raw = run()
+      const result = caller !== undefined && isAsyncIterable(raw) ? bindIterable(caller, raw) : raw
       if (isThenable(result)) {
         return Promise.resolve(result).catch((error: unknown) => {
           sanitizeRemoteError(error, knownIdsOf(args))
@@ -192,7 +211,9 @@ export class RemoteGuard {
   }
 
   private touchRate(method: string): void {
-    const key = `${this.peerOf()}:${method}`
+    const held = currentCaller()
+    const who = held?.kind === 'paired' ? `device:${held.deviceId}` : this.peerOf() // M5: a paired device has its own bucket
+    const key = `${who}:${method}`
     const now = this.now()
     const strict = REMOTE_STRICT_LIMITS[method]
     const cap = strict?.max ?? (WRITE.test(method) ? this.writeRateMax : this.rateMax)
@@ -217,8 +238,12 @@ export function installRemoteGuard(host: object, guard: RemoteGuard): void {
   for (const marker of remoteMethods(host)) {
     const original: unknown = Reflect.get(host, marker.method)
     if (typeof original !== 'function') continue
-    const bound = (original as (...args: unknown[]) => unknown).bind(host)
-    Reflect.set(host, marker.method, (...args: unknown[]) => guard.invoke(marker.method, args, () => bound(...args)))
+    const target = original as (...args: unknown[]) => unknown
+    // M5: keep `this`. The Gateway calls this on a per-call view of the service (`this.ctx.invocation.peer` is who is calling); an in-process call has `this === host`.
+    Reflect.set(host, marker.method, function (this: unknown, ...args: unknown[]) {
+      const self = this ?? host
+      return guard.invoke(marker.method, args, () => target.apply(self, args), self)
+    })
   }
 }
 
@@ -276,6 +301,10 @@ function classifyRemoteError(message: string): RemoteFaultCode {
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value)
+}
+
+function isAsyncIterable(value: unknown): value is AsyncIterable<unknown> {
+  return value !== null && typeof value === 'object' && Symbol.asyncIterator in value
 }
 
 function isThenable(value: unknown): value is Promise<unknown> {

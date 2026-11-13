@@ -17,6 +17,7 @@ export const MACHINE_ACCOUNT_DOCS = [
   'account_swap',
   'account_activity',
   'quota_wait',
+  'engine_local',
 ] as const
 
 /** Tabelas do banco que tambem sao da maquina (credenciais e politica de troca). */
@@ -43,18 +44,20 @@ export interface ReleaseDeps {
  * @param personaId - Her id.
  * @returns What was dropped.
  */
-export function releaseMachineSeat(deps: ReleaseDeps, projectId: string, personaId: string): { readonly seat: boolean; readonly hold: boolean; readonly waits: number } {
+export function releaseMachineSeat(deps: ReleaseDeps, projectId: string, personaId: string): { readonly seat: boolean; readonly hold: boolean; readonly waits: number; readonly engine: boolean } {
   const seat = deps.screens.get<SeatDoc>(projectId, 'active_account', personaId) !== undefined
   if (seat) deps.screens.delete(projectId, 'active_account', personaId)
   const hold = deps.screens.get<SeatDoc>(projectId, 'account_hold', personaId) !== undefined
   if (hold) deps.screens.delete(projectId, 'account_hold', personaId)
+  const engine = deps.screens.get(projectId, 'engine_local', personaId) !== undefined
+  if (engine) deps.screens.delete(projectId, 'engine_local', personaId)
   let waits = 0
   for (const row of deps.screens.list<WaitDoc>(projectId, 'quota_wait')) {
     if (row.personaId !== personaId) continue
     deps.screens.delete(projectId, 'quota_wait', row.ticketId)
     waits += 1
   }
-  return { seat, hold, waits }
+  return { seat, hold, waits, engine }
 }
 
 export interface ReleaseAccountDeps extends ReleaseDeps {

@@ -54,6 +54,14 @@ export interface PlaybookNote {
   readonly offers?: number
   /** "Agora não": the offer was turned down with this many uses; it is made again only after three more. */
   readonly declined?: { readonly uses: number; readonly at: string }
+  /** The DMs whose words this note holds (the title of a Task born there, what it asked, what the owner asked to change): only the people in ALL of them read it (D-119). Absent = a channel, or a note from before this was kept. */
+  readonly dms?: readonly string[]
+}
+
+/** The DMs a note holds once one more Task (born in `dmId`, when it was born in a DM) has told it something. */
+function withDm(dms: readonly string[] | undefined, dmId: string | undefined): { readonly dms?: readonly string[] } {
+  if (dmId === undefined || dmId === '') return dms === undefined ? {} : { dms }
+  return { dms: [...new Set([...(dms ?? []), dmId])] }
 }
 
 /** What the host gives the playbook. */
@@ -128,6 +136,8 @@ export interface PlaybookWin {
   readonly request: string
   /** The conversation (subject) the request came from. */
   readonly conversation?: string
+  /** The DM the Task was born in, when it was born in one (its words are the DM's: D-119). */
+  readonly dmId?: string
 }
 
 /** What {@link notePlaybookWin} did. */
@@ -154,7 +164,7 @@ export function notePlaybookWin(deps: PlaybookDeps, win: PlaybookWin): PlaybookR
   // The same delivery twice counts once.
   if (base.uses.some(use => use.ticketId === win.ticketId)) return { note: base, offered: false }
   let note: PlaybookNote = {
-    ...base, request: clip(win.request, BODY_LIMIT),
+    ...base, ...withDm(base.dms, win.dmId), request: clip(win.request, BODY_LIMIT),
     uses: [...base.uses, { ticketId: win.ticketId, day: dayOf(at, deps.offsetMinutes?.(at) ?? 0), at, ...(win.conversation === undefined || win.conversation === '' ? {} : { conversation: win.conversation }) }],
   }
   let offered = false
@@ -201,7 +211,7 @@ export function declinePlaybookOffer(deps: PlaybookDeps, projectId: string, appr
  */
 export function notePlaybookAdjustment(
   deps: PlaybookDeps,
-  change: { readonly projectId: string; readonly personaId: string; readonly title: string; readonly feedback: string },
+  change: { readonly projectId: string; readonly personaId: string; readonly title: string; readonly feedback: string; readonly dmId?: string },
 ): PlaybookNote | undefined {
   const title = clip(change.title, 90)
   const feedback = clip(change.feedback, ADJUSTMENT_LIMIT)
@@ -211,8 +221,15 @@ export function notePlaybookAdjustment(
   const base: PlaybookNote = found ?? {
     id: `pb-${change.personaId}-${slug(title)}`, personaId: change.personaId, title, request: '', createdAt: deps.now(), uses: [], adjustments: [],
   }
-  if (base.adjustments.includes(feedback)) return base
-  const note: PlaybookNote = { ...base, adjustments: [...base.adjustments, feedback].slice(-MAX_ADJUSTMENTS) }
+  // The words are the DM's even when the same line was already kept (it may have come from a channel first): the note holds this DM from now on.
+  if (base.adjustments.includes(feedback)) {
+    const held = withDm(base.dms, change.dmId)
+    if (held.dms?.length === base.dms?.length) return base
+    const marked: PlaybookNote = { ...base, ...held }
+    repos.put(change.projectId, PLAYBOOK_KIND, marked.id, marked)
+    return marked
+  }
+  const note: PlaybookNote = { ...base, ...withDm(base.dms, change.dmId), adjustments: [...base.adjustments, feedback].slice(-MAX_ADJUSTMENTS) }
   repos.put(change.projectId, PLAYBOOK_KIND, note.id, note)
   return note
 }

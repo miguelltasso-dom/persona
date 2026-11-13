@@ -17,7 +17,7 @@ it('DERIVA: todo doc de conta que o host le ou grava esta em MACHINE_ACCOUNT_DOC
   const found = new Set<string>()
   for (const file of sourceFiles(SRC)) {
     if (file.endsWith('account-docs.ts')) continue
-    for (const match of readFileSync(file, 'utf8').matchAll(/['"`](account_[a-z_]+|active_account|quota_wait)['"`]/gu)) found.add(match[1]!)
+    for (const match of readFileSync(file, 'utf8').matchAll(/['"`](account_[a-z_]+|active_account|quota_wait|engine_local)['"`]/gu)) found.add(match[1]!)
   }
   const known = new Set<string>([...MACHINE_ACCOUNT_DOCS, ...MACHINE_ACCOUNT_TABLES])
   expect([...found].filter(name => !known.has(name)), 'doc de conta fora da lista do que nao viaja').toEqual([])

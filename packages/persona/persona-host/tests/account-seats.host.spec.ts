@@ -167,13 +167,14 @@ it('MOVE-1 (regra 4): ao sair do computador, o assento, a espera e as esperas de
   kv.put('pp', 'account_hold', 'bia', { personaId: 'bia', accountId: 'claude:pessoal', since: CLOCK })
   kv.put('pp', 'quota_wait', 'tk-bia', { ticketId: 'tk-bia', assignmentId: 'a1', provider: 'claude', personaId: 'bia', since: CLOCK })
   kv.put('pp', 'quota_wait', 'tk-cris', { ticketId: 'tk-cris', assignmentId: 'a2', provider: 'claude', personaId: 'cris', since: CLOCK })
+  kv.put('pp', 'engine_local', 'bia', { cli: 'codex', model: 'default', at: CLOCK })
   kv.put('pp', 'account_limit_log', 'l1', { accountId: 'claude:pessoal', label: 'Pessoal', provider: 'claude', at: CLOCK })
-  expect(releaseMachineSeat({ screens: kv }, 'pp', 'bia')).toEqual({ seat: true, hold: true, waits: 1 })
+  expect(releaseMachineSeat({ screens: kv }, 'pp', 'bia')).toEqual({ seat: true, hold: true, waits: 1, engine: true })
   expect(activeOf(h, 'bia')).toBeUndefined()
   expect(kv.get('pp', 'account_hold', 'bia')).toBeUndefined()
   expect(kv.get('pp', 'quota_wait', 'tk-bia')).toBeUndefined()
   expect(kv.get('pp', 'quota_wait', 'tk-cris')).toBeDefined() // a espera de OUTRA persona fica
   expect(activeOf(h, 'cris')).toBe('claude:trabalho')
   expect(kv.get('pp', 'account_limit_log', 'l1')).toBeDefined() // o livro e so de acrescimo
-  expect(releaseMachineSeat({ screens: kv }, 'pp', 'bia')).toEqual({ seat: false, hold: false, waits: 0 }) // repetir nao faz nada
+  expect(releaseMachineSeat({ screens: kv }, 'pp', 'bia')).toEqual({ seat: false, hold: false, waits: 0, engine: false }) // repetir nao faz nada
 })

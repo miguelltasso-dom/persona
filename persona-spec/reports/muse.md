@@ -1152,3 +1152,58 @@ bundle (with-lock) → Build complete, 99 files
   1. **Sem a aparência da persona:** a persona "Probe Real" aparece com o avatar de LETRAS "PR" na barra e sem bicho escolhido. É do roteiro (o nome do teste), mas mostra que uma persona sem aparência cai nas iniciais. Uma persona sempre tem um bicho padrão (Quill/Prism, a verificar).
   2. **O subtítulo do "Equipe trabalhando"** troca de "Sua equipe está no pedido" para "Probe Real está no pedido" no meio da espera, o que faz o texto pular. Fique num só, com o nome quando ele já se sabe.
   3. **O LEAK-1** (o prompt interno como "Você" no #geral) ainda está neste build; já está corrigido no tree da v1.1.
+
+
+## 12/11 15:48 · D-116 e D-117 desenhados (aprovados pelo Atlas), o freio "stop" no stage
+
+**D-116 (onde a persona roda)**
+- A prancha está em `.maestri/tmp/shots/design/onde-roda/`:
+  - `criar`, `computadores` e `levar`;
+  - mais `celular-onde-roda`, com 5 telas.
+- O texto final está na parte da Muse (M0–M8) de `persona-spec/contracts/marco-dogfood-onde-roda.md`.
+- O que entrou depois do primeiro desenho:
+  - os 3 estados do Onyx;
+  - a folga = `capacity`;
+  - o código nasce no PC de quem cadastra (Keel), e o computador novo entra por "Entrar como computador da equipe";
+  - o Lumen: as conexões não vão (L1), a memória de DM fica, com a caixa desmarcada para levar, mais o aviso fixo M8 (L3), "apagada" (L5) e o sinal de 12 caracteres (L6.3);
+  - o passo em curso com os 3 pontinhos da casa (Atlas: o anel parado parecia ©).
+
+**D-117 (persona que mexe no computador)**
+- A prancha está em `.maestri/tmp/shots/design/mexer/` (`criar`, `desktop`, `celular`).
+- A parte da Muse (X0–X6) está em `persona-spec/contracts/marco-dogfood-mexer-no-pc.md`.
+- Na criação:
+  - "Quem pode usar? Só eu | A equipe";
+  - "Quem pode pedir coisas a…";
+  - "Pode mexer no computador?", desligado por padrão;
+  - o caso proibido vira a explicação com "Escolher um computador da equipe".
+- Ao vivo: só a janela da persona, e só assiste quem pode pedir (Atlas).
+- Sem pronome e sem "Parada" com gênero.
+
+**Implementação (stage)**
+- `.maestri/tmp/muse/marco/` tem o `Button variant="stop"`: o freio sólido com o quadrado; tinta branca no claro e ameixa no escuro.
+- O teste `tests/button-stop.client.spec.ts` passa 4/4 pela trava.
+- Na liberação, os arquivos vão para `primitives/` e o teste para `tests/`. O `ORIGINAL.sha1` está guardado.
+
+**Também feito**
+- ACEITE Muse de "Permissões ativas", com o pré-check do Ember. A aba fica como está: a opção (a) do Lumen.
+- O passo de teste "trocar de conta no limite" em `INSTALAR-PERSONA-LEIGO.md`, conferido pelo Rivet linha a linha.
+- O ticket ao Tally: `swapPolicy.personaOwn` com "ela".
+
+**Pendente**
+- Os glifos `cursor` e `replay` com o Brush.
+- Os aceites, por captura, quando o Prism, o Cobalt e o Lumen implementarem D-116 e D-117 e a Casa (§29).
+
+## 12/11 21:04 · D-120 desenhado: a tela Entrar, o convite e o aparelho novo
+
+- A prancha está em `.maestri/tmp/shots/design/entrar/`: `entrar`, `estados`, `convite`, `aparelho`, `chave` e `celular`, nos 2 temas. O HTML fica em `.maestri/tmp/muse/casa-equipe/entrar.html`.
+- O texto final está em `persona-spec/design/COLHEITA-MUSE.md` §34 (a–g).
+- **A ideia:** o cartão Entrar sobe sobre o capacho da arte da porta, com o kit D-118.
+- **Entrar e criar conta são 1 tela:** o e-mail decide. A conta nova pede 1 campo, e pelo Google esse passo não existe.
+- **Os 2 métodos estão desenhados.** O componente cobre os 3 casos sem desenho novo. O botão do Google segue o guia de marca; no desktop, ele abre no navegador do sistema.
+- **O convite:** `Pedir para entrar` e depois o Pedido enviado do §27.
+- **O aparelho novo:** liberar por um aparelho conectado (o sinal + `Segure para liberar`) ou pela chave de recuperação, mais o `Não tenho nenhum dos dois`, honesto.
+- **Enviado:** ao Atlas, ao Bolt (com os requisitos do Worker), ao Cobalt e ao Brush (as artes `aparelho-novo` e `chave-recuperacao`).
+- **Pendente:**
+  - a resposta do Bolt e do Lumen sobre o que volta quando a equipe deixa a pessoa entrar de novo sem a chave;
+  - as artes do Brush;
+  - o aceite por captura quando ligarem.

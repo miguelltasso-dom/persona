@@ -15,6 +15,7 @@
 
 import type { Runner } from '@deepseek-ai/dsh-persona-engine'
 import type { Station } from './station.ts'
+import type { StationWaitStore } from './station-wait-store.ts'
 
 /** Why the station did not take the turn. */
 export type StationBusyReason = 'desligada' | 'sem-memoria'
@@ -61,6 +62,8 @@ export interface StationWaitRow {
 export interface StationGateDeps {
   /** Run again the Tasks the station stopped (`Orchestration.resumeStationWaiting`). */
   readonly resume: () => Promise<unknown>
+  /** M4: close these idle warm CLIs (the ones the RAM admission named, oldest first) to make room; never a working one. */
+  readonly evict?: (ids: readonly string[]) => unknown
   /** How long to wait before looking for memory again; default 30 s. */
   readonly retryMs?: number
   /** How long an admitted turn may take to start before the awake request is let go; default 60 s. */
@@ -69,6 +72,8 @@ export interface StationGateDeps {
   readonly schedule?: (run: () => void, ms: number) => unknown
   /** Cancels what `schedule` returned. */
   readonly cancel?: (handle: unknown) => void
+  /** M4: where the waiting list survives a restart; default RAM only. */
+  readonly store?: StationWaitStore
 }
 
 /** The gate between the turns of the host and the dedicated station. */
@@ -88,6 +93,10 @@ export class StationGate {
   constructor(station: Station, deps: StationGateDeps) {
     this.station = station
     this.deps = deps
+    // M4: what the last launch left waiting. A row that moved on since is dropped by `resumeStationWaiting`, not here.
+    for (const row of deps.store?.load() ?? []) this.waiting.set(`${row.projectId}:${row.ticketId}`, row)
+    if (this.waiting.size > 0) this.station.noteOpenWork(this.waiting.size, 'station-wait')
+    if (this.waiting.size > 0 && this.station.isRunning()) this.armRetry()
   }
 
   /**
@@ -99,6 +108,7 @@ export class StationGate {
     // An ordinary computer: nothing is measured and nothing is held.
     if (!this.station.isPaired()) return
     const answer = this.station.admitTurn()
+    if (answer.evict.length > 0) this.deps.evict?.(answer.evict) // M4: it asked for room, so the idle CLIs it named are closed (before: the list was thrown away)
     if (!answer.ok) {
       this.armRetry()
       throw new StationBusyError('sem-memoria')
@@ -140,6 +150,7 @@ export class StationGate {
    */
   waitFor(row: StationWaitRow): void {
     this.waiting.set(`${row.projectId}:${row.ticketId}`, row)
+    this.persistWaiting()
     // A Task stopped by the switch waits for the switch; one stopped by memory looks again (armed at the refusal).
     if (this.station.isRunning()) this.armRetry()
   }
@@ -148,7 +159,14 @@ export class StationGate {
   takeWaiting(): StationWaitRow[] {
     const rows = [...this.waiting.values()]
     this.waiting.clear()
+    this.persistWaiting()
     return rows
+  }
+
+  /** Remember the list on disk and tell the station how many cards still wait for it (they keep Windows awake). */
+  private persistWaiting(): void {
+    this.deps.store?.save([...this.waiting.values()])
+    this.station.noteOpenWork(this.waiting.size, 'station-wait')
   }
 
   /** @returns How many Tasks wait for the station. */

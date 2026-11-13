@@ -19,6 +19,16 @@ export interface StationState {
   readonly paired: boolean
   /** The person did not turn the station off (the default is on: nothing blocks someone who never opened the screen). */
   readonly running: boolean
+  /** M4: falls in a row since the last stable run (the recovery budget; absent = 0). */
+  readonly crashes?: number
+  /** M4: epoch ms of the last launch, so the next launch knows how long the previous run lasted. */
+  readonly lastStartAt?: number
+  /** M4: `clean` when the previous run left on purpose (Quit, installed update); the next launch reads it and clears it. */
+  readonly lastExit?: 'clean'
+  /** M4: why the station is off when the app itself stopped it (`queda` = the fall budget ran out); absent = the person's own switch. */
+  readonly pausedBy?: 'queda'
+  /** M4/D-116: the team and the registration of this computer; absent = a local station (legacy). */
+  readonly team?: { readonly workspaceId: string; readonly computerId: string }
 }
 
 /** The state of a machine nobody configured. */
@@ -34,11 +44,17 @@ export function loadStationState(dataRoot: string): StationState {
   let parsed: unknown
   try { parsed = JSON.parse(text) } catch (error) { void error; return DEFAULT_STATION_STATE }
   if (parsed === null || typeof parsed !== 'object') return DEFAULT_STATION_STATE
-  const record = parsed as { paired?: unknown; running?: unknown }
+  const record = parsed as { paired?: unknown; running?: unknown; crashes?: unknown; lastStartAt?: unknown; lastExit?: unknown; pausedBy?: unknown; team?: { workspaceId?: unknown; computerId?: unknown } | null }
+  const team = record.team
   return {
     paired: record.paired === true,
     // Only an explicit `false` turns the station off; anything else (missing, hand-edited garbage) is the default, on.
     running: record.running !== false,
+    ...(typeof record.crashes === 'number' && Number.isInteger(record.crashes) && record.crashes > 0 ? { crashes: record.crashes } : {}),
+    ...(typeof record.lastStartAt === 'number' && Number.isFinite(record.lastStartAt) ? { lastStartAt: record.lastStartAt } : {}),
+    ...(record.lastExit === 'clean' ? { lastExit: 'clean' as const } : {}),
+    ...(record.pausedBy === 'queda' ? { pausedBy: 'queda' as const } : {}),
+    ...(typeof team?.workspaceId === 'string' && typeof team.computerId === 'string' ? { team: { workspaceId: team.workspaceId, computerId: team.computerId } } : {}),
   }
 }
 

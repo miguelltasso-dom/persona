@@ -26,6 +26,15 @@ test('persona-gate: fecho do HEAD, sala limpa (nomes estritos) e lint com baseli
   assert.doesNotMatch(gate, /PERSONA_GATE_BASE \?\? 'HEAD'\)/u)
 })
 
+test('persona-gate: o typecheck COMPLETO (agregado do host na raiz, que cobre os specs do host) roda em TODA execução, antes do selo; só PERSONA_GATE_FULL_TYPECHECK=0 o desliga (paridade com o pack)', () => {
+  // TS2551 em tests/boot-recovery-waits-engine.host.spec.ts chegou ao pack do S3 porque o check-pkg não olha os specs do host e o gate só rodava o agregado com --installer (Keel 12/11 19:31).
+  assert.match(gate, /const fullTypecheck = installerMode \|\| process\.env\.PERSONA_GATE_FULL_TYPECHECK !== '0'/u)
+  assert.match(gate, /if \(fullTypecheck && failing\.size === 0\)/u)
+  assert.doesNotMatch(gate, /if \(installerMode && failing\.size === 0\)/u, 'o agregado não pode voltar a depender só do --installer')
+  assert.match(gate, /run\('pnpm', \['run', 'typecheck'\]/u)
+  assert.ok(at(gate, "run('pnpm', ['run', 'typecheck']") < at(gate, "persona-gate-ok.json'), JSON.stringify"), 'o typecheck completo vem antes do selo')
+})
+
 test('pre-push: roda o fecho do HEAD sempre e só aceita selo com `content: true` (selo antigo não vale)', () => {
   assert.ok(at(prePush, 'check-head-closure.mjs') < at(prePush, 'persona-gate-ok.json'), 'o fecho vem antes de olhar o selo')
   assert.match(prePush, /stamp\.content === true/u)

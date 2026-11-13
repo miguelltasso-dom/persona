@@ -186,10 +186,18 @@ export async function assistantToPreview(page: Page, company: string): Promise<v
   await page.getByText('Prévia do organograma e do Teste dos 2 dias offline.').waitFor({ state: 'visible', timeout: 30_000 })
 }
 
-/** Number on the "Sua equipe" rail group (0 when unreadable). */
+/**
+ * Personas on the rail. The old rail has a "Sua equipe" group whose title carries the number (`#persona-rail-team-title`); the product's default (NAV-SPEC A-1, `ConversationsRail`) has a "Pessoas" section with
+ * one DM row per persona (`[data-conversation-kind="dm"][data-persona-id]`) and NO number: the installed app (S3b, 12/11 20:11) and the dev desktop both read 0 forever and the hire timed out ("rail: 0")
+ * although the rows were there. 0 when unreadable.
+ */
 export async function railTeamCount(page: Page): Promise<number> {
-  const text = await page.locator('#persona-rail-team-title').innerText().catch(() => '')
-  return Number(/(\d+)/u.exec(text)?.[1] ?? '0')
+  const oldRail = page.locator('#persona-rail-team-title')
+  if (await oldRail.count() > 0) {
+    const text = await oldRail.innerText().catch(() => '')
+    return Number(/(\d+)/u.exec(text)?.[1] ?? '0')
+  }
+  return page.locator('[data-persona-conversations] [data-conversation-kind="dm"][data-persona-id]').count()
 }
 
 /** "Pular assistente" opens the blank persona editor (a full page, not a modal): leave through the shell home. */

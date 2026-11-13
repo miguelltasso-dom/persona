@@ -7,7 +7,8 @@
  * Behind `Config.productTools` (OFF by default): until the CLI transport is proven with a real run, nothing here is reachable.
  */
 
-import { allowsTool, HARNESS_TOOLS, openTurnTools, type HarnessToolName, type McpGateway, type ToolLevel, type TurnToolSet } from '@deepseek-ai/dsh-persona-runners'
+import { allowsTool, HARNESS_TOOLS, openTurnTools, type AuthorityKind, type ComputerActingContext, type HarnessToolName, type McpGateway, type ToolLevel, type TurnToolSet } from '@deepseek-ai/dsh-persona-runners'
+import { selectTurnTools } from './computer-run-origin.ts'
 import { ASK_TOOL } from './persona-ask-tool.ts'
 import type { StableTools } from './tool-stability.ts'
 
@@ -24,6 +25,10 @@ export interface ProductToolsTurn {
   readonly ticketId: string
   readonly assignmentId: string
   readonly cwd: string
+  /** D-117: who the turn acts for (the runner's per-turn authority): the gateway refuses the computer tools unless a person is behind it. Absent = the card of today. */
+  readonly authority?: AuthorityKind
+  /** Live computer-use execution context (`runId`, `target`, `signal`) when the host holds an active human-authorized ComputerRun for this turn. */
+  readonly computer?: ComputerActingContext
 }
 
 /** Opens the product tools of ONE turn (and releases them when the turn ends), or none. */
@@ -110,14 +115,18 @@ export function productToolsOpener(input: ProductToolsRules & {
     // person, a colleague, the team's opinion, passing work on and giving a review's verdict do not touch files or the world, so the lease opens at `read`
     // and a persona without a grant is handed ONLY those (board, sprints, routines, hiring keep following the grant).
     const grantless = input.toolLevel === 'none'
+    const computerAuthorized = turn.computer !== undefined && turn.computer.signal?.aborted !== true && (turn.authority === undefined || turn.authority === 'person')
+    const effectiveLevel: ToolLevel = computerAuthorized ? 'write' : (grantless ? 'read' : input.toolLevel)
     const set = openTurnTools(input.gateway, {
       run: { personaId: turn.personaId, ticketId: turn.ticketId, assignmentId: turn.assignmentId },
-      toolLevel: grantless ? 'read' : input.toolLevel,
+      toolLevel: effectiveLevel,
       worktree: turn.cwd,
+      ...(turn.authority === undefined ? {} : { authority: turn.authority }),
+      ...(computerAuthorized ? { computer: turn.computer } : {}),
     })
     if (set === undefined) return undefined
-    // The lease announces every harness tool the host wired; this Task gets only the ones it needs (the lease still closes with the turn).
-    const tools = set.tools.filter(tool => needed.includes(tool.name) && (!grantless || COORDINATION.has(tool.name)))
+    // The lease announces every harness tool the host wired; this Task gets only the ones it needs (plus `persona_computer_*` when `computerAuthorized`).
+    const tools = selectTurnTools(set.tools, needed, grantless, COORDINATION, computerAuthorized)
     if (tools.length === 0) {
       void set.close?.()
       return undefined

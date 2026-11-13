@@ -23,6 +23,14 @@ export const SURFACES = {
   skillImport: 'PERSONA_SURFACE_SKILL_IMPORT',
   /** Item 17 shared between personas: ON by default in the product since its P0-01 closed (the variable turns it OFF with `0`). */
   sharedBrowser: 'PERSONA_SURFACE_SHARED_BROWSER',
+  /** M1/M2/M6: the project responsible and the board that moves by itself. */
+  projectLead: 'PERSONA_SURFACE_PROJECT_LEAD',
+  /** M5: the remote gate (Tailscale), pairing and the paired devices. */
+  remoteAccess: 'PERSONA_SURFACE_REMOTE_ACCESS',
+  /** D-116: team computers and where a persona runs (enroll, move, presence). */
+  computers: 'PERSONA_SURFACE_COMPUTERS',
+  /** D-118: the persona notebook (what she knows, in her own words). */
+  notebook: 'PERSONA_SURFACE_NOTEBOOK',
 } as const
 
 export type Surface = keyof typeof SURFACES
@@ -37,6 +45,10 @@ export interface SurfacesView {
   readonly channels: boolean
   readonly skillImport: boolean
   readonly sharedBrowser: boolean
+  readonly projectLead: boolean
+  readonly remoteAccess: boolean
+  readonly computers: boolean
+  readonly notebook: boolean
   /** Which default decided the ones nobody set: `production` (the installed app: OFF) or `test` (Vitest, unless overridden: ON). */
   readonly defaults: FlagDefaults
 }
@@ -77,6 +89,10 @@ export function resolveSurfaces(
     channels: one('channels'),
     skillImport: one('skillImport'),
     sharedBrowser: one('sharedBrowser'),
+    projectLead: one('projectLead'),
+    remoteAccess: one('remoteAccess'),
+    computers: one('computers'),
+    notebook: one('notebook'),
     defaults,
   }
 }
@@ -107,6 +123,16 @@ export const SURFACE_REMOTES: Readonly<Record<string, Surface>> = {
   previewSkillImport: 'skillImport', importSkills: 'skillImport', refreshSkill: 'skillImport', approveSkillUpdate: 'skillImport',
   // station (item 24, Prism)
   stationView: 'station', issueStationCode: 'station', pairStation: 'station', setStationRunning: 'station',
+  // projectLead (Flint): OFF in the product
+  getProjectResponsible: 'projectLead', setProjectResponsible: 'projectLead',
+  // notebook (Lumen): OFF in the product
+  getPersonaNotebook: 'notebook',
+  // remoteAccess (Bolt): OFF in the product
+  approvePair: 'remoteAccess', getRemoteAccess: 'remoteAccess', issueDeviceCode: 'remoteAccess', listDevices: 'remoteAccess', listPairRequests: 'remoteAccess', rejectPair: 'remoteAccess', renameDevice: 'remoteAccess', revokeDevice: 'remoteAccess', setRemoteAccess: 'remoteAccess',
+  // computers (Bolt/Flint): OFF in the product
+  confirmComputer: 'computers', enrollThisComputer: 'computers', getPersonaHome: 'computers', getTransfer: 'computers', issueComputerCode: 'computers', listComputers: 'computers', movePersona: 'computers', previewMovePersona: 'computers', reactivatePersonaHere: 'computers', rejectComputer: 'computers', revokeComputer: 'computers',
+  // projectLead (Flint): OFF in the product
+  getCareOverview: 'projectLead', getProjectCare: 'projectLead', setProjectAutopilot: 'projectLead',
   // sharedBrowser (item 17, Forge): ON by default; off = refused here
   browserView: 'sharedBrowser', createBrowserProfile: 'sharedBrowser', renameBrowserProfile: 'sharedBrowser', grantBrowserProfile: 'sharedBrowser', revokeBrowserProfile: 'sharedBrowser', takeBrowserProfile: 'sharedBrowser', releaseBrowserProfile: 'sharedBrowser', closeBrowserProfile: 'sharedBrowser',
 }

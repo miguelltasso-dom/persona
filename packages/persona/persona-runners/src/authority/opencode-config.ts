@@ -32,8 +32,34 @@ export interface OpenCodeGrants {
 
 type Action = 'allow' | 'deny'
 
+/** Every upper/lower-case spelling of `word` (`.git` → `.git`, `.giT`, … `.GIT`). */
+function caseSpellings(word: string): string[] {
+  let out = ['']
+  for (const char of word) {
+    const forms = char.toLowerCase() === char.toUpperCase() ? [char] : [char.toLowerCase(), char.toUpperCase()]
+    out = out.flatMap(prefix => forms.map(form => `${prefix}${form}`))
+  }
+  return out
+}
+
+/**
+ * P0-B (S4, Mend): the edit rules that keep OpenCode out of the `.git` of a repository (folder or file), its 8.3 names and the spelling Windows opens the same (`.git.`). OpenCode
+ * matches a rule's pattern with `*` = any text (separators too) and the LAST matching rule wins, so these come after `"*": "allow"`. Only git writes there: a `.git/config` or a `.git`
+ * FILE of the persona's runs her programs on the next `git add` (`filter.*.clean`), in any engine and in the host. Proven on the real CLI 1.19.3: without them, `edit` of
+ * `<draft>/.git/config` was applied.
+ */
+function gitEditRules(): Record<string, Action> {
+  const rules: Record<string, Action> = {}
+  for (const dotGit of caseSpellings('.git')) {
+    for (const pattern of [`*${dotGit}`, `*${dotGit}/*`, `*${dotGit}\\*`, `*${dotGit}.`, `*${dotGit}./*`, `*${dotGit}.\\*`]) rules[pattern] = 'deny'
+  }
+  for (const short of caseSpellings('git~')) for (const pattern of [`${short}*`, `*/${short}*`, `*\\${short}*`]) rules[pattern] = 'deny'
+  for (const hashed of caseSpellings('gi')) for (const pattern of [`${hashed}????~*`, `*/${hashed}????~*`, `*\\${hashed}????~*`]) rules[pattern] = 'deny'
+  return rules
+}
+
 /** The permission block (exported for tests). */
-export function opencodePermission(grants: OpenCodeGrants, writing: boolean): Record<string, Action> {
+export function opencodePermission(grants: OpenCodeGrants, writing: boolean): Record<string, Action | Record<string, Action>> {
   return {
     // Carbon P0-04: deny by default (a tool this file does not know is closed), then the rules below, which win because they come after.
     '*': 'deny',
@@ -41,7 +67,7 @@ export function opencodePermission(grants: OpenCodeGrants, writing: boolean): Re
     glob: 'allow',
     grep: 'allow',
     list: 'allow',
-    edit: writing && grants.files === 'write' ? 'allow' : 'deny',
+    edit: writing && grants.files === 'write' ? { '*': 'allow', ...gitEditRules() } : 'deny',
     bash: 'deny',
     webfetch: grants.web === 'none' ? 'deny' : 'allow',
     external_directory: 'deny',

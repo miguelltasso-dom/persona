@@ -38,6 +38,8 @@ export const EMBER_SITE = 'Mercado da Lia'
 export const EMBER_ENGINE: FakeCliOptions = {
   // Um turno leva ≥ 1,5 s: as 3 falas do grupo são postadas em < 1 s e NENHUMA resposta de modelo cabe entre elas.
   turnMs: 1_500,
+  // Which pieces of the request reached the worker's prompt (the log says yes/no per turn; never the text): the failure messages print it.
+  needles: ['código 2FA que chega por WhatsApp', 'WhatsApp', 'preciso que você', 'Mercado da Lia'],
   rules: [
     { match: 'código 2FA que chega por WhatsApp', reply: 'Abri o pedido do código. Quando você preencher, eu sigo.' },
     { match: 'cartaz da promoção do pão de queijo', reply: 'Cartaz pronto: título "Pão de queijo em dobro!", destaque "2 por R$ 9", de sexta a domingo, pedidos pelo WhatsApp. Segue para a sua revisão.' },
@@ -85,6 +87,14 @@ export function twoFactorProblems(request: { readonly state: string; readonly si
 }
 
 interface SeededHostTask { readonly id: string; readonly title: string; readonly stage: string; readonly executor?: string }
+
+/** What the stub did in its last turns (for a failure message): each turn with the size of its prompt and which needles it held, each tool call with its outcome. */
+function stubSummary(session: RealPersonaSession): string[] {
+  return session.fakeCli.invocations().filter(call => call.event === 'toolcall' || call.event === 'turn').slice(-12).map((call) => {
+    const seen = call.needles === undefined ? '' : ` needles=${Object.entries(call.needles).map(([needle, held]) => `${needle}:${held ? 'sim' : 'não'}`).join(',')}`
+    return `${call.event}${call.toolName === undefined ? '' : `:${call.toolName}`}${call.ok === undefined ? '' : `:${String(call.ok)}`}${call.promptChars === undefined ? '' : ` ${String(call.promptChars)}c`}${seen}${call.text === undefined ? '' : ` "${call.text.slice(0, 160)}"`}`
+  })
+}
 
 /**
  * Opens the app with the vault's TEST cipher on: the web host has no DPAPI channel, so without it the Cofre is "not sealable" and `ask_vault_code` REFUSES (1st round, 12/11 14:51: no request was ever opened).
@@ -153,7 +163,7 @@ export async function seedEmberHome(options: { readonly home: string; readonly v
     const thread = lines(await channelMessages(page, tenant))
     // Diagnosis (1st round, 12/11 14:51: no request was ever opened and nothing said why): what the stub did with the tool and what the host kept.
     if (code === undefined) {
-      const stub = v11.session.fakeCli.invocations().filter(call => call.event === 'toolcall' || call.event === 'turn').slice(-12).map(call => `${call.event}${call.toolName === undefined ? '' : `:${call.toolName}`}${call.ok === undefined ? '' : `:${String(call.ok)}`}${call.text === undefined ? '' : ` "${call.text.slice(0, 160)}"`}`)
+      const stub = stubSummary(v11.session)
       const tasks = (await hostRpcOk<SeededHostTask[]>(page, 'listTasks', scope)).map(task => `${task.title.slice(0, 40)} [${task.stage}]`)
       throw new Error(`o pedido de código não abriu. Stub: ${stub.join(' | ') || 'nenhum evento'}. Tarefas: ${tasks.join(' | ')}. Fim do fio: ${thread.slice(-4).map(line => `${line.actorId}: ${line.body.slice(0, 70)}`).join(' | ')}`)
     }
@@ -166,7 +176,7 @@ export async function seedEmberHome(options: { readonly home: string; readonly v
     return {
       conversation: { messages: thread.length, groupOfThree: [...EMBER_TEXT.group], personaReplies: thread.filter(line => line.actorId !== tenant.memberId).length },
       delivery: { personaName: maker.name, taskId: review!.id, title: review!.title, stage: review!.stage },
-      twoFactor: { personaName: attendant.name, requestId: code!.id, site: code!.site, state: code!.state },
+      twoFactor: { personaName: attendant.name, requestId: code.id, site: code.site, state: code.state },
     }
   } finally {
     await v11.close()
@@ -176,7 +186,7 @@ export async function seedEmberHome(options: { readonly home: string; readonly v
 /**
  * Reabre o app real em cima de um `home` já semeado (o estado está no banco; o onboarding do CLIENTE é dispensado pelo storage).
  * O pedido de código do 2FA VENCE em 10 min (`CODE_REQUEST_TTL_MS` do host) e o relógio do host é o de verdade: um home semeado horas antes volta com o cartão vencido. Por isso, por padrão, a abertura
- * RENOVA o pedido quando não há nenhum pendente (a persona abre outro, ~1 min); `renewCode: false` abre o home como ele está.
+ * TENTA renovar o pedido quando não há nenhum pendente (a persona abre outro, ~1 min; se a renovação falhar a sessão abre assim mesmo e a falha vai para o stderr); `renewCode: false` abre o home como ele está.
  * @param options - `home` (de preferência uma cópia, ver {@link copySeededHome}), `engine` (extra do CLI de mentira), o viewport e `renewCode`.
  */
 export async function openSeededEmberApp(options: { readonly home: string; readonly engine?: FakeCliOptions; readonly viewport?: { width: number; height: number }; readonly renewCode?: boolean }): Promise<RealPersonaSession> {
@@ -190,10 +200,11 @@ export async function openSeededEmberApp(options: { readonly home: string; reado
   }))
   if (options.renewCode === false) return session
   try {
-    await renewTwoFactor(session.page)
+    await renewTwoFactor(session.page, session)
   } catch (error) {
-    await session.close().catch(() => undefined)
-    throw error
+    // BEST EFFORT: the renewal is not proven yet (12/11 16:20: the reopened app answered the request with the stub's default text). A failed renewal must not take the whole app away from the Ember:
+    // the session stays open, only the "Precisa de um código" card may be expired. The message below says so.
+    process.stderr.write(`[seed-ember] a renovação do pedido de código falhou; o cartão do 2FA pode estar vencido (dura 10 min depois de semeado ou renovado): ${error instanceof Error ? error.message.slice(0, 400) : String(error)}\n`)
   }
   return session
 }
@@ -202,19 +213,32 @@ export async function openSeededEmberApp(options: { readonly home: string; reado
  * Garante UM pedido de código pendente (o cartão "Precisa de um código · Mercado da Lia"): se o do seed venceu (ou foi preenchido/cancelado), a persona do Atendimento abre outro, como no seed.
  * Chame de novo no meio de um lote longo de capturas (o cartão dura 10 min). Devolve o pedido pendente.
  * @param page - A página do app já aberto (o shell montado).
+ * @param session - A sessão (opcional): com ela a falha diz o que o CLI de mentira fez com a ferramenta.
  */
-export async function renewTwoFactor(page: Page): Promise<{ readonly id: string; readonly state: string; readonly site?: string }> {
+export async function renewTwoFactor(page: Page, session?: RealPersonaSession): Promise<{ readonly id: string; readonly state: string; readonly site?: string }> {
   await page.locator('[data-persona-shell]').waitFor({ state: 'visible', timeout: 120_000 })
   const tenant = await until(page, async () => v11Tenant(page).catch(() => undefined), 60_000, 500)
   if (tenant === undefined) throw new Error('o app não gravou o tenant (persona.tenant.v1): não sei de que projeto renovar o código')
   const scope = SCOPE_OF(tenant)
-  const pendingNow = async (): Promise<{ id: string; state: string; site?: string } | undefined> => (await hostRpcOk<Array<{ id: string; state: string; site?: string }>>(page, 'listCofreCodes', scope)).find(row => row.state === 'pending')
+  const allCodes = async (): Promise<Array<{ id: string; state: string; site?: string }>> => hostRpcOk<Array<{ id: string; state: string; site?: string }>>(page, 'listCofreCodes', scope)
+  const pendingNow = async (): Promise<{ id: string; state: string; site?: string } | undefined> => (await allCodes()).find(row => row.state === 'pending')
   const fresh = await pendingNow()
   if (fresh !== undefined) return fresh
+  // The engine must be READY before the person asks: right after a reopen the sidebar says "Claude · conferindo…" and a request posted then is deferred by the host and reaches the worker WITHOUT its words
+  // (12/11 16:12: none of the needles of the request was in the prompt, the stub answered its default delivery and never called the tool).
+  await page.getByText(/Claude · pronto/u).first().waitFor({ state: 'visible', timeout: 90_000 })
   const { attendant } = pickPersonas(await personasOf(page, tenant))
-  await postAsPerson(page, tenant, `@${attendant.name} ${EMBER_TEXT.twoFactor}`)
-  const renewed = await until(page, pendingNow, 90_000, 1_000)
-  if (renewed === undefined) throw new Error('a persona não abriu o pedido de código de novo (renovação do 2FA)')
+  // Each renewal asks in other words (a repeated message is a duplicate for the router; a @mention is routed BEFORE that rule, so this is only belt and braces — it was NOT the cause of the 1st failed renewal, 12/11 15:35).
+  const again = ['de novo', 'outra vez', 'mais uma vez', 'novamente'][(await allCodes()).length % 4] ?? 'de novo'
+  await postAsPerson(page, tenant, `@${attendant.name} preciso que você entre ${again} no site da loja e veja os pedidos de hoje; ele vai pedir o código 2FA que chega por WhatsApp`)
+  const renewed = await until(page, pendingNow, 75_000, 1_000)
+  if (renewed === undefined) {
+    // Diagnosis: what the stub did with the tool, what the host kept, how the thread ends (the same three facts the seed prints).
+    const stub = session === undefined ? [] : stubSummary(session)
+    const tasks = (await hostRpcOk<SeededHostTask[]>(page, 'listTasks', scope)).map(task => `${task.title.slice(0, 40)} [${task.stage}]`)
+    const thread = lines(await channelMessages(page, tenant)).slice(-4).map(line => `${line.actorId}: ${line.body.slice(0, 70)}`)
+    throw new Error(`a persona não abriu o pedido de código de novo (renovação do 2FA). Pedidos: ${(await allCodes()).map(row => row.state).join(',') || 'nenhum'}. Stub: ${stub.join(' | ') || 'nenhum evento'}. Tarefas: ${tasks.join(' | ')}. Fim do fio: ${thread.join(' | ')}`)
+  }
   return renewed
 }
 

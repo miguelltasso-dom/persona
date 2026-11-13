@@ -58,4 +58,16 @@ describe('host surfaces boot line (D-113)', () => {
     expect(surfacesProblems(vitestHost)).toHaveLength(5)
     expect(surfacesProblems(parseHostSurfaces(SURFACES.replace('station=0', 'station=1')))).toEqual([expect.stringContaining('station is ON')])
   })
+
+  it('the line GROWS: an extra field (projectLead today; remoteAccess, computers next) is tolerated, kept in `others`, never judged; the judged five still have to be there', () => {
+    const grown = '[persona-host] surfaces invite=0 station=0 channels=0 skillImport=0 sharedBrowser=1 projectLead=0 remoteAccess=1 computers=0 defaults=production'
+    const parsed = parseHostSurfaces(grown)
+    expect(parsed).toEqual({ invite: false, station: false, channels: false, skillImport: false, sharedBrowser: true, defaults: 'production', others: { projectLead: '0', remoteAccess: '1', computers: '0' } })
+    expect(surfacesProblems(parsed, 'on')).toEqual([])
+    // any order, extra field in the middle or first
+    expect(parseHostSurfaces('[persona-host] surfaces projectLead=0 defaults=production sharedBrowser=1 skillImport=0 channels=0 station=0 invite=0')?.sharedBrowser).toBe(true)
+    // a judged field missing or not 0/1 is NOT "tolerated": the run does not say what it must prove
+    expect(parseHostSurfaces('[persona-host] surfaces invite=0 station=0 channels=0 sharedBrowser=1 projectLead=0 defaults=production')).toBeUndefined()
+    expect(parseHostSurfaces('[persona-host] surfaces invite=0 station=maybe channels=0 skillImport=0 sharedBrowser=1 defaults=production')).toBeUndefined()
+  })
 })

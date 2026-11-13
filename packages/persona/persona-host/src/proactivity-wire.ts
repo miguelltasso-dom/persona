@@ -13,6 +13,7 @@ import type { HouseRules } from './house-rules.ts'
 import type { MorningBriefHost } from './morning-brief-host.ts'
 import type { Orchestration, ProjectRuntime } from './orchestration.ts'
 import type { ProactivityHost } from './proactivity.ts'
+import type { LeadBudget } from './project-lead.ts'
 import { ProactivityScheduler, type PostResult, type SchedulerOptions, type TeamRequest } from './proactivity-scheduler.ts'
 import type { TaskProposalPort } from './task-proposals.ts'
 import type { TeamStateBook } from './team-state.ts'
@@ -36,6 +37,8 @@ export interface ProactivityWireHost {
   readonly morningBrief?: Pick<MorningBriefHost, 'check'>
   /** HONEST-1: the team's quiet window; absent ⇒ no window. */
   readonly houseRules?: Pick<HouseRules, 'hold' | 'quietNow'>
+  /** Marco M2: the responsible's loop (stepped once per project per cycle, after the pull); absent ⇒ no loop. */
+  readonly lead?: { step(projectId: string, budget: LeadBudget): void }
 }
 
 /**
@@ -120,6 +123,7 @@ export function createProactivityScheduler(host: ProactivityWireHost, options: S
     }) ?? 0,
     ...(host.taskProposals === undefined ? {} : { proposals: host.taskProposals }),
     ...(host.houseRules === undefined ? {} : { houseRules: host.houseRules }),
+    ...(host.lead === undefined ? {} : { lead: host.lead }),
     ...(host.morningBrief === undefined ? {} : { morningBrief: (projectId) => { host.morningBrief?.check(projectId, 'tick') } }),
   }, options)
 }

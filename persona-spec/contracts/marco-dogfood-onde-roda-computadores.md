@@ -1,5 +1,7 @@
 # Marco Dogfood — "Onde roda": cadastro do computador da equipe (M4) — parte do Onyx, 12/11 (desenho, staging)
 
+> **ATUALIZAÇÃO 17:30 (Keel 17:23): ESCOPO REDUZIDO.** Identidade e cadastro de computador (certificado, roster assinado, confirmação no PC, revogação, quem pode cadastrar) são do **Bolt** (`persona-host/src/computers/computer-registry.ts`). Os §2 (quem cadastra), §3 (pareamento) e os Remotes de cadastro do §4 abaixo estão **substituídos** pelo desenho dele e NÃO serão implementados por mim. Fica comigo só a **presença**: `persona-host/src/station/computer-presence.ts` (batimento → ligado/pausado/desligado, RAM/capacidade, nº de personas, rótulo da conta), que LÊ o roster do Bolt. Vale deste documento: §1 (estado derivado do batimento), a trava persistente do código (já em `pairing.ts`, usada pelo código de pareamento da Estação) e as provas de presença.
+
 D-116 (Miguel/Atlas, 14:40). Cobre **só a minha parte**: a lista "Computadores da equipe", o pareamento por código, quem cadastra e o que o host sabe de cada computador. As telas estão em `marco-dogfood-onde-roda.md` (Prism/Muse); o modelo "onde roda" da persona e a presença são do Flint; o transporte cifrado e a transferência são do Bolt (item 23/M5); a revisão de segurança é da Lumen. Staging até "CANDIDATO VALIDADO"; revisor independente do Atlas antes de ligar. Atrás da flag de superfície `station` (D-113), padrão desligada.
 
 ## 0. O que já existe e muda

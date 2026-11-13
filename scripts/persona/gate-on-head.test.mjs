@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { installPnpmGuard, linkNodeModules, mapTarget, parseArgs, removeWorktree, unlinkLinks, workspaceDirs } from './gate-on-head.mjs'
+import { FORWARDED_FLAGS, PNPM_STATE_ENTRIES, gateArgsOf, installPnpmGuard, linkNodeModules, mapTarget, parseArgs, planOf, relink, removeWorktree, unlinkLinks, workspaceDirs } from './gate-on-head.mjs'
 import { isMutating, pnpmCommand } from './pnpm-guard.mjs'
 
 const GUARD = join(dirname(fileURLToPath(import.meta.url)), 'pnpm-guard.mjs')
@@ -77,6 +77,57 @@ test('parseArgs: --ref, --pkgs, --check-only, --keep e o que vem depois de -- va
   assert.deepEqual(args.passthrough, ['--skip-smoke', '--skip-typert'])
   assert.equal(parseArgs([]).ref, 'HEAD')
   assert.throws(() => parseArgs(['solto']), /argumento inesperado/u)
+})
+
+test('--installer/--skip-smoke/--skip-typert são do persona-gate e chegam a ele SEM o `--`, antes do que veio depois do `--`; --prebuild/--plan/--keep NÃO são encaminhados', () => {
+  assert.deepEqual(FORWARDED_FLAGS, ['installer', 'skip-smoke', 'skip-typert'])
+  assert.deepEqual(gateArgsOf(parseArgs(['--installer', '--prebuild'])), ['--installer'])
+  assert.deepEqual(gateArgsOf(parseArgs(['--prebuild', '--skip-smoke', '--installer', '--keep', '--', '--x'])), ['--installer', '--skip-smoke', '--x']) // ordem fixa, passthrough por último
+  assert.deepEqual(gateArgsOf(parseArgs([])), [])
+})
+
+test('planOf (em seco): o pré-build só aparece com --prebuild, roda ANTES do persona-gate, e o gate de corte leva --installer; --check-only não tem pré-build nem gate', () => {
+  const commit = 'c0d7578b86aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+  const cut = planOf(parseArgs(['--installer', '--prebuild']), commit)
+  assert.match(cut[0], /worktree limpo de c0d7578b86/u)
+  const prebuild = cut.findIndex((step) => /^PRÉ-BUILD: pnpm run build --profile local/u.test(step))
+  const gate = cut.findIndex((step) => /^persona-gate: node scripts\/persona\/persona-gate\.mjs --installer$/u.test(step))
+  assert.ok(prebuild > 0 && gate > prebuild, `o pré-build (${String(prebuild)}) precisa vir antes do gate (${String(gate)}): ${cut.join(' | ')}`)
+  assert.ok(cut.some((step) => /selo/u.test(step)))
+  assert.match(cut.at(-1), /worktree apagado/u)
+  assert.equal(planOf(parseArgs(['--installer']), commit).some((step) => /PRÉ-BUILD/u.test(step)), false, 'sem --prebuild não há pré-build')
+  const quick = planOf(parseArgs(['--check-only', '--prebuild', '--pkgs', 'persona-sync']), commit)
+  assert.equal(quick.some((step) => /PRÉ-BUILD|persona-gate:/u.test(step)), false, '--check-only é a prova rápida: sem pré-build e sem gate')
+  assert.ok(quick.some((step) => /check-pkg persona-sync/u.test(step)))
+  assert.match(planOf(parseArgs(['--keep']), commit).at(-1), /MANTIDO/u)
+})
+
+test('relink NÃO religa o estado do pnpm (.pnpm-task-run-state-v1 e os arquivos de estado do workspace): o pnpm recusa uma juncão ali (ERR_PNPM_UNSAFE_TASK_RUN_STATE_PATH, S3b), o resto continua juncão', () => {
+  const root = mkdtempSync(join(tmpdir(), 'relink-state-'))
+  try {
+    const src = join(root, 'orig', 'node_modules')
+    const dst = join(root, 'wt', 'node_modules')
+    mkdirSync(join(src, '.pnpm-task-run-state-v1'), { recursive: true })
+    mkdirSync(join(src, 'terceiro'), { recursive: true })
+    writeFileSync(join(src, 'terceiro', 'index.js'), 'x')
+    writeFileSync(join(src, '.pnpm-workspace-state-v1.json'), '{}')
+    relink(src, dst, join(root, 'orig'), join(root, 'wt'))
+    assert.equal(existsSync(join(dst, '.pnpm-task-run-state-v1')), false, 'o diretório de estado do pnpm não pode ser uma juncão no worktree')
+    assert.equal(existsSync(join(dst, '.pnpm-workspace-state-v1.json')), false)
+    assert.equal(lstatSync(join(dst, 'terceiro')).isSymbolicLink(), true, 'um terceiro continua sendo juncão para o original')
+    assert.ok(['.pnpm-task-run-state-v1', '.pnpm-workspace-state-v1.json', '.pnpm-workspace-state.json'].every((name) => PNPM_STATE_ENTRIES.has(name)))
+  } finally { unlinkLinks(join(root, 'wt')); rmSync(root, { recursive: true, force: true }) }
+})
+
+test('--plan de VERDADE (processo): imprime o plano, sai 0 e NÃO cria worktree nem roda nada', () => {
+  const before = existsSync(join(dirname(dirname(dirname(fileURLToPath(import.meta.url)))), '..', '.persona-gate-head-plan-probe'))
+  const result = spawnSync(process.execPath, [join(dirname(fileURLToPath(import.meta.url)), 'gate-on-head.mjs'), '--plan', '--installer', '--prebuild'], { encoding: 'utf8' })
+  assert.equal(result.status, 0, result.stdout + result.stderr)
+  assert.match(result.stdout, /GATE_ON_HEAD plano para [0-9a-f]{10} \(em seco: nada foi criado nem rodado\)/u)
+  assert.match(result.stdout, /PRÉ-BUILD: pnpm run build --profile local/u)
+  assert.match(result.stdout, /persona-gate\.mjs --installer/u)
+  assert.doesNotMatch(result.stdout, /pré-voo ok|worktree limpo de .* em /u, 'o plano não monta nada')
+  assert.equal(before, false)
 })
 
 // ------------------------------------------------------------------------------------------------------------------------------ SEGURANÇA (Keel 12/11)

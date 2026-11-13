@@ -1,6 +1,8 @@
 /** Persona host service and authenticated Remote controller. */
 import { statSync } from 'node:fs'
-import { freemem } from 'node:os'
+import { freemem, hostname, totalmem } from 'node:os'
+import { warmCapForRam } from './warm-pool-policy.ts'
+import { warmSweepBootLine, warmSweepEnabled } from './warm-pool.ts'
 import { basename, dirname, join } from 'node:path'
 import { Context } from '@deepseek-ai/cordis'
 import { z } from 'zod'
@@ -41,6 +43,8 @@ import {
   type StoredPersona,
 } from '@deepseek-ai/dsh-persona-store'
 import { dedupeLimitAccounts, foldUsage, poolProviderLimits, windowReserveOf as reserveOf, type WindowReserve } from '@deepseek-ai/dsh-persona-usage'
+import { createProjectAdmission } from './project-admission-host.ts'
+import type { ProjectAdmission, ProjectPauseEvent } from './project-admission.ts'
 import { CofreSecrets, createPersonaVault, VaultUnavailableError } from '@deepseek-ai/dsh-persona-vault'
 import { resolveSessionActor, sessionCan } from './auth.ts'
 import { ConnectionProbe } from './connection-probe.ts'
@@ -59,12 +63,14 @@ import { ticketAttention } from './attention.ts'
 import { curateSettledReport, rememberReportAudience } from './report-curation.ts'
 import { captureOwnerMemory } from './owner-memory.ts'
 import { assertMemoryReachable, readableUsedRows } from './private-records.ts'
-import { forgetPlaybookNote, playbookViews } from './playbook-view.ts'
+import { personaNotebookOf } from './notebook-view.ts'
+import { forgetPlaybookNote, playbookPrivacy, playbookViews } from './playbook-view.ts'
 import { accessLabelOf, accessMapOf } from './access-map.ts'
 import { RemoteTeamHost, type RemoteTeamVault } from './remote-team.ts'
 import type { AcceptRemoteInviteRequest, ConnectRemoteTeamRequest, RemoteTeamAvailability, RemoteTeamState,
   RestorePointListView, UndoApplyRequest, UndoApplyView, ProjectStorageUsageView } from './types.ts'
 import type { RemoteMemberView } from './types.ts'
+import type { PersonaNotebookRequest, PersonaNotebookView } from './types.ts'
 import type { BrowserProfileGrantRequest, BrowserProfileNameRequest, BrowserProfileRenameRequest, BrowserProfileRequest, BrowserScreenView } from './types.ts'
 import type { StationPairingCode, StationPairRequest, StationRunningRequest, StationView } from './types.ts'
 import { projectStorageUsage } from './history-storage.ts'
@@ -77,6 +83,29 @@ import type {
 import { persistProbeQuota } from './official-quota-persist.ts'
 import { WindowResumeQueue, WINDOW_OVERRIDE_KIND, type WindowReserveOverride } from './window-reserve.ts'
 import { installRemoteGuard, RemoteGuard, RemoteFault as HostRemoteFault } from './remote-guard.ts'
+import { CallerRefused, currentCaller, resolveMember, runAs, type Caller } from './remote-web/caller-context.ts'
+import { DeviceBook, fileDeviceStore, type DeviceRecord } from './remote-web/device-book.ts'
+import {
+  answerOf, type DeviceRef, type DeviceView, type IssueDeviceCodeAnswer, type IssueDeviceCodeRequest, type PairRequestRef, type PairRequestView, type RemoteAccessAnswer, type RemoteAccessSetRequest,
+  type RenameDeviceRequest,
+} from './remote-web/remote-wire.ts'
+import { DevicePairing, filePairStore } from './remote-web/pair-guard.ts'
+import { PairRequests } from './remote-web/pair-requests.ts'
+import { RemoteAccess, fileSettings, memorySettings, remoteWebDirOf, type RemoteAccessView } from './remote-web/remote-access.ts'
+import { ComputersHost } from './computers/computers-host.ts'
+import { BEAT_MS } from './computers/computer-link.ts'
+import {
+  answerOfComputers, codeAnswer, enrollAnswer, homeAnswer, moveAnswer, presenceRowWire, previewAnswer, transferAnswer, viewWire, type ComputerPresenceRow, type ComputerRef, type ComputerRequestRef,
+  type ComputersAnswer, type ComputersViewWire, type EnrollComputerAnswer,
+  type EnrollComputerRequest, type IssueComputerCodeAnswer, type IssueComputerCodeRequest, type MovePersonaAnswer, type MovePersonaRequest, type MovePreviewAnswer, type MovePreviewRequest, type PersonaHomeAnswer,
+  type PersonaHomeRequest, type ReactivateRequest, type TransferAnswer, type TransferRef,
+} from './computers/computers-wire.ts'
+import { createPairedDispatch, type ConnectionLike } from './remote-web/remote-dispatch.ts'
+import { createPairedStreams, type StreamGateway } from './remote-web/remote-stream.ts'
+import { createRemoteRunnerOf } from './computers/remote-home-hook.ts'
+import { createExecutorRunner, type ExecutorRunnerFacade } from './computers/executor-runner.ts'
+import { moveWithGrant } from './computers/move-grant.ts'
+import { registerPairedPolicy, type PolicyRegistry } from './remote-web/remote-principal.ts'
 import { MutantRunBook } from './mutant-run.ts'
 import { DeadLetterBook } from './dead-letter.ts'
 import { collectDiagnostics, stringifyDiagnostics } from './diagnostics.ts'
@@ -98,7 +127,7 @@ import { flagsBootLine, resolveHostFlags, type HostFlagsView } from './flags.ts'
 import { FEATURE_OFF_REASON, FEATURE_OFF_TEXT, resolveSurfaces, surfaceRefuses, surfacesBootLine, type Surface, type SurfacesView } from './surface-gates.ts'
 import { CofreIdentityStore } from './e2ee-identity.ts'
 import { loadOrCreateIdentity, parseInviteLink } from '@deepseek-ai/dsh-persona-sync'
-import { PersonaSheets } from './persona-sheet-host.ts'
+import { PersonaSheets, sheetFieldsOf } from './persona-sheet-host.ts'
 import { resolveTurnClose } from './turn-close-host.ts'
 import { ExternalActions, type ExternalActionDoc } from './external-actions.ts'
 import { ActivityUndo, activityUndoDeps } from './activity-undo.ts'
@@ -118,6 +147,17 @@ import { ProactivityHost } from './proactivity.ts'
 import { offerContinueCard } from './continue-card.ts'
 import { directoryOverTeamChannels, type ChannelDirectory } from './channel-directory.ts'
 import { BootMarks } from './boot-marks.ts'
+import { ProjectResponsibleBook, ResponsibleError, type ProjectResponsibleView } from './project-responsible.ts'
+import type { SetProjectAutopilotRequest, SetProjectResponsibleRequest } from './types.ts'
+import { AutopilotBook, careOf } from './project-care-host.ts'
+import type { ProjectCareView } from './project-care.ts'
+import { KvTrailStore, LeadTrail } from './lead-trail.ts'
+import { LEAD_PULLS_PER_DAY, ProjectLead, type LeadBudget, type LeadCard, type LeadGate, type LeadPersona } from './project-lead.ts'
+import { localDayOf } from './day-summary.ts'
+import { leadSummary, type SummaryFacts, type SummaryPorts } from './lead-summary.ts'
+import { accessOf, validatePlacement } from './computer-placement.ts'
+import { PersonaHomeBook } from './persona-home.ts'
+import { ComputerGrantBook, ComputerUsersBook, HostGrantBook, PersonaScopeBook, effectiveComputerUse, type HomeFacts } from './persona-scope.ts'
 import { EquipeDesk, EquipeDeskError, FAULT_OF, type ArrangeChannelsRequest, type EquipeLayoutView } from './equipe-desk.ts'
 import { ChannelWire } from './channel-wire.ts'
 import { houseOver, originsOf, type HouseWirePorts } from './channel-house-wire.ts'
@@ -159,6 +199,7 @@ import { engineSeesImages } from './turn-images.ts'
 import { svgBlocksIn, svgToPng } from './svg-to-png.ts'
 import { BoardPorts } from './harness-boards.ts'
 import { releaseAccountDocs, sameAccountHome } from './account-docs.ts'
+import { effectiveRunner, readEngineLocal } from './engine-local.ts'
 import { HarnessPorts } from './harness-ports.ts'
 import { TeamTools, withTeamTools } from './harness-team.ts'
 import { RoutinePorts } from './harness-routines.ts'
@@ -166,7 +207,7 @@ import { collaboratorPrompt, countFanout, fanoutCalls, fanoutPrompt, planFanout,
 import { collaboratorViews, getCollaborators } from './ticket-collaborators.ts'
 import { WorkingControl } from './working-control.ts'
 import { ensureVoiceModelBytes, voiceModelStateOf } from './voice-model-host.ts'
-import { maskDmApprovalCard, PRIVATE_DM_TASK_TITLE, ticketOfActionCard, ticketSeenByActor, withoutDmWords } from './dm-ticket-view.ts'
+import { dmSeenByActor, maskDmApprovalCard, PRIVATE_DM_TASK_TITLE, ticketOfActionCard, ticketSeenByActor, withoutDmWords } from './dm-ticket-view.ts'
 import { resolveMailHost } from './mail-host-guard.ts'
 import type {
   GetAsideAskRequest,
@@ -208,8 +249,15 @@ import { dropScratchBrowserRoot, scratchBrowserRoot } from './browser/scratch-ro
 import { resolveBrowserServerPath } from './browser/turn-browser.ts'
 import { BrowserLoginPorts, loginLeakActivity } from './browser/login-port.ts'
 import { Station } from './station/station.ts'
+import { PairingBook } from './station/pairing.ts'
+import { fileLockStore } from './station/pairing-lock-store.ts'
+import { countOpenWork } from './station/open-work.ts'
 import { StationGate } from './station/station-gate.ts'
+import { fileWaitStore } from './station/station-wait-store.ts'
 import { loadStationState, saveStationState, type StationState } from './station/station-store.ts'
+import { ComputerPresence, createBeatBuilder, safeAiAccountLabel, type Beat } from './station/computer-presence.ts'
+import { filePresenceStore } from './station/presence-store.ts'
+import { planLaunch } from './station/recovery.ts'
 import { MediaHost, mediaHttpHandler } from './media.ts'
 import { VaultDocsHost } from './vault-docs.ts'
 import { BrainHost } from './brain.ts'
@@ -845,6 +893,8 @@ export default class PersonaHost extends TypertRemoteService {
   readonly browserDataRoot: string
   /** COLHEITA 24: this machine as a dedicated station (pairing, awake while busy, RAM admission, Tailscale). */
   readonly station: Station
+  /** M4/D-116: live team computer presence derived from verified beats and RAM headroom (read-only over roster). */
+  readonly computerPresence: ComputerPresence
   readonly media: MediaHost
   readonly cards: SqliteCardRepos
   readonly governance: GovernanceHost
@@ -884,6 +934,10 @@ export default class PersonaHost extends TypertRemoteService {
   readonly deadLetters: DeadLetterBook
   readonly connections: ConnectionProbe
   readonly usage: SqliteUsageStore
+  /** Marco M2: may a turn of a project start now? Its ceiling per day (turns and tokens), the pause at 95% and the resume at the turn of the local day. */
+  readonly projectAdmission: ProjectAdmission
+  /** Marco M2: told once for every pause/full/resume of a project (the lead's trail listens here; `projectAdmission.events(projectId)` lists them). */
+  onProjectPause: ((event: ProjectPauseEvent) => void) | undefined = undefined
   readonly topics: TopicRepos
   /** CV-6: channels beyond {id, name, topic} (kind, archive, name lock, members, pins). */
   readonly channelRepos: ChannelRepos
@@ -936,6 +990,11 @@ export default class PersonaHost extends TypertRemoteService {
   /** Colheita item 19a: "Seus números", the pinned numbers refreshed by a silent routine. */
   readonly indicators: Indicators
   private indicatorTimer: ReturnType<typeof setInterval> | undefined
+  /** M4: tells the paired station how many cards still have work it can do by itself (keeps Windows awake between turns). */
+  private openWorkTimer: ReturnType<typeof setInterval> | undefined
+  /** M4/D-116: builds monotonically numbered presence beats for this machine and keeps self presence fresh on disk in production. */
+  private readonly localBeat: () => Beat
+  private presenceTimer: ReturnType<typeof setInterval> | undefined
   /** Boot diet: the pending start of the background work, and whether it already started (or the host closed first). */
   private backgroundTimer: ReturnType<typeof setTimeout> | undefined
   private backgroundStarted = false
@@ -981,6 +1040,16 @@ export default class PersonaHost extends TypertRemoteService {
   /** Short TTL for `listConversationSubjects` (boot storms hit the same stream). */
   private readonly subjectListCache = new Map<string, { at: number; value: ConversationSubjectsBundleView }>()
   sessionMemberId: string | undefined
+  /** M5: the phones and notebooks paired to this PC (a member's session on the remote gate). The surface is OFF in the product: nobody is paired until the owner turns it on and approves a device. */
+  readonly remoteDevices: DeviceBook
+  /** M5: the remote access of this PC (the switch, the Tailscale address, the gate, the pairing). OFF for real until the surface is ON. */
+  readonly remoteAccess: RemoteAccess
+  /** D-116: this PC among the computers of the team (the book of computers or the membership, the link between computers, the handoff of a persona). */
+  readonly computers: ComputersHost
+  private readonly pairedDispatch: ReturnType<typeof createPairedDispatch>
+  private readonly pairedStreams: ReturnType<typeof createPairedStreams>
+  private executorFacade: ExecutorRunnerFacade | undefined
+  private executorSweep: ReturnType<typeof setInterval> | undefined
   /** Carbon P0-13b / MH-1 / MH-2: the ONE vetted address a mail connection may use for a host (a public name resolved once, or a public literal), or undefined when it is refused (never the machine or its network; a failed resolution is a refusal). The probe, the poller and the sealing of a credential all ask it. Specs that probe a fake server on loopback replace it. */
   mailTarget: (host: string) => Promise<string | undefined> = host => resolveMailHost(host)
   readonly lastErrors: string[] = []
@@ -1047,14 +1116,81 @@ export default class PersonaHost extends TypertRemoteService {
     // D-113: the station is still being built, so it is OFF for real in the product (`resolveSurfaces(config).station`; `this.surfaces` is assigned further down): no `station.json` read
     // or written, no gate on the turns (no admission, no awake request, no "Desligada" holding a turn) and the four `@Remote` calls refuse at the ACL funnel.
     const stationOn = resolveSurfaces(config).station
+    const initialStation = stationOn ? bootStationState(this.browserDataRoot, Date.parse(this.orchestration.now())) : undefined
     this.station = new Station({
       freeBytes: () => freemem(),
       // P1-08: the screen's counters are the real ones (the CLIs warm right now, and the Tasks the station stopped), not a fixed zero.
-      running: () => [...this.orchestration.warmRunners.keys()].map(id => ({ id, idleSince: 0 })),
+      running: () => this.orchestration.warmPool.warmClis(),
+      warm: () => ({ resident: this.orchestration.warmPool.resident(), busy: this.orchestration.warmPool.busy(), cap: this.orchestration.warmPool.limits().globalCap }),
       queue: () => this.orchestration.stationGate?.waitingCount() ?? 0,
-      ...(stationOn ? { initial: loadStationState(this.browserDataRoot), persist: (state: StationState) => { saveStationState(this.browserDataRoot, state) } } : {}),
+      // M4 (Lumen §B): the pairing lock (wrong guesses, lock instant, hourly redemptions) lives on disk, so restarting the app does not reset it.
+      ...(stationOn && initialStation !== undefined ? { initial: initialStation, persist: (state: StationState) => { saveMergedStationState(this.browserDataRoot, state) }, pairing: new PairingBook({ store: fileLockStore(this.browserDataRoot) }) } : {}),
     })
-    if (stationOn) this.orchestration.stationGate = new StationGate(this.station, { resume: () => this.orchestration.resumeStationWaiting() })
+    // M4: the Tasks the station stopped ("sem vaga") are read back from disk on boot, so a fall or an update does not forget them.
+    // M5 (D-115): remote access over the tailnet. OFF for real in the product until the independent audit (`resolveSurfaces(config).remoteAccess`): the books live in memory, nothing is read or written on disk,
+    // the watcher never starts and no port opens. ON: the devices, the pairing codes and the switch live in the machine's data folder, like the station's. The watcher starts in the installed app only.
+    const remoteOn = resolveSurfaces(config).remoteAccess
+    this.remoteDevices = new DeviceBook(remoteOn ? fileDeviceStore(join(this.browserDataRoot, 'remote-devices.json')) : undefined)
+    this.pairedDispatch = createPairedDispatch({ connection: () => (this.ctx as unknown as { get(name: string): unknown }).get('connection') as ConnectionLike | undefined, book: this.remoteDevices })
+    // M5 (c): the phone follows streams (a channel, the grants) through the HTTP door of the gate: the Gateway's own stream, opened for the device's own Peer.
+    this.pairedStreams = createPairedStreams({ gateway: () => (this.ctx as unknown as { get(name: string): unknown }).get('typertGateway') as StreamGateway | undefined, peerOf: device => this.pairedDispatch.peerFor(device), book: this.remoteDevices })
+    // D-116: the computers of the team. OFF for real in the product (surface `computers`): its doors are not even handed to the gate, nothing is read from the Cofre and no timer runs. The identity is read LAZILY (the Cofre
+    // is built a few lines below), and only when somebody asks. The persona's own data (home book, memory) arrives as ports from Flint's hook; until then `movePersona` answers that it cannot.
+    const computersOn = resolveSurfaces(config).computers
+    this.localBeat = createBeatBuilder({
+      isRunning: () => this.station.isRunning(),
+      ram: () => ({ totalBytes: totalmem(), freeBytes: freemem() }),
+      personaCount: () => this.personaHome().placesOf(this.thisComputerIdValue).length,
+      queue: () => this.orchestration.stationGate?.waitingCount() ?? 0,
+      aiAccountLabel: () => accountLabelFromConnections((this as { readonly connections?: ConnectionProbe }).connections?.list() ?? []),
+    })
+    this.computerPresence = new ComputerPresence({
+      now: () => Date.parse(this.orchestration.now()),
+      roster: () => this.computers.rosterComputers(),
+      personasOn: (computerId) => {
+        const count = this.personaHome().placesOf(computerId).length
+        return computerId === this.thisComputerIdValue || count > 0 ? count : undefined
+      },
+      ...(computersOn ? filePresenceStore(this.browserDataRoot) : {}),
+    })
+    this.computers = new ComputersHost({
+      dataDir: this.browserDataRoot, hostLabel: hostname(), identityStore: { load: () => new CofreIdentityStore(this.cofreSecrets).load(), save: identity => new CofreIdentityStore(this.cofreSecrets).save(identity) },
+      workspaceId: () => this.ownerWorkspaceId(), ownerMemberId: () => this.ownerMemberId(), gatePort: () => this.remoteAccess.view().port, gateEndpoint: () => this.remoteEndpoint(), timers: computersOn && process.env.VITEST !== 'true',
+      presence: this.computerPresence,
+      beatStatus: () => (computersOn ? this.localBeat() : undefined),
+      // D-116/D-117: the persona's home book and who created her / what the creator conceded (Flint's ports, all lazy). The bundle ports (makeBundle, apply, ...) come with the persona-bundle wiring: until then `movePersona` says it cannot.
+      persona: () => ({ homes: this.personaHome(), creatorOf: personaId => this.creatorOf(personaId), hostedBy: (computerId, memberId) => this.hostedBy(computerId, memberId), hostGrantOf: (personaId, computerId) => this.hostGrantOf(personaId, computerId), sheetJsonOf: personaId => this.sheetTextOf(personaId) }),
+      onReady: (info) => { this.setThisComputerId(info.computerId) },
+      // D-121 (B's side): this computer lends its OWN runner and account to the turns of personas of the team (a scratch folder, no native tools); the executor limits how many run at once.
+      runner: () => this.executorRunnerFacade(), admit: () => () => undefined, // the identity is read: from now on the home book knows which computer is this one
+    })
+    if (computersOn && process.env.VITEST !== 'true') {
+      this.presenceTimer = setInterval(() => { this.pulseSelfPresence() }, BEAT_MS)
+      this.presenceTimer.unref()
+    }
+    // D-116: a persona whose home is another computer is run by the runner of that computer (the project stays here); a private DM never goes there (Lumen). Until the computers are built there is no remote turn: she runs here.
+    this.orchestration.remoteRunnerOf = createRemoteRunnerOf({ turns: () => this.computers.remoteTurns(), conversationOf: (projectId, ticketId) => this.orchestration.conversationOfTicket(projectId, ticketId) })
+    this.computerFactsOf = computerId => this.computers.computerFacts(computerId) // another computer is known only by the FRESH roster the owner signed (unknown = a home there is refused)
+    this.remoteAccess = new RemoteAccess({
+      book: this.remoteDevices, requests: new PairRequests(this.remoteDevices), pairing: new DevicePairing(remoteOn ? filePairStore(join(this.browserDataRoot, 'remote-pair.json')) : undefined),
+      settings: remoteOn ? fileSettings(join(this.browserDataRoot, 'remote-access.json')) : memorySettings(), hostLabel: hostname(),
+      memberOf: memberId => this.deviceMemberOf(memberId), ownerMemberId: () => this.ownerMemberId(), dispatch: this.pairedDispatch.dispatch, streams: this.pairedStreams, stopRun: (runId, device) => this.stopRunOfDevice(runId, device),
+      ...(computersOn ? { computers: this.computers.door, computerLink: this.computers.linkDoor } : {}),
+      ...(remoteWebDirOf(process.env) === undefined ? {} : { distDir: remoteWebDirOf(process.env) as string }), // M5: the bundle the phone opens (the packaged remote-web folder); none = the gate answers 404
+    })
+    ;(ctx as unknown as { inject(keys: string[], run: (scope: Record<string, unknown>) => void): void }).inject(['remoteAccess'], (scope) => {
+      registerPairedPolicy(scope.remoteAccess as PolicyRegistry, { memberOfDevice: id => this.remoteDevices.liveRecord(id)?.memberId, isOwnerMember: id => this.isOwnerMember(id) })
+    })
+    if (remoteOn && process.env.VITEST !== 'true') this.remoteAccess.start() // the Tailscale watcher: the installed app only
+    if (stationOn) this.orchestration.stationGate = new StationGate(this.station, { resume: () => this.orchestration.resumeStationWaiting(), evict: ids => this.orchestration.warmPool.evictIdle(ids), store: fileWaitStore(this.browserDataRoot) })
+    // M4: the board's open work keeps the paired station awake between turns (backoff, retry, the wait for memory); a test drives `station.noteOpenWork` by hand.
+    if (stationOn && process.env.VITEST !== 'true') {
+      this.openWorkTimer = setInterval(() => { this.station.noteOpenWork(countOpenWork([...this.orchestration.runtimes.values()].map(runtime => runtime.repo.tickets.list()))) }, 30_000)
+      this.openWorkTimer.unref()
+    }
+    // M4 / 24 h: the resident runners have a ceiling by RAM and let go when idle (a sweep every minute, unref'd; a test sweeps by hand).
+    this.orchestration.warmLimits = () => ({ globalCap: warmCapForRam(totalmem()) })
+    if (process.env.VITEST !== 'true' && warmSweepEnabled()) this.orchestration.warmPool.start()
     this.proactivity = new ProactivityHost(
       this.product,
       this.routines,
@@ -1180,6 +1316,21 @@ export default class PersonaHost extends TypertRemoteService {
       : cachedEngineReadiness(this.connections.list())
     // Harvest 10: the official window decides whether the team's own work runs (95% reserve, 100% stop).
     this.orchestration.windowReserveOf = projectId => this.reserveOf(projectId)
+    // Marco M2: the ceiling of a project per day. The clock and the time zone are read at each call (the soak moves them after the host is built).
+    this.projectAdmission = createProjectAdmission({
+      screens: this.screens.screens,
+      events: this.events,
+      product: this.product,
+      tokens: query => this.usage.tokens(query),
+      now: () => this.orchestration.now(),
+      offsetMinutes: nowIso => this.timezoneOffsetMinutes(nowIso),
+      accountReserve: projectId => this.reserveOf(projectId),
+      slotFree: projectId => this.orchestration.budget.total() < this.orchestration.budget.maxGlobal && this.orchestration.budget.of(projectId) < this.orchestration.budget.maxPerProject,
+      geralOf: (workspaceId, projectId) => this.ensureProjectConversation(workspaceId, projectId).channelId,
+      onPause: (event) => { this.onProjectPause?.(event) },
+    })
+    this.orchestration.projectAdmit = (projectId, origin, options) => this.projectAdmission.admit(projectId, origin, options)
+    this.orchestration.projectSweep = projectId => this.projectAdmission.sweep(projectId)
     this.orchestration.onEngineDeferred = () => { this.armEngineRetry() }
     this.orchestration.onQuotaWaiting = (info) => {
       this.armQuotaRecheck()
@@ -1202,6 +1353,8 @@ export default class PersonaHost extends TypertRemoteService {
     this.orchestration.loggedCliOf = () => this.loggedCli()
     this.remoteGuard = new RemoteGuard({
       peerOf: () => this.sessionMemberId ?? 'local',
+      callerOf: receiver => this.callerFor(receiver), // M5: who is calling, from the Peer the Gateway fixed
+      isOwnerMember: memberId => this.isOwnerMember(memberId),
       surfaceOff: method => surfaceRefuses(this.surfaces, method), // D-113: an OFF surface refuses its calls in the funnel
     })
     this.topics = new TopicRepos(this.store, () => this.orchestration.now())
@@ -1424,6 +1577,8 @@ export default class PersonaHost extends TypertRemoteService {
       const site = open.find(request => request.site !== undefined)?.site
       return open.length === 0 ? undefined : `Esperando você: o código de 6 dígitos${site === undefined ? '' : ` do ${site}`}`
     }
+    // MARCO M2: the board's lead writes the "lead_pull" document BEFORE it hands a card to a persona: a Task it drove acts as unattended (never pre-allows send/pay/delete).
+    this.orchestration.boardDriven = (projectId, ticketId) => this.screens.screens.get(projectId, 'lead_pull', ticketId) !== undefined
     // Item 18: the conversation of a Task is a thread of its stream; who answers it, what the persona reads about the Task, and what the card carries.
     this.taskThreads = new TaskThreads({ product: this.product, screens: this.screens.screens, events: this.events, orchestration: this.orchestration })
     this.orchestration.threadResponderOf = event => this.taskThreads.responderOf(event)
@@ -1501,6 +1656,8 @@ export default class PersonaHost extends TypertRemoteService {
       workingControl: this.workingControl,
       taskProposals: this.taskProposals,
       houseRules: this.screens.houseRules, // HONEST-1: initiatives, routines, plans, the proposal card and the morning card wait for the quiet window to end
+      // Marco M2: the responsible's loop. OFF for real in the product (surface `projectLead`), and even ON it only acts in a project whose OWNER turned the autopilot on (default off).
+      ...(resolveSurfaces(config).projectLead ? { lead: { step: (projectId: string, budget: LeadBudget) => { if (this.autopilotBook().get(projectId)) this.leadLoop().step(projectId, budget) } } } : {}),
       // The morning ritual and the reminder of what waits for the person share the host's tick.
       morningBrief: { check: (projectId, event) => { const outcome = this.morningBrief.check(projectId, event); this.personWaiting.check(projectId); return outcome } },
     }, { cycleMs: config.proactivityCycleMs ?? 30_000, nowMs: () => Date.parse(this.orchestration.now()) }) // S1 P1-12: ONE clock for the whole host
@@ -1813,6 +1970,7 @@ export default class PersonaHost extends TypertRemoteService {
     }
     this.orchestration.accounts = this.accounts
     this.orchestration.accountSeatOf = (projectId, persona) => this.seatForPersona(projectId, persona)
+    this.orchestration.engineLocalOf = (projectId, persona) => effectiveRunner(persona.runner, readEngineLocal(this.screens.screens, projectId, persona.id)) // D-116 regra 1
     this.remoteTeam = new RemoteTeamHost({
       store: this.store, screens: screenRepos, events: this.events,
       pollMs: config.remoteTeamPollMs ?? 2500, timeoutMs: config.remoteTeamTimeoutMs ?? 20000,
@@ -1831,6 +1989,7 @@ export default class PersonaHost extends TypertRemoteService {
     if (this.store.recoveryMessage !== undefined) this.lastErrors.push(this.store.recoveryMessage)
     if (process.env.VITEST !== 'true') {
       process.stderr.write(`${flagsBootLine(this.hostFlags)}\n${surfacesBootLine(this.surfaces)}\n`) // a verifier reads the app's log: the four switches as they resolved, no env needed
+      process.stderr.write(`${warmSweepBootLine()}\n`) // M4: whether the idle sweep of the resident runners is on
       this.connectorBridge ??= claudeConnectorBridge(cli => this.connections.list().find(card => card.kind === cli)?.version) // the installed version decides what isolation can be called proven
       // Boot diet (lever 2): the warmups, the scheduler, the reports curation and the `gh` probe are NOT the first screen: they start after a short delay (`startBackground`), once.
       this.scheduleBackground(Number(process.env.PERSONA_BOOT_BACKGROUND_MS ?? BOOT_BACKGROUND_DELAY_MS))
@@ -1854,29 +2013,54 @@ export default class PersonaHost extends TypertRemoteService {
     this.bootMarks.mark('projects-done')
     if (process.env.VITEST !== 'true') process.stderr.write(`${this.bootMarks.line()}\n`)
     ctx.effect(() => async () => {
+      // BUG-QUIT-1: the close is measured by phase (ms), not guessed: the result stays in `quitPhases` and, in the real app, is ONE line on stderr next to the opening's.
+      const phases: Record<string, number> = {}
+      const phase = async (name: string, work: () => unknown): Promise<void> => {
+        const start = performance.now()
+        try {
+          await work()
+        } finally {
+          phases[name] = Math.round(performance.now() - start)
+        }
+      }
       this.engineReadinessDisposed = true
       this.backgroundStarted = true // a host that closes before the delay never starts the background work
       if (this.backgroundTimer !== undefined) { clearTimeout(this.backgroundTimer); this.backgroundTimer = undefined }
       this.proactivityScheduler.dispose()
       if (this.indicatorTimer !== undefined) clearInterval(this.indicatorTimer)
+      if (this.openWorkTimer !== undefined) clearInterval(this.openWorkTimer)
+      if (this.presenceTimer !== undefined) clearInterval(this.presenceTimer)
       if (this.engineRetryTimer !== undefined) clearInterval(this.engineRetryTimer)
       clearInterval(this.externalPollTimer)
       if (this.quotaRecheckTimer !== undefined) clearTimeout(this.quotaRecheckTimer)
       this.scheduler.dispose()
       try {
-        await this.orchestration.work
-        await this.remoteTeam.dispose()
+        await phase('work', () => this.orchestration.work)
+        await phase('remoteTeam', () => this.remoteTeam.dispose())
       } finally {
         try {
-          await this.orchestration.disposeRunners()
-          await this.orchestration.whenBackgroundIdle() // P0-12: the Tasks whose turn was just cancelled wind down before the store closes under them
+          await phase('runners', () => this.orchestration.disposeRunners())
+          await phase('backgroundIdle', () => this.orchestration.whenBackgroundIdle()) // P0-12: the Tasks whose turn was just cancelled wind down before the store closes under them (at most 5 s)
         } finally {
           try {
-            this.station.setRunning(false, { remember: false }) // P0-12: the powershell that keeps Windows awake goes with the host (P1-10: the person's on/off switch is NOT rewritten by a quit)
-            await this.browser.closeAll() // P0-12: every Chrome of the product, with its tree
+            await phase('station', () => {
+              if (this.surfaces.station && this.station.isPaired()) this.station.markCleanExit()
+              this.station.setRunning(false, { remember: false }) // P0-12: the powershell that keeps Windows awake goes with the host (P1-10: the person's on/off switch is NOT rewritten by a quit)
+              this.computers.stop() // D-116: the beats and the handoff timer end with the host
+            })
+            await phase('remoteAccess', () => this.remoteAccess.stop().catch(() => undefined)) // M5: the remote gate closes with the host (no listener left behind), then the Peers of the devices
+            await phase('pairedStreams', () => this.pairedStreams.dispose())
+            await phase('executorRunner', async () => {
+              if (this.executorSweep !== undefined) clearInterval(this.executorSweep)
+              await this.executorFacade?.disposeAll()
+            })
+            await phase('pairedDispatch', () => this.pairedDispatch.dispose())
+            await phase('browser', () => this.browser.closeAll()) // P0-12: every Chrome of the product, with its tree
           } finally {
-            this.store.close()
+            await phase('storeClose', () => { this.store.close() })
             dropScratchBrowserRoot(this.browserDataRoot) // the throw-away folder of an in-memory host goes with it (a real host's data folder is never touched)
+            this.quitPhases = phases
+            if (process.env.VITEST !== 'true') process.stderr.write(`[persona-host] quitPhases ${JSON.stringify(phases)}\n`)
           }
         }
       }
@@ -2810,6 +2994,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   enqueueWorkingMessage(request: EnqueueWorkingMessageRequest): QueuedMessageView {
     this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
+    this.requireConversation(request.workspaceId, request.streamKind, request.ownerId) // D-119b
     return this.workingControl.enqueue(request)
   }
 
@@ -2829,6 +3014,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   editQueuedMessage(request: EditQueuedMessageRequest): QueuedMessageView[] {
     this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
+    this.requireQueuedRow(request) // D-119b
     return this.workingSend.edit(request)
   }
 
@@ -2839,6 +3025,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   dropQueuedMessage(request: EditQueuedMessageRequest): QueuedMessageView[] {
     this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
+    this.requireQueuedRow(request) // D-119b
     return this.workingControl.drop(request)
   }
 
@@ -2849,6 +3036,10 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   flushWorkingQueue(request: FlushWorkingQueueRequest): QueuedMessageView[] {
     this.requireWrite(request)
+    // D-119b: the queue goes out in the conversations it was queued for: only who is in a DM sends what waits for it.
+    for (const row of this.workingControl.list(request)) {
+      if (request.queueItemId === undefined || request.queueItemId === '' || row.id === request.queueItemId) this.requireConversation(request.workspaceId, row.streamKind, row.ownerId)
+    }
     return this.workingControl.flush(request)
   }
 
@@ -2861,6 +3052,10 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   async steerWorkingTurn(request: SteerWorkingTurnRequest): Promise<SteerWorkingTurnView> {
     this.requireWrite(request)
+    // D-119b: "direcionar" writes in a conversation AND puts the text into the turn that is open: both are of who is in the DM the turn belongs to, whatever conversation the call names.
+    this.requireConversation(request.workspaceId, request.streamKind, request.ownerId)
+    const running = this.orchestration.runningTicketOf(request.projectId, request.personaId)
+    if (running !== undefined) this.requireTaskSeen(request.workspaceId, request.projectId, running.id)
     return this.workingControl.steer(request)
   }
 
@@ -2873,6 +3068,10 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   async stopTurn(request: StopTurnRequest): Promise<StopTurnView> {
     this.requireWrite(request)
+    // D-119b: Parar acts on a Task or a reply: of who is in the DM it came from.
+    if (request.eventId !== undefined && request.eventId !== '') this.requireEventConversation(request.workspaceId, request.eventId)
+    const aimed = request.ticketId !== undefined && request.ticketId !== '' ? request.ticketId : this.orchestration.runningTicketOf(request.projectId, request.personaId)?.id
+    if (aimed !== undefined) this.requireTaskSeen(request.workspaceId, request.projectId, aimed)
     return this.workingControl.stop(request)
   }
 
@@ -2884,6 +3083,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   restoreQueuedMessage(request: RestoreQueuedMessageRequest): QueuedMessageView[] {
     this.requireWrite(request)
+    this.requireConversation(request.workspaceId, request.item.streamKind, request.item.ownerId) // D-119b
     return this.workingControl.restore(request)
   }
 
@@ -2894,6 +3094,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   openAsideAsk(request: OpenAsideAskRequest): AsideAskView {
     this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
+    this.requireSubjectConversation(request.workspaceId, request.subjectId) // D-119c
     if (request.question.trim() === '') throw new HostRemoteFault('invalid-payload', 'Escreva a pergunta de lado.')
     return this.asides.open(request)
   }
@@ -2908,6 +3109,7 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     const ask = this.asides.get(request.projectId, request.id)
     if (ask === undefined) throw new HostRemoteFault('not-found', 'Essa pergunta de lado não existe mais.')
+    this.requireSubjectConversation(request.workspaceId, ask.subjectId) // D-119c: the question and the answer come from the conversation
     return ask
   }
 
@@ -2919,6 +3121,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listAsideAsks(request: ListAsideAsksRequest): AsideAskView[] {
     this.requireProject(request)
+    this.requireSubjectConversation(request.workspaceId, request.subjectId) // D-119c
     return this.asides.list(request.projectId, request.personaId, request.subjectId)
   }
 
@@ -3339,6 +3542,467 @@ export default class PersonaHost extends TypertRemoteService {
     return this.house().suggestions(request.projectId, request.channelId)
   }
 
+  private responsibleCache: ProjectResponsibleBook | undefined
+
+  /** Marco M1: the responsible book (built on first use). */
+  private responsibleBook(): ProjectResponsibleBook {
+    return this.responsibleCache ??= new ProjectResponsibleBook({
+      store: this.screens.screens,
+      personas: projectId => this.product.listPersonas(projectId).map(persona => ({ id: persona.id, name: persona.name, title: persona.title, coordination: persona.systemRoles.includes('coordination') })),
+      humanName: humanId => this.product.getMember(humanId)?.displayName,
+    })
+  }
+
+  /**
+   * Marco M1: who is responsible for the project: the persona the owner chose (and optionally a person), else the project's Coordination persona (marked default). Read by the project header, the board and the Casa.
+   * @param request - Project.
+   */
+  @Remote
+  getProjectResponsible(request: ProjectScopeRequest): ProjectResponsibleView {
+    this.requireProject(request)
+    return { ...this.responsibleBook().resolve(request.projectId), canChange: this.actorOf(request.workspaceId)?.workspaceRole === 'owner' } // the screen offers the swap only to who can make it
+  }
+
+  /**
+   * Marco M1: choose the project's responsible. Owner only; the persona must be OF THIS project, a person must be of the workspace (an empty humanId clears only the person); an identical choice writes nothing.
+   * @param request - Project, persona and optionally a person.
+   */
+  @Remote
+  setProjectResponsible(request: SetProjectResponsibleRequest): ProjectResponsibleView {
+    this.requireProject(request)
+    this.requireGovOwner(request.workspaceId)
+    const humanId = request.humanId ?? ''
+    if (humanId !== '' && this.product.getMember(humanId)?.workspaceId !== request.workspaceId) throw new HostRemoteFault('invalid-payload', 'Essa pessoa não é da equipe.')
+    try {
+      const actor = this.requireActor(request.workspaceId)
+      const done = this.responsibleBook().set(request.projectId, { personaId: request.personaId, humanId }, actor.id, this.orchestration.now())
+      if (done.changed) this.governance.audit(request.workspaceId, actor.id, 'project.responsible', { projectId: request.projectId, personaId: request.personaId, humanId })
+      return { ...done.view, canChange: true }
+    } catch (error: unknown) {
+      if (error instanceof ResponsibleError) throw new HostRemoteFault('not-found', 'Essa persona não é deste projeto.')
+      throw error
+    }
+  }
+
+  private autopilotCache: AutopilotBook | undefined
+  private leadTrailCache: LeadTrail | undefined
+
+  /** Marco M2: the switch "let the responsible run the board" (built on first use). */
+  private autopilotBook(): AutopilotBook {
+    return this.autopilotCache ??= new AutopilotBook(this.screens.screens)
+  }
+
+  /** Marco M2/M6: the loop's durable trail (screens KV; built on first use). */
+  private leadTrail(): LeadTrail {
+    return this.leadTrailCache ??= new LeadTrail(new KvTrailStore(this.screens.screens), () => this.orchestration.now())
+  }
+
+  /** Marco M2: the LOCAL day of the host's clock (`AAAA-MM-DD`), the day of the loop's ceiling, its summary and the care view. */
+  private leadDay(): string {
+    const now = this.orchestration.now()
+    return localDayOf(now, this.timezoneOffsetMinutes(now))
+  }
+
+  /** Marco M2/M6: why the responsible's loop must not act now (ONE rule for the loop and for the care view), or undefined. */
+  private leadGate(projectId: string): LeadGate | undefined {
+    if (this.teamState.isPaused(projectId)) return 'paused'
+    if (this.responsibleBook().resolve(projectId).persona === undefined) return 'no-responsible'
+    if (this.screens.houseRules.quietNow(projectId, this.orchestration.now()) !== undefined) return 'quiet'
+    const readiness = this.orchestration.engineReadinessOf?.()
+    return readiness === undefined || readiness.state === 'ready' ? undefined : 'no-engine'
+  }
+
+  private leadLoopCache: ProjectLead | undefined
+
+  /**
+   * Marco M2: the responsible's loop, bound to this host (built on first use). Only the pull starts a model (`driveTicket`, one card at a time, behind the Forge's admission as origin `quadro`); a card with no owner who can work
+   * is handed with `assignTicket`; the chase writes ONE line in #geral as the responsible and, if the card stays stalled, raises it to the person (a `blocked` report: the board's "Precisa de você"). The day summary
+   * is Anvil's composer behind `lead-summary.ts` (due at 23:30 local or any past day, as the responsible, once, no DM-born card).
+   */
+  private leadLoop(): ProjectLead {
+    return this.leadLoopCache ??= new ProjectLead({
+      nowMs: () => Date.parse(this.orchestration.now()),
+      dayOf: () => this.leadDay(),
+      responsible: (projectId) => {
+        const persona = this.responsibleBook().resolve(projectId).persona
+        return persona === undefined ? undefined : { id: persona.id, name: persona.name }
+      },
+      gate: projectId => this.leadGate(projectId),
+      cards: projectId => this.leadCards(projectId),
+      personas: projectId => this.leadPersonas(projectId),
+      wipFull: projectId => this.orchestration.budget.of(projectId) >= this.orchestration.budget.maxPerProject,
+      admit: (projectId, ticketId) => {
+        // The Forge's question, with the key the run itself will use (the card's trigger): the start that follows is not counted twice.
+        const key = this.orchestration.runtime(projectId).repo.tickets.get(ticketId)?.origin.triggerId ?? ticketId
+        const answer = this.projectAdmission.admit(projectId, 'quadro', { key, ignoreSlots: true })
+        return answer.ok ? { ok: true } : { ok: false, why: answer.why, ...(answer.resumeAt === undefined ? {} : { resumeAt: answer.resumeAt }) }
+      },
+      drive: (projectId, ticketId, personaId) => {
+        const ticket = this.orchestration.runtime(projectId).repo.tickets.get(ticketId)
+        const persona = this.product.getPersona(personaId)
+        if (ticket !== undefined && persona !== undefined && ticket.execution?.name !== persona.name) this.orchestration.assignTicket(projectId, ticketId, personaId)
+        void this.orchestration.driveTicket(projectId, ticketId).catch((error: unknown) => {
+          this.leadTrail().record({ kind: 'lead:hold', projectId, ticketId, detail: `Não consegui começar «${ticket?.title ?? ticketId}»: o motor recusou. Tento de novo amanhã.`, key: `drive-failed:${ticketId}:${this.leadDay()}` })
+          void error
+        })
+      },
+      nudge: (projectId, ticketId, _personaId, text) => {
+        const lead = this.responsibleBook().resolve(projectId).persona
+        const speaker = lead === undefined ? undefined : this.product.getPersona(lead.id)
+        const project = this.product.getProject(projectId)
+        if (speaker === undefined || project === undefined) throw new Error('lead-has-no-voice')
+        const now = this.orchestration.now()
+        const geral = this.ensureProjectConversation(project.workspaceId, projectId).channelId // the project's own #geral (its id is `geral:<project>` unless the project already had one)
+        this.orchestration.postLine({
+          id: `lead-chase:${ticketId}`, streamId: `channel:${geral}`, workspaceId: project.workspaceId, projectId, seq: 0, type: 'message', body: '', actorId: '', subjectId: '', occurredAt: now, deleted: false,
+        }, speaker, `lead-chase:${ticketId}:${String(Date.parse(now))}`, text)
+      },
+      escalate: (projectId, ticketId) => {
+        this.orchestration.runtime(projectId).engine.report(ticketId, { state: 'blocked', summary: 'Parado há um tempo: passei para você decidir.' })
+      },
+      summary: (projectId, dayLocal) => leadSummary(this.leadSummaryPorts(), projectId, dayLocal),
+      state: this.screens.screens,
+    }, this.leadTrail(), { stallAfterMs: 2 * 3_600_000, maxChases: 1, maxPullsPerDay: LEAD_PULLS_PER_DAY, distribute: true })
+  }
+
+  /** Minutes since the local midnight of the host's clock. */
+  private leadMinuteOfDay(): number {
+    const now = this.orchestration.now()
+    const local = new Date(Date.parse(now) + this.timezoneOffsetMinutes(now) * 60_000)
+    return local.getUTCHours() * 60 + local.getUTCMinutes()
+  }
+
+  /** The ports of the day summary: the host's clock, the responsible, the facts as the least privileged member reads them, and the posting in the project's #geral. */
+  private leadSummaryPorts(): SummaryPorts {
+    return {
+      today: () => this.leadDay(),
+      minuteOfDay: () => this.leadMinuteOfDay(),
+      responsible: (projectId) => {
+        const persona = this.responsibleBook().resolve(projectId).persona
+        return persona === undefined ? undefined : { id: persona.id, name: persona.name }
+      },
+      responsiblePaused: (projectId) => {
+        const persona = this.responsibleBook().resolve(projectId).persona
+        return persona === undefined || this.orchestration.isPersonaPaused(projectId, persona.id)
+      },
+      facts: (projectId, dayLocal) => this.leadSummaryFacts(projectId, dayLocal),
+      posted: id => this.events.has(id),
+      post: (projectId, speakerId, id, text) => {
+        const speaker = this.product.getPersona(speakerId)
+        const project = this.product.getProject(projectId)
+        if (speaker === undefined || project === undefined) throw new Error('lead-has-no-voice')
+        const geral = this.ensureProjectConversation(project.workspaceId, projectId).channelId
+        this.orchestration.postLine({
+          id, streamId: `channel:${geral}`, workspaceId: project.workspaceId, projectId, seq: 0, type: 'message', body: '', actorId: '', subjectId: '', occurredAt: this.orchestration.now(), deleted: false,
+        }, speaker, id, text)
+      },
+    }
+  }
+
+  /**
+   * The facts of the day summary. The post goes to EVERY member of the channel, so they are those of the LEAST privileged member: a card born in a DM is left out whole (not even a count), and so is whatever asks the
+   * person for a secret. "Está andando" is the board as it is now, so it is only filled for today.
+   */
+  private leadSummaryFacts(projectId: string, dayLocal: string): SummaryFacts {
+    const rt = this.orchestration.runtime(projectId)
+    const dayOf = (iso: string): string => localDayOf(iso, this.timezoneOffsetMinutes(iso))
+    const visible = (ticketId: string | undefined): boolean => ticketId === undefined || this.orchestration.conversationOfTicket(projectId, ticketId)?.streamKind !== 'dm'
+    const tickets = rt.repo.tickets.list().filter(ticket => visible(ticket.id))
+    const column = new Map(this.orchestration.kanban(projectId).map(card => [card.ticketId, card.column]))
+    const byOf = (ticket: { readonly execution?: { readonly name: string } }): string => ticket.execution?.name ?? ''
+    const done = tickets
+      .filter(ticket => ticket.ended !== undefined && (ticket.ended.outcome === 'completed' || ticket.ended.outcome === 'merged') && dayOf(ticket.ended.at) === dayLocal)
+      .map(ticket => ({ title: ticket.title, by: byOf(ticket) }))
+    const doing = dayLocal === this.leadDay()
+      ? tickets.filter(ticket => ticket.ended === undefined && column.get(ticket.id) === 'doing').map(ticket => ({ title: ticket.title, by: byOf(ticket) }))
+      : []
+    const cardsWaiting = tickets
+      .filter(ticket => ticket.ended === undefined && (column.get(ticket.id) === 'review' || column.get(ticket.id) === 'blocked'))
+      .map(ticket => ({ question: ticket.title, kind: column.get(ticket.id) === 'review' ? 'review' as const : 'question' as const, sinceDay: dayOf(ticket.updatedAt) }))
+    const approvalsWaiting = this.screens.listApprovals(projectId)
+      .filter(card => card.status === 'pending' && card.kind !== 'vault' && visible(card.kind === 'attention' ? card.id : card.kind === 'connector' ? card.connector?.taskId : card.kind === 'action' ? ticketOfActionCard(card.id) : undefined))
+      .map(card => ({ question: card.question, kind: 'approval' as const, sinceDay: dayLocal }))
+    const chased = new Map<string, { title: string; reason: string; chasedBy?: string }>()
+    for (const row of this.leadTrail().list(projectId, 200).reverse()) {
+      if ((row.kind !== 'lead:chase' && row.kind !== 'lead:escalate') || row.ticketId === undefined || dayOf(row.at) !== dayLocal) continue
+      const ticket = tickets.find(item => item.id === row.ticketId)
+      if (ticket === undefined) continue
+      const who = row.personaId === undefined ? undefined : this.product.getPersona(row.personaId)?.name
+      chased.set(ticket.id, { title: ticket.title, reason: row.kind === 'lead:escalate' ? 'continuou parado e passei para você decidir' : 'ficou parado por mais de duas horas', ...(who === undefined ? {} : { chasedBy: who }) })
+    }
+    const load = this.projectAdmission.sweep(projectId)
+    const tomorrow = this.orchestration.kanban(projectId).filter(card => card.column === 'todo' && visible(card.ticketId)).slice(0, 3).map(card => card.title)
+    return {
+      done, doing, waiting: [...approvalsWaiting, ...cardsWaiting], stuck: [...chased.values()], teamMemory: [], tomorrow,
+      ...(load.state === 'open' ? {} : { ceiling: load.turns.max > 0 && (load.turns.used / load.turns.max) * 100 >= 95 ? 'turns' as const : 'quota' as const }),
+    }
+  }
+
+  /**
+   * The board as the loop reads it: the engine's own projection (todo, doing, review, "Precisa de você", done) plus who owns each card and for how long a doing card has not moved.
+   * The loop writes in the SHARED channel and its trail reaches every member, so it reads the board as the LEAST privileged member: a card born in a DM carries the neutral title (Carbon P0-13).
+   */
+  private leadCards(projectId: string): LeadCard[] {
+    const rt = this.orchestration.runtime(projectId)
+    const personas = this.product.listPersonas(projectId)
+    const nowMs = Date.parse(this.orchestration.now())
+    return this.orchestration.kanban(projectId).flatMap((card): LeadCard[] => {
+      const ticket = rt.repo.tickets.get(card.ticketId)
+      if (ticket === undefined) return []
+      const column = card.column === 'blocked' ? 'needs_you' : card.column
+      const owner = ticket.execution === undefined ? undefined : personas.find(persona => persona.name === ticket.execution?.name)
+      const privateDm = this.orchestration.conversationOfTicket(projectId, ticket.id)?.streamKind === 'dm'
+      return [{
+        id: ticket.id, title: privateDm ? PRIVATE_DM_TASK_TITLE : ticket.title, column,
+        ...(owner === undefined ? {} : { ownerId: owner.id }),
+        waitsForPerson: card.column === 'review' || card.column === 'blocked' || card.chip === 'waiting',
+        ...(column === 'doing' ? { stalledMs: Math.max(0, nowMs - Date.parse(ticket.updatedAt)) } : {}),
+      }]
+    })
+  }
+
+  private leadPersonas(projectId: string): LeadPersona[] {
+    const open = this.orchestration.runtime(projectId).repo.tickets.list().filter(ticket => ticket.ended === undefined)
+    return this.product.listPersonas(projectId).map(persona => ({
+      id: persona.id, name: persona.name, title: persona.title,
+      paused: this.orchestration.isPersonaPaused(projectId, persona.id),
+      openCount: open.filter(ticket => ticket.execution?.name === persona.name).length,
+      budgetLeft: true, // the scheduler's own daily budget rides on each step (`LeadBudget`)
+    }))
+  }
+
+  /** Marco M6: the one-look view of a project, composed from what the host knows (the caller checked who may read it). */
+  private careOrThrow(projectId: string): ProjectCareView {
+    // Carbon P0-13: a Task born in a DM is read by the DM's participants only; whoever else reads this view gets the neutral title (same rule as the board and the overview).
+    const seenBy = this.ticketSeenFor(this.product.getProject(projectId)?.workspaceId ?? '')
+    const titleOf = (ticketId: string, title: string): string => (seenBy(projectId, ticketId) ? title : PRIVATE_DM_TASK_TITLE)
+    const view = careOf({
+      projectOf: (id) => {
+        const project = this.product.getProject(id)
+        return project === undefined ? undefined : { name: project.name, workspaceId: project.workspaceId }
+      },
+      companyName: workspaceId => this.product.getWorkspace(workspaceId)?.name ?? '',
+      responsible: id => this.responsibleBook().resolve(id),
+      autopilot: id => this.autopilotBook().get(id),
+      gate: id => this.leadGate(id),
+      capped: id => (this.screens.screens.get<{ n: number }>(id, 'lead_pull_day', this.leadDay())?.n ?? 0) >= LEAD_PULLS_PER_DAY ? `Cheguei ao teto de ${String(LEAD_PULLS_PER_DAY)} cartões por dia: o resto fica para amanhã.` : undefined,
+      holdReason: (id) => {
+        const today = this.leadDay()
+        return this.leadTrail().list(id, 20).find(row => row.kind === 'lead:hold' && localDayOf(row.at, this.timezoneOffsetMinutes(row.at)) === today)?.detail
+      },
+      personas: id => this.proactivity.overviewNow(id).personas.map((row) => {
+        const hidden = row.currentTaskId !== '' && !seenBy(id, row.currentTaskId)
+        return {
+          id: row.personaId, name: row.name, title: row.title, state: row.state, queueCount: row.queueCount,
+          ...(row.sentence === undefined || hidden ? {} : { sentence: row.sentence }), // the sentence says what she is doing: it carries the words of the Task
+          ...(row.currentTask === '' ? {} : { currentTask: hidden ? PRIVATE_DM_TASK_TITLE : row.currentTask }),
+          ...(this.proactivity.restFacts(id, row.personaId).paused === true ? { paused: true } : {}),
+        }
+      }),
+      waiting: (id) => {
+        const approvals = this.screens.listApprovals(id).filter(card => card.status === 'pending').map(card => maskDmApprovalCard(card, ticketId => seenBy(id, ticketId)))
+        const cards = this.boards.getProjectBoard(id).cards
+        const reviews = cards.filter(card => card.category === 'review' || card.deliveryPending === true)
+        const questions = cards.filter(card => card.category === 'needs_you')
+        return {
+          approvals: approvals.length, reviews: reviews.length, questions: questions.length,
+          items: [
+            ...approvals.map(card => ({ kind: 'approval' as const, title: card.title })),
+            ...reviews.map(card => ({ kind: 'review' as const, taskId: card.ticketId, title: titleOf(card.ticketId, card.title) })),
+            ...questions.map(card => ({ kind: 'question' as const, taskId: card.ticketId, title: titleOf(card.ticketId, card.title) })),
+          ],
+        }
+      },
+      counts: (id) => {
+        const today = this.leadDay()
+        const board = this.boards.getProjectBoard(id)
+        const done = this.orchestration.runtime(id).repo.tickets.list()
+          .filter(ticket => ticket.ended !== undefined && (ticket.ended.outcome === 'completed' || ticket.ended.outcome === 'merged') && localDayOf(ticket.ended.at, this.timezoneOffsetMinutes(ticket.ended.at)) === today).length
+        return { done, doing: board.counts.doing, queued: board.counts.todo, cap: LEAD_PULLS_PER_DAY, pulled: this.screens.screens.get<{ n: number }>(id, 'lead_pull_day', today)?.n ?? 0 }
+      },
+    }, projectId)
+    if (view === undefined) throw new HostRemoteFault('not-found', 'Esse projeto não existe mais.')
+    return view
+  }
+
+  /**
+   * Marco M6: "quem está cuidando de quê" for ONE project: the responsible, what each persona does now, what waits for the owner, the board's pace and what the responsible's loop is doing, with the reason in a sentence.
+   * @param request - Project.
+   */
+  @Remote
+  getProjectCare(request: ProjectScopeRequest): ProjectCareView {
+    this.requireProject(request)
+    return this.careOrThrow(request.projectId)
+  }
+
+  /**
+   * Marco M6: the same view for EVERY project of the workspace the session may read (the others are not listed).
+   * @param request - Workspace.
+   */
+  @Remote
+  getCareOverview(request: WorkspaceScopeRequest): ProjectCareView[] {
+    this.requireWorkspace(request)
+    return this.product.listProjects(request.workspaceId).flatMap((project) => {
+      try {
+        this.requireProject({ workspaceId: request.workspaceId, projectId: project.id })
+      } catch {
+        return []
+      }
+      return [this.careOrThrow(project.id)]
+    })
+  }
+
+  /**
+   * Marco M2: "deixar a responsável tocar o quadro" of a project. Owner only; off by default; an identical value writes nothing (and no audit line).
+   * @param request - Project and the new value.
+   */
+  @Remote
+  setProjectAutopilot(request: SetProjectAutopilotRequest): ProjectCareView {
+    this.requireProject(request)
+    this.requireGovOwner(request.workspaceId)
+    const actor = this.requireActor(request.workspaceId)
+    const done = this.autopilotBook().set(request.projectId, request.on, actor.id, this.orchestration.now())
+    if (done.changed) this.governance.audit(request.workspaceId, actor.id, 'project.autopilot', { projectId: request.projectId, on: request.on ? 'on' : 'off' })
+    return this.careOrThrow(request.projectId)
+  }
+
+  /** BUG-QUIT-1: how long each part of the host's close took, in ms (`work`, `remoteTeam`, `runners`, `backgroundIdle`, `station`, `remoteAccess`, `pairedStreams`, `pairedDispatch`, `browser`, `storeClose`); set when the close ends. */
+  quitPhases: Readonly<Record<string, number>> | undefined = undefined
+
+  private personaHomeCache: PersonaHomeBook | undefined
+  private personaScopeCache: PersonaScopeBook | undefined
+  private computerGrantsCache: ComputerGrantBook | undefined
+  private hostGrantsCache: HostGrantBook | undefined
+  private computerUsersCache: ComputerUsersBook | undefined
+  private thisComputerIdValue = 'este-computador'
+  /** D-117 (Bolt): what the directory of the team's computers says about ANOTHER computer (its enrollment kind and owner). Nothing told = the computer is unknown and a move to it is refused (fail closed). */
+  computerFactsOf: ((computerId: string) => HomeFacts | undefined) | undefined = undefined
+
+  /**
+   * D-116 (Bolt): the id of THIS computer, once its identity is read. Until then a placeholder, and no home is written before.
+   * @param id - The device id of this computer.
+   */
+  setThisComputerId(id: string): void {
+    this.thisComputerIdValue = id
+  }
+
+  /** What the host knows about a computer: the directory's word (Bolt) or, for THIS one with no word, a personal PC of the owner (the engine's default: team needs two recorded consents); another one unknown = nothing. */
+  private factsOfComputer(computerId: string): HomeFacts | undefined {
+    const told = this.computerFactsOf?.(computerId)
+    if (told !== undefined) return told
+    if (computerId !== this.thisComputerIdValue) return undefined
+    const owner = this.ownerMemberId()
+    return { computerId, kind: 'personal', ...(owner === undefined ? {} : { ownerId: owner }), teamComputerUse: false }
+  }
+
+  /** D-116: where every persona lives (built on first use): no doc = this computer. Closing writes `moving` first and then lets her runner go; a home on a computer the placement rule refuses is never written. */
+  personaHome(): PersonaHomeBook {
+    return this.personaHomeCache ??= new PersonaHomeBook({
+      store: this.screens.screens,
+      thisComputerId: () => this.thisComputerIdValue,
+      projectOf: personaId => this.product.getPersona(personaId)?.projectId,
+      personaIds: () => this.product.listWorkspaces().flatMap(workspace => this.product.listProjects(workspace.id).flatMap(project => this.product.listPersonas(project.id).map(persona => persona.id))),
+      stopRuntime: (personaId) => {
+        const project = this.product.getPersona(personaId)?.projectId
+        if (project !== undefined) this.orchestration.evictWarmRunners(project, personaId) // her open turn is cancelled and her CLI released
+      },
+      onHomeChanged: (personaId, from, to) => { this.afterHomeChanged(personaId, from, to) },
+      placement: (personaId, computerId) => {
+        const facts = this.factsOfComputer(computerId)
+        return facts === undefined ? 'invalid' : this.personaScope().homeAllowed(personaId, facts)
+      },
+    })
+  }
+
+  /** D-117: who a persona is for and whether she may use the computer; one writer, every change asked against her CURRENT home with the engine's rule (built on first use). */
+  personaScope(): PersonaScopeBook {
+    return this.personaScopeCache ??= new PersonaScopeBook({
+      store: this.screens.screens,
+      validate: validatePlacement,
+      projectOf: personaId => this.product.getPersona(personaId)?.projectId,
+      creatorOf: personaId => this.product.getPersona(personaId)?.createdBy,
+      homeOf: personaId => this.factsOfComputer(this.personaHome().resolve(personaId).computerId),
+      onRevoke: (personaId, computerId) => { this.computerGrants().revoke(computerId, personaId, 'sistema', this.orchestration.now()) },
+    })
+  }
+
+  /** D-117: the local concession "this persona may use THIS computer", keyed by (computer, persona) (built on first use). */
+  computerGrants(): ComputerGrantBook {
+    return this.computerGrantsCache ??= new ComputerGrantBook(this.screens.screens, personaId => this.product.getPersona(personaId)?.projectId)
+  }
+
+  /** D-116 (L2): the creator's concession "she may run on THAT team computer" (built on first use); written in-process only, read by Bolt's rule through {@link hostGrantOf}. */
+  personaHostGrants(): HostGrantBook {
+    return this.hostGrantsCache ??= new HostGrantBook(this.screens.screens, personaId => this.product.getPersona(personaId)?.projectId)
+  }
+
+  /**
+   * D-116 (Bolt's read-only port): did the persona's creator grant her a home on that computer? No data, no signature or an unknown persona = not granted (fail closed).
+   * @param personaId - The persona.
+   * @param computerId - The team computer.
+   * @returns Whether it is granted and the member who signed it.
+   */
+  hostGrantOf(personaId: string, computerId: string): { readonly granted: boolean; readonly by: string } {
+    return this.personaHostGrants().of(personaId, computerId)
+  }
+
+  /** D-117: "Quem pode usar" (built on first use): who, besides the owner of a team computer, may command a team persona on it; keyed by (computer, persona), written in-process only (no Remote yet). */
+  computerUsers(): ComputerUsersBook {
+    return this.computerUsersCache ??= new ComputerUsersBook(this.screens.screens, personaId => this.product.getPersona(personaId)?.projectId)
+  }
+
+  /**
+   * D-117: THE answer to "may this person make this persona use THIS computer now" (Zinc's matrix, the single implementation), read again at every call by the executor: her audience and the creator's offer, the
+   * owner's local grant, where she lives now (a persona being moved is not home), what this computer is and who may use her. Everything fails closed.
+   * @param personaId - The persona.
+   * @param commanderId - The member who commands her.
+   * @returns allow, or the stable reason of the refusal.
+   */
+  computerAccessOf(personaId: string, commanderId: string): { readonly allow: true } | { readonly allow: false; readonly reason: string } {
+    const persona = this.product.getPersona(personaId)
+    if (persona === undefined) return { allow: false, reason: 'unreadable' }
+    const home = this.personaHome().resolve(personaId)
+    const scope = this.personaScope().get(personaId)
+    const here = this.factsOfComputer(this.thisComputerIdValue)
+    return accessOf({
+      persona: {
+        id: personaId, audience: scope.audience, creatorId: persona.createdBy, homeComputerId: home.state === 'active' ? home.computerId : '',
+        computerUse: effectiveComputerUse(scope.computerUse, this.computerGrants().has(home.computerId, personaId)),
+      },
+      here, commanderId, users: this.computerUsers().of(this.thisComputerIdValue, personaId),
+    })
+  }
+
+  /** D-117: her home moved to another computer: computer use goes OFF (the permission does not travel) and the local grant is taken back at the old computer and not born at the new one. */
+  private afterHomeChanged(personaId: string, from: string, to: string): void {
+    const now = this.orchestration.now()
+    this.computerGrants().revoke(from, personaId, 'sistema', now)
+    this.computerGrants().revoke(to, personaId, 'sistema', now)
+    this.personaHostGrants().revoke(from, personaId, 'sistema', now) // the concession to run THERE does not outlive her stay (it would come back if somebody brought her again); the one for `to` is Bolt's to write
+    const scope = this.personaScope().get(personaId)
+    if (scope.computerUse === 'on') this.personaScope().set(personaId, { audience: scope.audience, computerUse: 'off' }, 'sistema', now)
+  }
+
+  /**
+   * D-116 (Bolt's port): who made a persona and how much autonomy her creator gave her. The autonomy is not mapped from the persona yet: `baixa` (the lowest) until it is.
+   * @param personaId - The persona.
+   * @returns Her creator, or undefined when there is no such persona.
+   */
+  creatorOf(personaId: string): { readonly memberId: string; readonly autonomy: 'baixa' | 'media' | 'alta' } | undefined {
+    const persona = this.product.getPersona(personaId)
+    return persona === undefined ? undefined : { memberId: persona.createdBy, autonomy: 'baixa' }
+  }
+
+  /**
+   * D-116 (Bolt's port): how many personas of one creator live on a computer (the per-creator ceiling of its certificate).
+   * @param computerId - The computer.
+   * @param creatorMemberId - The creator.
+   * @returns The count.
+   */
+  hostedBy(computerId: string, creatorMemberId: string): number {
+    return this.personaHome().placesOf(computerId).filter(personaId => this.product.getPersona(personaId)?.createdBy === creatorMemberId).length
+  }
+
   private viewRoster(projectId: string): ViewPersona[] {
     return this.product.listPersonas(projectId).map(persona => ({ id: persona.id, name: persona.name }))
   }
@@ -3577,6 +4241,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   moveTicket(request: MoveTicketRequest): MoveTicketView {
     this.requireWrite(request)
+    this.requireTaskSeen(request.workspaceId, request.projectId, request.ticketId) // D-119b: moving a card to Fazendo starts the persona
     const moved = this.boards.moveTicketWith(request.projectId, request.ticketId, request.columnId)
     // HT-3: THIS path is the person's (a persona is not an actor of a Remote). Moving a card to Fazendo only marks it as running;
     // here the persona that owns it actually starts. The personas' own tools call `boards.moveTicket` directly and never come this way.
@@ -5034,8 +5699,10 @@ export default class PersonaHost extends TypertRemoteService {
     this.requireProject(request)
     // Carbon R2-05: the card of an open question is the Task's title; for a Task born in a DM only its participants read it.
     const seenBy = this.ticketSeenFor(request.workspaceId)
+    // D-119: the card "Virar skill?" carries the title of what the persona learned; learned from a DM, it is for the people in it.
+    const playbook = playbookPrivacy(this.screens, request.projectId, this.dmSeenFor(request.workspaceId))
     return this.screens.listApprovals(request.projectId).map((listed) => {
-      const card = maskDmApprovalCard(listed, ticketId => seenBy(request.projectId, ticketId))
+      const card = playbook.card(maskDmApprovalCard(listed, ticketId => seenBy(request.projectId, ticketId)))
       const audit = this.screens.screens.get<{ grantId: string; explanation: string }>(
         request.projectId, 'remembered_approval', `${card.kind}:${card.id}`)
       return { ...this.governance.approval(request.workspaceId, card),
@@ -5080,6 +5747,10 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   decideApproval(request: DecideApprovalRequest): ApprovalView {
     this.requireWrite(request)
+    if (currentCaller()?.kind === 'paired' && (request.kind === 'hire' || request.kind === 'vault' || request.kind === 'connector' || request.kind === 'action')) {
+      const rejection = request.kind === 'action' ? request.choice === 'cancel' : request.kind === 'connector' ? request.choice === 'not-now' : request.accept === false
+      if (!rejection) throw new HostRemoteFault('forbidden', 'forbidden', { reason: 'pc-only' })
+    }
     if (request.kind === 'connector') return this.decideConnectorAsk(request)
     if (request.kind === 'action') return this.decideAction(request)
     if (request.accept === undefined) throw new HostRemoteFault('invalid-payload', 'Diga se aceita ou recusa.')
@@ -5207,7 +5878,24 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listPlaybook(request: ListPlaybookRequest): PlaybookNoteView[] {
     this.requireProject(request)
-    return playbookViews(this.screens, request.projectId, request.personaId)
+    return playbookViews(this.screens, request.projectId, request.personaId, this.dmSeenFor(request.workspaceId)) // D-119: a note learned from a DM is for those in it
+  }
+
+  /**
+   * D-118: the notebook of ONE persona (surface `notebook`, OFF in the product): what she keeps to work the way the owner likes, as the host has it. What came from a DM is for who was in it:
+   * a reader who was not gets the notebook of a world where that DM never happened (the ACL is the session's, never a field of the request).
+   * @param request - Tenant and persona.
+   */
+  @Remote
+  getPersonaNotebook(request: PersonaNotebookRequest): PersonaNotebookView {
+    this.requireProject(request)
+    let canWrite = true
+    try { this.requireWrite(request) } catch { canWrite = false } // edit and forget are drawn only where the write rule of the project lets this reader
+    const book = personaNotebookOf({ vault: this.vault, screens: this.screens, product: this.product }, request, {
+      id: this.actorOf(request.workspaceId)?.id ?? '', canWrite, inDm: this.dmSeenFor(request.workspaceId),
+    })
+    if (book === undefined) throw new Error('persona-not-found')
+    return book
   }
 
   /**
@@ -5217,7 +5905,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   forgetPlaybook(request: ScreenDocRequest): boolean {
     this.requireWrite(request) // Carbon P0-13: forgetting is a write, not a read
-    return forgetPlaybookNote(this.screens, request.projectId, request.id)
+    return forgetPlaybookNote(this.screens, request.projectId, request.id, this.dmSeenFor(request.workspaceId)) // D-119: another DM's note is neither forgotten nor confirmed
   }
 
   /**
@@ -5227,7 +5915,8 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   listSkills(request: ProjectScopeRequest): SkillView[] {
     this.requireProject(request)
-    return this.screens.listSkills(request.projectId)
+    const playbook = playbookPrivacy(this.screens, request.projectId, this.dmSeenFor(request.workspaceId)) // D-119: the skill the playbook made from a DM is for the people in it
+    return this.screens.listSkills(request.projectId).map(skill => playbook.skill(skill))
   }
 
   /**
@@ -5565,6 +6254,8 @@ export default class PersonaHost extends TypertRemoteService {
   createDm(request: CreateDmRequest): DmView {
     this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
     const actor = this.actorOf(request.workspaceId)
+    // D-119b: a DM is made by one of its two people (the owner of the space administers: she makes the DM of a member with a persona).
+    if (actor !== undefined && actor.workspaceRole !== 'owner' && actor.id !== request.participantA && actor.id !== request.participantB) throw new HostRemoteFault('forbidden', 'forbidden')
     if (actor !== undefined) {
       this.assertCanAddress(request.workspaceId, request.participantA, actor.id)
       this.assertCanAddress(request.workspaceId, request.participantB, actor.id)
@@ -5593,6 +6284,7 @@ export default class PersonaHost extends TypertRemoteService {
   sendSticker(request: SendStickerRequest): MessageView {
     this.requireWrite(request)
     const actor = this.requireActor(request.workspaceId)
+    this.requireConversation(request.workspaceId, request.streamKind, request.ownerId) // D-119b: a sticker is a message of the person
     return this.viewMessage(this.events.append(stickerMessageEvent({ ...request, actorId: actor.id }, this.orchestration.now())))
   }
 
@@ -5631,6 +6323,8 @@ export default class PersonaHost extends TypertRemoteService {
         this.assertCanAddress(request.workspaceId, persona.id, actor.id)
       }
     }
+    // D-119b: a person writes in a DM only if they are in it. `postMessage` asked for this already; the other writers (the queue, "direcionar", the tap on a card) come through here.
+    if (actor !== undefined && request.streamKind === 'dm' && request.actorId === actor.id) this.requireConversation(request.workspaceId, 'dm', request.ownerId)
     // Item 18: a message of a Task's thread is only written in the stream where that Task lives.
     const threadProblem = this.taskThreads.problemWith({ projectId: request.projectId, streamKind: request.streamKind, ownerId: request.ownerId, ...(request.topicId === undefined ? {} : { topicId: request.topicId }) })
     if (threadProblem !== undefined) throw new HostRemoteFault('invalid-payload', threadProblem)
@@ -6375,6 +7069,8 @@ export default class PersonaHost extends TypertRemoteService {
     const answer = checkAttentionAnswer(request.text, request.attachmentIds, request.optionIds)
     const ticket = this.orchestration.runtime(request.projectId).repo.tickets.get(request.ticketId)
     if (ticket === undefined) throw new HostRemoteFault('not-found', 'Tarefa não encontrada neste projeto.')
+    // D-119b: the answer is written in the conversation of the Task: a Task born in a DM is answered only by who is in it (the same rule as its action card).
+    this.requireTaskSeen(request.workspaceId, request.projectId, ticket.id)
     const question = ticket.attention
     if (question === undefined) throw new HostRemoteFault('conflict', 'Essa pergunta já foi respondida.')
     try {
@@ -7606,6 +8302,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   createConversationSubject(request: CreateConversationSubjectRequest): ConversationSubjectsBundleView {
     this.requireWrite(request)
+    this.requireConversation(request.workspaceId, request.streamKind, request.ownerId) // D-119b
     const existing = this.topics.list(request.projectId, request.streamKind, request.ownerId, true)
     const colorIndex = request.colorIndex ?? nextSubjectColor(existing)
     if (existing.some(row => !row.archived && row.colorIndex === colorIndex)) {
@@ -7655,6 +8352,7 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   private requireConversationSubject(request: ArchiveConversationSubjectRequest): void {
+    this.requireConversation(request.workspaceId, request.streamKind, request.ownerId) // D-119b: set, rename and archive a subject of a DM are of who is in it
     const row = this.topics.get(request.subjectId)
     if (row === undefined || row.workspaceId !== request.workspaceId || row.projectId !== request.projectId
       || row.streamKind !== request.streamKind || row.ownerId !== request.ownerId) {
@@ -7668,6 +8366,8 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   moveMessageToSubject(request: MoveMessageToSubjectRequest): boolean {
     this.requireWrite(request)
+    this.requireConversation(request.workspaceId, request.streamKind, request.ownerId) // D-119b
+    this.requireEventConversation(request.workspaceId, request.eventId)
     this.topics.moveEvent(request.eventId, request.subjectId)
     return true
   }
@@ -8864,6 +9564,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   cancelReply(request: CancelReplyRequest): boolean {
     this.requireWrite(request) // Carbon P0-13: a write asks to WRITE
+    this.requireEventConversation(request.workspaceId, request.eventId) // D-119b
     this.orchestration.cancelReply(request.eventId)
     return true
   }
@@ -8894,6 +9595,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   async prepareReview(request: ReviewTicketRequest): Promise<ReviewSummaryView> {
     this.requireWrite(request)
+    this.requireTaskSeen(request.workspaceId, request.projectId, request.ticketId) // D-119b
     const ticket = this.orchestration.runtime(request.projectId).repo.tickets.get(request.ticketId)
     const latest = ticket === undefined ? undefined : ticket.assignments.at(-1)
     if (ticket === undefined || latest === undefined) throw new Error('ticket-not-found')
@@ -8932,6 +9634,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   async acceptReview(request: AcceptReviewRequest): Promise<ReviewAcceptView> {
     this.requireWrite(request)
+    this.requireTaskSeen(request.workspaceId, request.projectId, request.ticketId) // D-119b
     const result = await this.orchestration.acceptReview(request.projectId, request.ticketId, request.mode,
       request.conflicts === undefined ? undefined : { conflicts: request.conflicts })
     if (result.kind === 'merged') {
@@ -8964,6 +9667,7 @@ export default class PersonaHost extends TypertRemoteService {
   @Remote
   async discardReview(request: ReviewTicketRequest): Promise<boolean> {
     this.requireWrite(request)
+    this.requireTaskSeen(request.workspaceId, request.projectId, request.ticketId) // D-119b
     await this.orchestration.discardReview(request.projectId, request.ticketId)
     return true
   }
@@ -9121,7 +9825,291 @@ export default class PersonaHost extends TypertRemoteService {
   }
 
   private actorOf(workspaceId: string) {
-    return resolveSessionActor(this.product, workspaceId, this.sessionMemberId)
+    return resolveSessionActor(this.product, workspaceId, this.callerMember())
+  }
+
+  /** M5: the remote access of this PC (the screen "Configurações › Celular"): off, waiting for Tailscale, or on with the address to type on the phone. Only the owner, only at the PC. */
+  @Remote
+  getRemoteAccess(request: ProjectScopeRequest): RemoteAccessView {
+    this.requireMachineOwner(request)
+    return this.remoteAccess.view()
+  }
+
+  /** M5: the owner turns the remote access on or off (off closes the door and every connection at once). */
+  @Remote
+  async setRemoteAccess(request: RemoteAccessSetRequest): Promise<RemoteAccessView> {
+    this.requireMachineOwner(request)
+    return this.remoteAccess.setOn(request.on === true)
+  }
+
+  /** M5: a pairing code for a phone (shown once, worth ten minutes; the owner still approves the phone on this screen). */
+  @Remote
+  issueDeviceCode(request: IssueDeviceCodeRequest): IssueDeviceCodeAnswer {
+    this.requireMachineOwner(request)
+    const issued = this.remoteAccess.issueDeviceCode(request.memberId)
+    return typeof issued === 'string' ? { ok: false, reason: issued } : { ok: true, code: issued.code, expiresAt: issued.expiresAt, url: issued.url }
+  }
+
+  /** M5: the phones that typed a right code and wait for the owner ("O celular Pixel quer entrar · Aprovar / Recusar"). */
+  @Remote
+  listPairRequests(request: ProjectScopeRequest): readonly PairRequestView[] {
+    this.requireMachineOwner(request)
+    return this.remoteAccess.view().requests
+  }
+
+  /** M5: the owner approves a phone (only an approval makes the device and its session). */
+  @Remote
+  approvePair(request: PairRequestRef): RemoteAccessAnswer {
+    this.requireMachineOwner(request)
+    return answerOf(this.remoteAccess.approvePair(request.requestId))
+  }
+
+  /** M5: the owner refuses a phone. */
+  @Remote
+  rejectPair(request: PairRequestRef): RemoteAccessAnswer {
+    this.requireMachineOwner(request)
+    return answerOf(this.remoteAccess.rejectPair(request.requestId))
+  }
+
+  /** M5: the paired devices ("Celulares ligados"); also read by the owner's own paired device. */
+  @Remote
+  listDevices(request: ProjectScopeRequest): readonly DeviceView[] {
+    this.requireWrite(request)
+    this.requireGovOwner(request.workspaceId) // the OWNER of the team, at the PC or from her own paired device (`requireMachineOwner` would turn that device away)
+    return this.remoteAccess.view().devices
+  }
+
+  /** M5: cut a device off at once (its calls are aborted and its sockets dropped); the owner's own paired device may do it too (lose the phone, revoke it from the notebook). */
+  @Remote
+  revokeDevice(request: DeviceRef): RemoteAccessAnswer {
+    this.requireWrite(request)
+    this.requireGovOwner(request.workspaceId) // the OWNER of the team, at the PC or from her own paired device
+    return answerOf(this.remoteAccess.revokeDevice(request.deviceId))
+  }
+
+  /** M5: rename a paired device. */
+  @Remote
+  renameDevice(request: RenameDeviceRequest): RemoteAccessAnswer {
+    this.requireMachineOwner(request)
+    return answerOf(this.remoteAccess.renameDevice(request.deviceId, request.label))
+  }
+
+  /** Record this computer's latest local heartbeat when it belongs to a team roster and the `computers` surface is enabled. */
+  private pulseSelfPresence(): void {
+    if (!this.surfaces.computers) return
+    if (!this.computers.rosterComputers().some(item => item.isThis)) return
+    this.computerPresence.heartbeat(this.thisComputerIdValue, this.localBeat())
+  }
+
+  /** D-116: "Computadores da equipe" in one read: the computers the roster names (who is on), the computers asking to join (the owner's PC) and this computer's own joining. */
+  @Remote
+  async listComputers(request: ProjectScopeRequest): Promise<ComputersViewWire> {
+    this.requireMachineRead(request)
+    const service = await this.computers.service()
+    if (typeof service === 'string') return { thisComputerId: '', isOwnerPc: false, computers: [], requests: [], enrollment: { state: 'livre' }, unavailable: service }
+    this.pulseSelfPresence()
+    const caller = this.callerMember()
+    const owner = this.ownerMemberId()
+    const presence = this.computerPresence.list().map((row): ComputerPresenceRow => {
+      const kind = this.factsOfComputer(row.computerId)?.kind ?? 'personal'
+      return presenceRowWire(row, { kind, callerMemberId: caller, ownerMemberId: owner })
+    })
+    const view = viewWire(service.view(), presence)
+    return currentCaller()?.kind === 'paired' ? { ...view, requests: [] } : view // a phone sees which computers are on, never who is asking to join (that is the owner's, at the PC)
+  }
+
+  /** D-116: a code for the NEXT computer of the team (shown once, ten minutes, one use). The PC that has the team; a fresh PC becomes it with its first code. */
+  @Remote
+  async issueComputerCode(request: IssueComputerCodeRequest): Promise<IssueComputerCodeAnswer> {
+    this.requireMachineOwner(request)
+    const service = await this.computers.service()
+    return typeof service === 'string' ? { ok: false, reason: service } : codeAnswer(service.issueCode())
+  }
+
+  /** D-116: typed on the NEW computer: the address of the owner's PC and the code its screen showed. The wait for the owner's confirmation goes on in the background (`listComputers` shows where it is). */
+  @Remote
+  async enrollThisComputer(request: EnrollComputerRequest): Promise<EnrollComputerAnswer> {
+    this.requireMachineOwner(request)
+    const service = await this.computers.service()
+    return typeof service === 'string' ? { ok: false, reason: service } : enrollAnswer(await service.enroll({ ownerAddress: request.ownerAddress, code: request.code, label: request.label, ...(request.ramMb === undefined ? {} : { ramMb: request.ramMb }) }))
+  }
+
+  /** D-116: the owner confirms a computer that typed a right code (seeing its name, RAM, what Tailscale says and the fingerprint of its keys): only this signs its certificate. */
+  @Remote
+  async confirmComputer(request: ComputerRequestRef): Promise<ComputersAnswer> {
+    this.requireMachineOwner(request)
+    const service = await this.computers.service()
+    return typeof service === 'string' ? { ok: false, reason: service } : answerOfComputers(service.confirm(request.requestId))
+  }
+
+  /** D-116: the owner refuses a computer. */
+  @Remote
+  async rejectComputer(request: ComputerRequestRef): Promise<ComputersAnswer> {
+    this.requireMachineOwner(request)
+    const service = await this.computers.service()
+    return typeof service === 'string' ? { ok: false, reason: service } : answerOfComputers(service.reject(request.requestId))
+  }
+
+  /** D-116: the owner removes a computer from the team (its id is revoked for good; the personas that lived there stay out of the air until they are taken to another). */
+  @Remote
+  async revokeComputer(request: ComputerRef): Promise<ComputersAnswer> {
+    this.requireMachineOwner(request)
+    const service = await this.computers.service()
+    return typeof service === 'string' ? { ok: false, reason: service } : answerOfComputers(service.revoke(request.computerId))
+  }
+
+  /** D-116: where a persona lives and whether that computer is on. */
+  @Remote
+  async getPersonaHome(request: PersonaHomeRequest): Promise<PersonaHomeAnswer> {
+    this.requireMachineRead(request)
+    const service = await this.computers.service()
+    return typeof service === 'string' ? { ok: false, reason: service } : homeAnswer(service.home(request.personaId))
+  }
+
+  /** D-116: what taking her to another computer would do and what the screen must say (the AI login does not travel, an open turn is cancelled, private DM memory stays). Nothing moves. */
+  @Remote
+  async previewMovePersona(request: MovePreviewRequest): Promise<MovePreviewAnswer> {
+    this.requireMachineRead(request)
+    const service = await this.computers.service()
+    return typeof service === 'string' ? { ok: false, reason: service } : previewAnswer(service.preview(request.personaId, request.toComputerId))
+  }
+
+  /** D-116: take her to another computer of the team. Without `confirm: true` nothing moves; she is closed here before anything is sent and only the destination, holding her, lets this computer release her. */
+  @Remote
+  async movePersona(request: MovePersonaRequest): Promise<MovePersonaAnswer> {
+    this.requireMachineOwner(request)
+    const service = await this.computers.service()
+    if (typeof service === 'string') return { ok: false, reason: service }
+    // D-121: "Levar" changes her HOME. The creator's concession "she may run on THAT computer" is written BEFORE it (the destination's rule and every start read it) and taken back if the move is refused.
+    const owner = this.ownerMemberId()
+    const stamp = (): string => this.orchestration.now()
+    const answer = moveWithGrant({
+      confirm: request.confirm === true, ownerId: owner, creatorId: this.creatorOf(request.personaId)?.memberId, granted: this.hostGrantOf(request.personaId, request.toComputerId).granted,
+      grant: () => { this.personaHostGrants().grant(request.toComputerId, request.personaId, owner ?? '', stamp()) },
+      revoke: () => { this.personaHostGrants().revoke(request.toComputerId, request.personaId, owner ?? '', stamp()) },
+      move: () => moveAnswer(service.move({ personaId: request.personaId, toComputerId: request.toComputerId, confirm: request.confirm === true, includePrivateDm: request.includePrivateDm === true })),
+    })
+    return answer
+  }
+
+  /** D-121: the text of her sheet, what the owner signs when she is taken to another computer (her instructions, tools, limits). Never her memory. */
+  sheetTextOf(personaId: string): string | undefined {
+    const persona = this.product.getPersona(personaId)
+    return persona === undefined ? undefined : JSON.stringify(sheetFieldsOf(persona))
+  }
+
+  /** D-121 (B's side): the runner this computer lends to the turns of the team's personas: ITS OWN account and CLI, in a scratch folder. Built on first use; idle runners go by the host's own policy (a sweep each minute). */
+  executorRunnerFacade(): ExecutorRunnerFacade {
+    if (this.executorFacade === undefined) {
+      this.executorFacade = createExecutorRunner({ engines: () => { const cli = this.loggedCli(); return cli === 'claude' || cli === 'codex' || cli === 'cursor' || cli === 'opencode' ? [cli] : [] } })
+      const facade = this.executorFacade
+      this.executorSweep = setInterval(() => { facade.sweep() }, 60_000)
+      this.executorSweep.unref()
+    }
+    return this.executorFacade
+  }
+
+  /**
+   * M5/M9: "Parar" from a paired phone. `runId` is the id of the Task whose turn is running (the card's own id). The device's member must be allowed to WRITE that project, as for every other write; the stop goes through the
+   * one road every stop takes (`stopTicketRun`), which also cancels a turn that runs on another computer.
+   * @param runId - The Task.
+   * @param device - The paired device that asked.
+   * @returns Whether the Task was stopped.
+   */
+  private async stopRunOfDevice(runId: string, device: DeviceRecord): Promise<boolean> {
+    for (const [projectId, runtime] of this.orchestration.runtimes) {
+      if (runtime.repo.tickets.get(runId) === undefined) continue
+      const workspaceId = this.product.getProject(projectId)?.workspaceId
+      if (workspaceId === undefined) return false
+      const caller: Caller = { kind: 'paired', memberId: device.memberId, deviceId: device.id }
+      try {
+        return await runAs(caller, async () => {
+          this.requireWrite({ workspaceId, projectId })
+          this.requireTaskSeen(workspaceId, projectId, runId) // D-119c: a Task born in a DM is stopped only by who is in it (the phone is one more way to the same Parar)
+          return this.orchestration.stopTicketRun(projectId, runId, 'celular')
+        })
+      } catch (error) {
+        void error // not allowed to write that project (or it is gone): nothing was stopped
+        return false
+      }
+    }
+    return false
+  }
+
+  /** D-116: how far a transfer is (and whether the destination went silent after this computer released her). */
+  @Remote
+  async getTransfer(request: TransferRef): Promise<TransferAnswer> {
+    this.requireMachineRead(request)
+    const service = await this.computers.service()
+    return typeof service === 'string' ? { ok: false, reason: service } : transferAnswer(service.transfer(request.transferId))
+  }
+
+  /** D-116: "Ativar de novo aqui": the destination never activated and its window is over. The owner confirmed the partition warning (if it is cut off from the network and running her, both run her until they meet). */
+  @Remote
+  async reactivatePersonaHere(request: ReactivateRequest): Promise<ComputersAnswer> {
+    this.requireMachineOwner(request)
+    const service = await this.computers.service()
+    return typeof service === 'string' ? { ok: false, reason: service } : answerOfComputers(service.reactivate(request.personaId, request.confirm === true))
+  }
+
+  /** M5: who is calling THIS Remote, asked once per call by the funnel. A call with no Peer (in-process: a test, the host itself) is the owner at the keyboard, as it always was. */
+  private callerFor(receiver: unknown): Caller {
+    const principal = (receiver as { ctx?: { invocation?: { peer?: { principal?: { kind?: string; deviceId?: unknown } } } } } | undefined)?.ctx?.invocation?.peer?.principal
+    if (principal === undefined || principal.kind === 'owner') return { kind: 'owner' }
+    if (principal.kind !== 'paired' || typeof principal.deviceId !== 'string') throw new HostRemoteFault('forbidden', 'forbidden') // no other kind of Peer is served by the product
+    const device = this.remoteDevices.liveRecord(principal.deviceId)
+    if (device === undefined) throw new HostRemoteFault('forbidden', 'forbidden', { reason: 'device-revoked' })
+    return { kind: 'paired', memberId: device.memberId, deviceId: device.id }
+  }
+
+  /** M5: the member the running code speaks for: a paired device's member, else the host's own session (the owner at the keyboard, or the host acting by itself). A device that is no longer live is refused. */
+  private callerMember(): string | undefined {
+    if (currentCaller() === undefined) return this.sessionMemberId
+    try {
+      return resolveMember({ isLive: id => this.remoteDevices.isLive(id), host: this.sessionMemberId })
+    } catch (error) {
+      if (error instanceof CallerRefused) throw new HostRemoteFault('forbidden', 'forbidden', error.why === 'device-not-live' ? { reason: 'device-revoked' } : error.why === 'pc-only' ? { reason: 'pc-only' } : {})
+      throw error
+    }
+  }
+
+  /** M5: the machine is the OWNER's: a paired device never passes, even if the Gateway or the permitted list let the call through. */
+  private assertPcOnly(): void {
+    if (currentCaller()?.kind === 'paired') throw new HostRemoteFault('forbidden', 'forbidden', { reason: 'pc-only' })
+  }
+
+  /** M5: a member as the remote gate shows it (`/remote/me`): the team it belongs to and its role; `undefined` when the member is gone (its devices are then refused). */
+  private deviceMemberOf(memberId: string): { workspace: { id: string; name: string }; member: { id: string; name: string; role: string } } | undefined {
+    for (const workspace of this.product.listWorkspaces()) {
+      const member = this.product.listMembers(workspace.id).find(item => item.id === memberId)
+      if (member !== undefined) return { workspace: { id: workspace.id, name: workspace.name }, member: { id: member.id, name: member.displayName, role: member.role } }
+    }
+    return undefined
+  }
+
+  /** M5: the owner of the first team (the default member of a new pairing code). */
+  private ownerMemberId(): string | undefined {
+    for (const workspace of this.product.listWorkspaces()) {
+      const owner = this.product.listMembers(workspace.id).find(item => item.role === 'owner')
+      if (owner !== undefined) return owner.id
+    }
+    return undefined
+  }
+
+  /** D-116: the team of the owner (the first workspace that has an owner): the computers of the team belong to it. */
+  private ownerWorkspaceId(): string | undefined {
+    return this.product.listWorkspaces().find(workspace => this.product.listMembers(workspace.id).some(member => member.role === 'owner'))?.id
+  }
+
+  /** D-116: `ip:port` of this PC's remote door while it is open (the owner is in its own directory of computers). */
+  private remoteEndpoint(): string | undefined {
+    const view = this.remoteAccess.view()
+    return view.tailscaleAddress === undefined || view.port === undefined ? undefined : `${view.tailscaleAddress}:${String(view.port)}`
+  }
+
+  /** M5: whether a member is the OWNER of a team (the owner's phone may list and revoke devices). */
+  private isOwnerMember(memberId: string): boolean {
+    return this.product.listWorkspaces().some(workspace => this.product.listMembers(workspace.id).some(member => member.id === memberId && member.role === 'owner'))
   }
 
   private canSpeak(projectId: string, body: string, responderId?: string): boolean {
@@ -9258,6 +10246,7 @@ export default class PersonaHost extends TypertRemoteService {
    * @param request - Tenant.
    */
   private requireMachineOwner(request: { workspaceId: string; projectId: string }): void {
+    this.assertPcOnly()
     this.requireWrite(request)
     this.requireGovOwner(request.workspaceId)
   }
@@ -9276,6 +10265,7 @@ export default class PersonaHost extends TypertRemoteService {
    * changed by the owner of a workspace; a host where nobody is a member anywhere yet (a fresh install, before the onboarding) has nobody to protect and no peer.
    */
   private requireMachineOwnerLocal(): void {
+    this.assertPcOnly()
     this.requireMachineLocal(['owner'])
   }
 
@@ -9780,7 +10770,7 @@ export default class PersonaHost extends TypertRemoteService {
    * @param request - The message.
    */
   private requireStreamWriter(request: PostMessageRequest): void {
-    if (this.sessionMemberId === undefined) return
+    if (this.callerMember() === undefined) return
     const actor = this.actorOf(request.workspaceId)
     if (actor === undefined || request.actorId !== actor.id) throw new HostRemoteFault('forbidden', 'forbidden')
     this.assertStreamWrite(request)
@@ -9803,6 +10793,50 @@ export default class PersonaHost extends TypertRemoteService {
    */
   private ticketSeenBy(workspaceId: string, projectId: string, ticketId: string): boolean {
     return this.ticketSeenFor(workspaceId)(projectId, ticketId)
+  }
+
+  /**
+   * D-119b: a conversation is written and driven only by the people in it. A channel is the project's; a DM, its two participants (fails closed: a DM nobody can find is nobody's).
+   * @param workspaceId - Tenant.
+   * @param streamKind - Where the call acts.
+   * @param ownerId - The channel or DM id.
+   */
+  private requireConversation(workspaceId: string, streamKind: 'channel' | 'dm' | undefined, ownerId: string | undefined): void {
+    if (streamKind !== 'dm') return
+    if (!this.dmSeenFor(workspaceId)(ownerId ?? '')) throw new HostRemoteFault('forbidden', 'forbidden')
+  }
+
+  /** D-119c: a conversation SUBJECT lives in one stream (a topic: its own; a message used as a subject: the message's): what is asked or derived from a DM subject is of who is in the DM. */
+  private requireSubjectConversation(workspaceId: string, subjectId: string): void {
+    const topic = this.topics.get(subjectId)
+    if (topic !== undefined) { this.requireConversation(workspaceId, topic.streamKind, topic.ownerId); return }
+    this.requireEventConversation(workspaceId, subjectId)
+  }
+
+  /** D-119b: a Task born in a DM is acted on only by who is in the DM (the same rule as its title, its card and its answer). */
+  private requireTaskSeen(workspaceId: string, projectId: string, ticketId: string): void {
+    if (!this.ticketSeenFor(workspaceId)(projectId, ticketId)) throw new HostRemoteFault('forbidden', 'forbidden')
+  }
+
+  /** D-119b: a bubble of the working queue belongs to the conversation it was queued for. */
+  private requireQueuedRow(request: { readonly workspaceId: string; readonly projectId: string; readonly personaId: string; readonly subjectId: string; readonly id: string }): void {
+    const row = this.workingControl.list(request).find(item => item.id === request.id)
+    if (row !== undefined) this.requireConversation(request.workspaceId, row.streamKind, row.ownerId)
+  }
+
+  /** D-119b: a message lives in a stream; a message of a DM is acted on only by who is in it. */
+  private requireEventConversation(workspaceId: string, eventId: string): void {
+    const event = this.events.get(eventId)
+    if (event?.streamId.startsWith('dm:') === true) this.requireConversation(workspaceId, 'dm', event.streamId.slice(3))
+  }
+
+  /**
+   * D-119: whether the session is IN a DM (what the playbook learned from it, and the card and the skill made from that, are for the people in it).
+   * @param workspaceId - Tenant.
+   * @returns The check, by DM id; it fails closed.
+   */
+  private dmSeenFor(workspaceId: string): (dmId: string) => boolean {
+    return dmSeenByActor(dmId => this.product.getDm(dmId), this.actorOf(workspaceId), workspaceId)
   }
 
   /**
@@ -9938,6 +10972,21 @@ export default class PersonaHost extends TypertRemoteService {
     if (project.rootPath === undefined || project.rootPath === '') return undefined
     return project.rootPath
   }
+}
+
+const ENGINE_ACCOUNT_NAMES: Readonly<Record<string, string>> = {
+  claude: 'Claude',
+  codex: 'Codex',
+  opencode: 'OpenCode',
+  cursor: 'Cursor',
+  dsh: 'DeepSeek',
+}
+
+function accountLabelFromConnections(cards: readonly ConnectionView[]): string | undefined {
+  const cli = loggedCliFromCards(cards)
+  if (cli !== undefined) return safeAiAccountLabel(ENGINE_ACCOUNT_NAMES[cli])
+  const dsh = cards.find(card => card.kind === 'dsh' && card.loggedIn && card.available)
+  return dsh === undefined ? undefined : safeAiAccountLabel(ENGINE_ACCOUNT_NAMES.dsh)
 }
 
 /** The quota a MEMBER reads: the same windows, with no account id, no account label and no vendor detail. */
@@ -10298,4 +11347,26 @@ function sleep(ms: number, signal: AbortSignal): Promise<void> {
     }
     signal.addEventListener('abort', onAbort, { once: true })
   })
+}
+
+function saveMergedStationState(dataRoot: string, state: StationState): void {
+  const disk = loadStationState(dataRoot)
+  const team = disk.team ?? state.team
+  saveStationState(dataRoot, team === undefined ? state : { ...state, team })
+}
+
+function bootStationState(dataRoot: string, now: number): StationState {
+  const loaded = loadStationState(dataRoot)
+  if (!loaded.paired || !loaded.running) return loaded
+  const plan = planLaunch(loaded, now)
+  const booted: StationState = {
+    paired: loaded.paired,
+    running: loaded.running,
+    ...(plan.next.crashes > 0 ? { crashes: plan.next.crashes } : {}),
+    lastStartAt: plan.next.lastStartAt,
+    ...(loaded.pausedBy === undefined ? {} : { pausedBy: loaded.pausedBy }),
+    ...(loaded.team === undefined ? {} : { team: loaded.team }),
+  }
+  saveStationState(dataRoot, booted)
+  return booted
 }

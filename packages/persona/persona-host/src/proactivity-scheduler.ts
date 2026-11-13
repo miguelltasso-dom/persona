@@ -40,6 +40,7 @@ import type {
 import type { HouseRules } from './house-rules.ts'
 import { MORNING_ROUTINE_PREFIX } from './morning-brief-host.ts'
 import type { ProactivityHost } from './proactivity.ts'
+import type { LeadBudget } from './project-lead.ts'
 import { inSilence } from './proactivity.ts'
 import { EVENT_DOC_KIND, EVENT_RRULE, isEventRunId, type RoutineEventDoc, type RoutineTrigger } from './routine-events.ts'
 import { nextOccurrence, occurrencesBetween, RruleError, zonedParts } from './rrule-lite.ts'
@@ -153,6 +154,11 @@ export interface SchedulerDeps {
    * what is held stays due and goes when the window ends. Absent ⇒ no window.
    */
   readonly houseRules?: Pick<HouseRules, 'hold' | 'quietNow'>
+  /**
+   * Marco M2: the responsible's loop. Stepped ONCE per project per cycle, right after the pull (a paused team and a missing engine never reach it: the scheduler already said why; the quiet window does, and the loop
+   * writes its own hold). It receives the persona's own daily budget (the same count the routines and the pull spend). A loop that throws never breaks the cycle. Absent ⇒ no loop.
+   */
+  readonly lead?: { step(projectId: string, budget: LeadBudget): void }
 }
 
 /** Timer pair; the handle is opaque to the scheduler. */
@@ -445,6 +451,7 @@ export class ProactivityScheduler {
     }
     this.retryFailed(projectId, personas, nowIso, tally)
     this.pull(projectId, personas, nowIso, tally)
+    this.stepLead(projectId, personas, nowIso)
     const sentQueued = deps.flushQueues?.(projectId) ?? 0
     if (sentQueued > 0) {
       this.audit(projectId, 'sched:queue_sent', projectId, `Enviei ${String(sentQueued)} mensagem(ns) que estavam na fila.`, nowIso)
@@ -750,6 +757,24 @@ export class ProactivityScheduler {
         })
         .finally(() => { this.drives.delete(ticket.id) })
       this.drives.set(ticket.id, drive)
+    }
+  }
+
+  /** Marco M2: one step of the responsible's loop, on the persona's own daily budget; whatever it does, the rest of the cycle goes on. */
+  private stepLead(projectId: string, personas: readonly StoredPersona[], nowIso: string): void {
+    const { deps } = this
+    if (deps.lead === undefined) return
+    const budget: LeadBudget = {
+      may: (personaId) => {
+        const persona = personas.find(item => item.id === personaId)
+        return persona !== undefined && this.mayStartModel(projectId, persona, deps.proactivity.getAutonomy(projectId, persona.id), nowIso)
+      },
+      spend: (personaId) => { this.spend(projectId, personaId, nowIso) },
+    }
+    try {
+      deps.lead.step(projectId, budget)
+    } catch (error: unknown) {
+      this.remember(error)
     }
   }
 

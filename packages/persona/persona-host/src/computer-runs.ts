@@ -269,7 +269,7 @@ export class ComputerRuns {
    * @param deviceBack - The phone is watching again (stream reconnected, session rechecked).
    * @returns The run, or why not (`pc-only`).
    */
-  resume(runId: string, from: RunVia, deviceBack = false): { readonly ok: true; readonly run: ComputerRun } | { readonly ok: false; readonly reason: string } {
+  resume(runId: string, from: RunVia, deviceBack: boolean = false): { readonly ok: true; readonly run: ComputerRun } | { readonly ok: false; readonly reason: string } {
     const run = this.runs.get(runId)
     if (run === undefined || run.state !== 'pausada') return { ok: false, reason: 'run-not-paused' }
     if (from === 'phone' && (run.paused !== 'celular' || !deviceBack)) return { ok: false, reason: 'pc-only' }
